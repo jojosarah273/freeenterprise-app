@@ -17,7 +17,9 @@ currently-working app (v0.4.0 = "functional base").
 `font_ff4.ttf` → **"Final Fantasy IV Regular"** — 99 glyphs, complete
 `A–Z`, `a–z`, `0–9`, and punctuation, unitsPerEm 2048. So we can render normal
 mixed-case UI text in the genuine game font (no need to force uppercase).
-Staged at `app/src/main/assets/fonts/ff4.ttf`.
+Staged at `app/src/main/assets/fonts/ff4.ttf`. This is a **reproduction**
+(not a game rip), made by the FontStruct user `gameboyf9`; the cursor sprite
+(`ff4/pointer.png`) is hand-made for this project. See `THIRD_PARTY_NOTICES.md`.
 
 ### 1.2 The authentic window palette
 Decoded `FF4_ASMTOC/data/graphics/window_pal.bin` (SNES BGR555):

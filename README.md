@@ -235,10 +235,12 @@ The engine is verified from the host without an emulator. The useful tricks:
 ## Legal
 
 The app contains **no game ROM**, downloads nothing and requests no internet
-permission. It bundles Free Enterprise (MIT), the Snes9x core, and two
-game-ripped art assets (the font and the cursor sprite). **Read
-`THIRD_PARTY_NOTICES.md` before distributing** — the artwork in particular is not
-covered by the software licences.
+permission. It bundles Free Enterprise (MIT), the Snes9x core, and two art
+assets that are **reproductions rather than game rips**: the cursor sprite is
+hand-made here (MIT), while the font is a FontStruct reproduction by
+**`gameboyf9`** and stays under that creator's own terms. **Read
+`THIRD_PARTY_NOTICES.md` before distributing** — the font in particular is not
+covered by this project's licence.
 
 ## Roadmap
 
