@@ -37,8 +37,9 @@ single project licence; the components are licensed separately as below.
 
 ## Artwork
 
-Both art assets are **reproductions**, not files extracted from the game. They
-are recreations of the game's visual style made independently.
+Both art assets are **reproductions**, not files extracted from the game —
+independently recreated in the game's visual style — and both are freely
+redistributable.
 
 ### Cursor sprite — `app/src/main/assets/ff4/pointer.png`
 
@@ -48,26 +49,16 @@ are recreations of the game's visual style made independently.
 
 ### Font — `app/src/main/assets/fonts/ff4.ttf`
 
-- **Reproduced by the FontStruct user `gameboyf9`** and published on
-  https://fontstruct.com — a recreation of Final Fantasy IV's in-game typeface.
+- A reproduction of Final Fantasy IV's in-game typeface by the FontStruct user
+  **`gameboyf9`** (https://fontstruct.com).
+- Licence: **CC0 1.0 Universal — Public Domain Dedication**
+  (https://creativecommons.org/publicdomain/zero/1.0/).
 - Source art kept at `design_assets/font_ff4.ttf`.
-- **Not covered by this project's MIT licence**, and it cannot be: per
-  FontStruct's terms, *"the FontStructions that are created and/or made
-  available on this Site are the copyrighted work, as the case may be, of the
-  respective creator"*, and FontStruct itself grants no rights. Copyright
-  remains with the creator, and use is governed by the licence that creator
-  selected for that FontStruction on FontStruct.
 
-> **Action item before any public release:** confirm the licence chosen for this
-> specific FontStruction on its FontStruct page (FontStruct fonts range from
-> public-domain/CC variants to all-rights-reserved, and some forbid commercial
-> use), record it here with a link, and keep the attribution to `gameboyf9`.
-> If it turns out to be restrictive, the pragmatic alternatives are to ask the
-> creator for permission, or to swap in a freely-licensed pixel font — the UI
-> only depends on the file's name and a monospaced-ish pixel look, so nothing
-> else has to change (see `DESIGN_FF4_UI.md` §2 for the design tokens).
-
----
+CC0 imposes **no obligations**: no attribution is required, commercial use is
+permitted, and there is no share-alike condition, so the font sits happily
+inside this MIT-licensed project. The credit to `gameboyf9` above is a courtesy,
+not a requirement.
 
 ## Trademarks
 

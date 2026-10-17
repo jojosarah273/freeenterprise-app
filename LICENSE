@@ -25,7 +25,10 @@ SOFTWARE.
 The MIT licence above covers this project's own code and the hand-made cursor
 sprite (design_assets/POINTER.png -> app/src/main/assets/ff4/pointer.png).
 
-It does NOT cover the bundled third-party software (Free Enterprise, Snes9x,
-pyaes, Lark) nor the font reproduction (design_assets/font_ff4.ttf ->
-app/src/main/assets/fonts/ff4.ttf), which is the work of the FontStruct user
-"gameboyf9" and remains under that creator's terms. See THIRD_PARTY_NOTICES.md.
+The bundled font (design_assets/font_ff4.ttf -> app/src/main/assets/fonts/
+ff4.ttf) is a reproduction by the FontStruct user "gameboyf9" released under
+CC0 1.0 (public domain dedication) — no obligations attach to it; the credit is
+a courtesy.
+
+Bundled third-party software (Free Enterprise, Snes9x, pyaes, Lark) keeps its
+own licences. See THIRD_PARTY_NOTICES.md.
