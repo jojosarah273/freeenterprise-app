@@ -1,0 +1,5 @@
+// patch Sing validity check to always succeed
+patch ($03a309 bus) { 60 }
+
+
+// change all characters' battle commands in update_abilities.py

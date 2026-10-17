@@ -1,0 +1,27 @@
+// force all weapons to be dartable
+msfpatch {
+    .addr $038AC7
+        jsl $=Wacky__DartableCheck
+
+    .addr $038AD8
+        nop nop // blank out the operations that normally store dart bit
+
+    .new
+    Wacky__DartableCheck:
+        // A still contains item ID
+        cmp #$19  // Legend Sword
+        beq $+NotDartable
+
+        // force dart
+        lda #$08
+        sta $c7
+
+    %NotDartable:
+        // displaced instructions
+        lda #$0F
+        sta $82
+        rtl
+}
+
+//----------------------------------
+// Give everyone Dart in place of Fight in update_abilities.py

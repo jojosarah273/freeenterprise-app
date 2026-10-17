@@ -1,0 +1,25 @@
+// hack to make Cecil show up as a Paladin
+// in the pre-game menu and on empty save slots
+// when he's the starting character on Cpaladin
+// (DKC shows up because Cecil is only Paladinized
+// after you hit New Game)
+
+// plan is to sub out the DKC sprite when it appears
+msfpatch{
+    .addr $018dbf
+        jsl $=SubstitutePaladinSprite
+        nop
+
+    .new
+    SubstitutePaladinSprite:
+        // load the sprite class/job, check if it's $00 (DKC)
+        lda $0001,x
+        cmp #$00
+        bne $+NoSub
+        // Paladin Cecil's job/sprite class is #$09
+        lda #$09
+    %NoSub:
+        // store, return
+        sta $5c
+        rtl
+}

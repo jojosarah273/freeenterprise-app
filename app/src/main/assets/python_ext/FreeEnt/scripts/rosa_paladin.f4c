@@ -1,0 +1,62 @@
+// effectively, swap Rosa and Cecil jobs but not stats
+// swap weapons, but not armour
+
+// all equipment changes happen in update_equipment.py
+
+// swap Rosa and Cecil's spellsets, in the menu and in battle
+
+patch($13fdec bus) { 00 ff ff }
+patch($13fdf8 bus) { 07 ff ff }
+patch($14ffb1 bus) { 00 ff ff }
+patch($14ffbd bus) { 07 ff ff }
+
+// do command changes for Cecil and Rosa in update_abilities.py
+
+// handle spellset changes; Cecil needs Exit, which we'll put at his usual level,
+// and Rosa cannot learn Exit (conveniently, Rosa should have Exit automatically
+// placed in the correct spellset, even if it's not her normal spellset)
+// all changes happen in update_spells.py
+
+
+// swap Pally Cecil's and Rosa's class names
+
+patch($0fa787 bus) {51 5C 67 5C 5F 64 69}
+patch($0fa7a3 bus) {58 63 C1 58 64 75 FF}
+
+// change the Ordeals class-change text, depending
+// dupes/no dupes (this *should* override mtordeals.f4c)
+
+// %flag characters_no_duplicates on%
+text(bank 1 message $CB) {
+[Cecil] is already a 
+White Wizard!
+}
+
+text(bank 1 message $CD) {
+[Cecil] became a White
+Wizard!
+}
+
+text(bank 1 message $CC) {
+[Cecil] became a White
+Wizard, wherever he is!
+}
+// %end%
+
+// %flag characters_no_duplicates off%
+text(bank 1 message $CB) {
+All [Cecil]s are already 
+White Wizards!
+}
+
+text(bank 1 message $CD) {
+All [Cecil]s became
+White Wizards!
+}
+
+text(bank 1 message $CC) {
+All [Cecil]s became
+White Wizards, wherever
+they are!
+}
+// %end%

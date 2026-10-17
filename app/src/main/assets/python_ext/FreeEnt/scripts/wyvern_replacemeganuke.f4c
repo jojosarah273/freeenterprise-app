@@ -1,0 +1,19 @@
+// change MegaNuke in Wyvern
+ai_script(moon $25)
+{
+    // %wyvern meganuke replacement%
+    // %end%
+
+    pass
+
+    pass
+
+    condition 1
+    target self
+    use #Wall
+}
+
+
+// Enemy Odin command doesn't change sprites if in Wyvern battle
+// handle in odin_sprite_patch.f4c, since Zeromus can
+// now cast Odin as well

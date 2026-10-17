@@ -1,0 +1,58 @@
+// Goal: Change Paladin Cecil into "Dark Paladin" Cecil,
+// somewhat similar to what Unprecedented Crisis does
+// to make DKC endgame viable
+
+// some aspects of the change are done in character_rando.py 
+// to make use of better tools
+
+// Change the class name (7 chars) to "DPaladn"
+patch ($0FA7A3 bus) { 45 51 5C 67 5C 5F 69 }
+
+// We'll let Cecil keep the same sprite class and see what happens
+
+// assign default equipment;
+// commands are assigned in update_abilities.py
+actor(#PCecil)
+{
+    right hand #Ancient
+    left hand #NoWeapon
+    head #NoWeapon
+    body #PaladinArmor
+    arms #NoWeapon
+}
+
+// handle spellsets in update_spells.py
+
+// assign this spell set to "Black" instead of "White"
+patch ($13fdf8 bus) { FF 00 FF }
+patch ($14ffbd bus) { FF 00 FF }
+
+// update equipment names
+text(item name #PaladinShield) {[shield]Ancient}
+text(item name #PaladinHelm) {[helmet]Ancient}
+text(item name #PaladinArmor) {[armor]Ancient}
+text(item name #PaladinGauntlet) {[gauntlet]Ancient}
+text(item name #CrystalShield) {[shield]Hades}
+text(item name #CrystalHelm) {[helmet]Hades}
+text(item name #CrystalArmor) {[armor]Hades}
+text(item name #CrystalGauntlet) {[gauntlet]Hades}
+text(item name #Ancient) {[darksword]Ancient}
+text(item name #Light) {[darksword]Chaos}
+text(item name #CrystalSword) {[darksword]Hades}
+
+// let Dark Paladin Cecil equip all of DKC's gear by 
+// expanding the "only equippable by DKC" class;
+// change Ancient Sword to be only equippable by Cecil
+// changes happen in update_equipment.py
+
+// attack powers/elements/trait properties are updated
+// in update_equipment.py
+
+// stats changes to Light/Chaos and Crystal/Hades and all of 
+// the two sets of armour depend on the whatsmygear wacky, 
+// so handle in character_rando.py
+
+// also handle item description overrides in generator.py
+
+// handle all initial/level-up stats patching in
+// character_rando.py, for sanity/ease of arithmetic/loops

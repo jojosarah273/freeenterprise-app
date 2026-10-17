@@ -1,0 +1,118 @@
+actor(#DKCecil) {
+    commands {
+        #Fight
+        #DarkWave
+        #Item
+    }
+}
+
+actor(#Tellah1) {
+    commands {
+        #Fight
+        #White
+        #Black
+        #Recall
+        #Item
+    }
+}
+
+actor(#Tellah2) {
+    commands {
+        #Fight
+        #White
+        #Black
+        #Recall
+        #Item
+    }
+}
+
+actor(#Edward) {
+    commands {
+        #Fight
+        #Sing
+        #Hide
+        #Medicine
+        #Item
+    }
+}
+
+actor(#Rosa1) {
+    commands {
+        #Fight
+        #White
+        // %flag rosapaladin on%
+        #Cover
+        // %end%
+        // %flag rosapaladin off%
+        #Aim
+        #Pray
+        // %end%
+        #Item
+    }
+}
+
+actor(#Rosa2) {
+    commands {
+        #Fight
+        #White
+        // %flag rosapaladin on%
+        #Cover
+        // %end%
+        // %flag rosapaladin off%
+        #Aim
+        #Pray
+        // %end%
+        #Item
+    }
+}
+
+actor(#Yang1) {
+    commands {
+        #Fight
+        #Kick
+        #Focus
+        #Fortify
+        #Item
+    }
+}
+
+actor(#Yang2) {
+    commands {
+        #Fight
+        #Kick
+        #Focus
+        #Fortify
+        #Item
+    }
+}
+
+actor(#Palom) {
+    commands {
+        #Fight
+        #Black
+        #Twin
+        #Bluff
+        #Item
+    }
+}
+
+actor(#Porom) {
+    commands {
+        #Fight
+        #White
+        #Twin
+        #Cry
+        #Item
+    }
+}
+
+actor(#Fusoya) {
+    commands {
+        #Fight
+        #White
+        #Black
+        #Regen
+        #Item
+    }
+}
+

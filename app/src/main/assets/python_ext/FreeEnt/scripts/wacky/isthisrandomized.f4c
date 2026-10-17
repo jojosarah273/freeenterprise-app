@@ -1,0 +1,47 @@
+msfpatch {
+    // regular physical and magical damage
+    .addr $03ca4c
+        jsl $=Wacky__IsThisRandomized_DoRounding
+
+    // Dart
+    .addr $03e3b4
+        jsl $=Wacky__IsThisRandomized_DoRounding
+        nop nop nop nop
+
+    // Kick/Dark Wave is handled in dark_wave_damage.f4c
+    // Raid is handled in cidairship.f4c
+
+    .new
+    Wacky__IsThisRandomized_DoRounding:
+        // X contains damage
+        cpx #$012c  // 300
+        bcc $+RoundTo100
+        cpx #$02ee  // 750
+        bcc $+RoundTo500
+        cpx #$05dc  // 1500
+        bcc $+RoundTo1000
+        cpx #$0dac  // 3500
+        bcc $+RoundTo2000
+        bra $+RoundTo5000
+        //cpx #$1d4c  // 7500
+        //bcc $+RoundTo5000
+        //ldx #$270f  // 9999
+    %Return:
+        stx $a4
+        rtl
+    %RoundTo100:
+        ldx #$0064
+        bra $-Return
+    %RoundTo500:
+        ldx #$01f4
+        bra $-Return
+    %RoundTo1000:
+        ldx #$03e8
+        bra $-Return
+    %RoundTo2000:
+        ldx #$07d0
+        bra $-Return
+    %RoundTo5000:
+        ldx #$1388
+        bra $-Return
+}

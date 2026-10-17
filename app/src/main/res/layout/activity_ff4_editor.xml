@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:orientation="vertical"
+    android:padding="6dp">
+
+    <com.freeenterprise.app.ff4ui.FF4Window
+        android:id="@+id/ff4EditorStatusWindow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/ff4EditorFlags"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/ff4EditorValidity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#00A400" />
+        </LinearLayout>
+    </com.freeenterprise.app.ff4ui.FF4Window>
+
+    <com.freeenterprise.app.ff4ui.FF4Window
+        android:id="@+id/ff4EditorWindow"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="6dp">
+
+        <ScrollView
+            android:id="@+id/ff4EditorScroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scrollbars="none">
+
+            <com.freeenterprise.app.ff4ui.FF4Menu
+                android:id="@+id/ff4EditorMenu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </ScrollView>
+    </com.freeenterprise.app.ff4ui.FF4Window>
+
+    <com.freeenterprise.app.ff4ui.FF4Window
+        android:id="@+id/ff4EditorHintWindow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp">
+
+        <TextView
+            android:id="@+id/ff4EditorHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="3"
+            android:ellipsize="end"
+            android:textColor="#FFFFFF" />
+    </com.freeenterprise.app.ff4ui.FF4Window>
+
+</LinearLayout>

@@ -1,0 +1,36 @@
+# Build output
+build/
+app/build/
+.gradle/
+.kotlin/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Local machine configuration (contains an absolute SDK path)
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+captures/
+
+# Native build intermediates (ndk-build output)
+app/src/main/cpp/libs/
+app/src/main/cpp/obj/
+app/src/main/cpp/.externalNativeBuild/
+
+# Python bytecode caches (the engine is extracted at runtime; never commit these)
+__pycache__/
+*.pyc
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Scratch
+*.log
+/tmp/

@@ -1,0 +1,492 @@
+----- SPEC
+
+Onone
+Omode:classicforge 
+Omode:classicgiant
+Omode:fiends
+Omode:dkmatter5/Omode:dkmatter10/Omode:dkmatter15/Omode:dkmatter20/Omode:dkmatter25/Omode:dkmatter30/Omode:dkmatter35/Omode:dkmatter40/Omode:dkmatter45
+Omode:ki1/Omode:ki2/Omode:ki3/Omode:ki4/Omode:ki5/Omode:ki6/Omode:ki7/Omode:ki8/Omode:ki9/Omode:ki10/Omode:ki11/Omode:ki12/Omode:ki13/Omode:ki14/Omode:ki15/Omode:ki16/Omode:ki17
+Omode:bosscollector1/Omode:bosscollector2/Omode:bosscollector3/Omode:bosscollector4/Omode:bosscollector5/Omode:bosscollector6/Omode:bosscollector7/Omode:bosscollector8/Omode:bosscollector9/Omode:bosscollector10/Omode:bosscollector15/Omode:bosscollector20/Omode:bosscollector25/Omode:bosscollector30/Omode:bosscollector34
+Omode:goldhunter100/Omode:goldhunter250/Omode:goldhunter500/Omode:goldhunter750/Omode:goldhunter1000
+Omode:external
+# BEGIN_AUTO_OBJECTIVES
+O1:char_cecil/O1:char_kain/O1:char_rydia/O1:char_tellah/O1:char_edward/O1:char_rosa/O1:char_yang/O1:char_palom/O1:char_porom/O1:char_cid/O1:char_edge/O1:char_fusoya/O1:boss_dmist/O1:boss_officer/O1:boss_octomamm/O1:boss_antlion/O1:boss_waterhag/O1:boss_mombomb/O1:boss_fabulgauntlet/O1:boss_milon/O1:boss_milonz/O1:boss_mirrorcecil/O1:boss_guard/O1:boss_karate/O1:boss_baigan/O1:boss_kainazzo/O1:boss_darkelf/O1:boss_magus/O1:boss_valvalis/O1:boss_calbrena/O1:boss_golbez/O1:boss_lugae/O1:boss_darkimp/O1:boss_kingqueen/O1:boss_rubicant/O1:boss_evilwall/O1:boss_asura/O1:boss_leviatan/O1:boss_odin/O1:boss_bahamut/O1:boss_elements/O1:boss_cpu/O1:boss_paledim/O1:boss_wyvern/O1:boss_plague/O1:boss_dlunar/O1:boss_ogopogo/O1:quest_mistcave/O1:quest_waterfall/O1:quest_antlionnest/O1:quest_hobs/O1:quest_fabul/O1:quest_ordeals/O1:quest_baroninn/O1:quest_baroncastle/O1:quest_magnes/O1:quest_zot/O1:quest_dwarfcastle/O1:quest_lowerbabil/O1:quest_falcon/O1:quest_sealedcave/O1:quest_monsterqueen/O1:quest_monsterking/O1:quest_baronbasement/O1:quest_giant/O1:quest_cavebahamut/O1:quest_murasamealtar/O1:quest_crystalaltar/O1:quest_whitealtar/O1:quest_ribbonaltar/O1:quest_masamunealtar/O1:quest_burnmist/O1:quest_curefever/O1:quest_unlocksewer/O1:quest_music/O1:quest_toroiatreasury/O1:quest_magma/O1:quest_supercannon/O1:quest_unlocksealedcave/O1:quest_bigwhale/O1:quest_traderat/O1:quest_forge/O1:quest_wakeyang/O1:quest_tradepan/O1:quest_tradepink/O1:quest_pass
+O2:char_cecil/O2:char_kain/O2:char_rydia/O2:char_tellah/O2:char_edward/O2:char_rosa/O2:char_yang/O2:char_palom/O2:char_porom/O2:char_cid/O2:char_edge/O2:char_fusoya/O2:boss_dmist/O2:boss_officer/O2:boss_octomamm/O2:boss_antlion/O2:boss_waterhag/O2:boss_mombomb/O2:boss_fabulgauntlet/O2:boss_milon/O2:boss_milonz/O2:boss_mirrorcecil/O2:boss_guard/O2:boss_karate/O2:boss_baigan/O2:boss_kainazzo/O2:boss_darkelf/O2:boss_magus/O2:boss_valvalis/O2:boss_calbrena/O2:boss_golbez/O2:boss_lugae/O2:boss_darkimp/O2:boss_kingqueen/O2:boss_rubicant/O2:boss_evilwall/O2:boss_asura/O2:boss_leviatan/O2:boss_odin/O2:boss_bahamut/O2:boss_elements/O2:boss_cpu/O2:boss_paledim/O2:boss_wyvern/O2:boss_plague/O2:boss_dlunar/O2:boss_ogopogo/O2:quest_mistcave/O2:quest_waterfall/O2:quest_antlionnest/O2:quest_hobs/O2:quest_fabul/O2:quest_ordeals/O2:quest_baroninn/O2:quest_baroncastle/O2:quest_magnes/O2:quest_zot/O2:quest_dwarfcastle/O2:quest_lowerbabil/O2:quest_falcon/O2:quest_sealedcave/O2:quest_monsterqueen/O2:quest_monsterking/O2:quest_baronbasement/O2:quest_giant/O2:quest_cavebahamut/O2:quest_murasamealtar/O2:quest_crystalaltar/O2:quest_whitealtar/O2:quest_ribbonaltar/O2:quest_masamunealtar/O2:quest_burnmist/O2:quest_curefever/O2:quest_unlocksewer/O2:quest_music/O2:quest_toroiatreasury/O2:quest_magma/O2:quest_supercannon/O2:quest_unlocksealedcave/O2:quest_bigwhale/O2:quest_traderat/O2:quest_forge/O2:quest_wakeyang/O2:quest_tradepan/O2:quest_tradepink/O2:quest_pass
+O3:char_cecil/O3:char_kain/O3:char_rydia/O3:char_tellah/O3:char_edward/O3:char_rosa/O3:char_yang/O3:char_palom/O3:char_porom/O3:char_cid/O3:char_edge/O3:char_fusoya/O3:boss_dmist/O3:boss_officer/O3:boss_octomamm/O3:boss_antlion/O3:boss_waterhag/O3:boss_mombomb/O3:boss_fabulgauntlet/O3:boss_milon/O3:boss_milonz/O3:boss_mirrorcecil/O3:boss_guard/O3:boss_karate/O3:boss_baigan/O3:boss_kainazzo/O3:boss_darkelf/O3:boss_magus/O3:boss_valvalis/O3:boss_calbrena/O3:boss_golbez/O3:boss_lugae/O3:boss_darkimp/O3:boss_kingqueen/O3:boss_rubicant/O3:boss_evilwall/O3:boss_asura/O3:boss_leviatan/O3:boss_odin/O3:boss_bahamut/O3:boss_elements/O3:boss_cpu/O3:boss_paledim/O3:boss_wyvern/O3:boss_plague/O3:boss_dlunar/O3:boss_ogopogo/O3:quest_mistcave/O3:quest_waterfall/O3:quest_antlionnest/O3:quest_hobs/O3:quest_fabul/O3:quest_ordeals/O3:quest_baroninn/O3:quest_baroncastle/O3:quest_magnes/O3:quest_zot/O3:quest_dwarfcastle/O3:quest_lowerbabil/O3:quest_falcon/O3:quest_sealedcave/O3:quest_monsterqueen/O3:quest_monsterking/O3:quest_baronbasement/O3:quest_giant/O3:quest_cavebahamut/O3:quest_murasamealtar/O3:quest_crystalaltar/O3:quest_whitealtar/O3:quest_ribbonaltar/O3:quest_masamunealtar/O3:quest_burnmist/O3:quest_curefever/O3:quest_unlocksewer/O3:quest_music/O3:quest_toroiatreasury/O3:quest_magma/O3:quest_supercannon/O3:quest_unlocksealedcave/O3:quest_bigwhale/O3:quest_traderat/O3:quest_forge/O3:quest_wakeyang/O3:quest_tradepan/O3:quest_tradepink/O3:quest_pass
+O4:char_cecil/O4:char_kain/O4:char_rydia/O4:char_tellah/O4:char_edward/O4:char_rosa/O4:char_yang/O4:char_palom/O4:char_porom/O4:char_cid/O4:char_edge/O4:char_fusoya/O4:boss_dmist/O4:boss_officer/O4:boss_octomamm/O4:boss_antlion/O4:boss_waterhag/O4:boss_mombomb/O4:boss_fabulgauntlet/O4:boss_milon/O4:boss_milonz/O4:boss_mirrorcecil/O4:boss_guard/O4:boss_karate/O4:boss_baigan/O4:boss_kainazzo/O4:boss_darkelf/O4:boss_magus/O4:boss_valvalis/O4:boss_calbrena/O4:boss_golbez/O4:boss_lugae/O4:boss_darkimp/O4:boss_kingqueen/O4:boss_rubicant/O4:boss_evilwall/O4:boss_asura/O4:boss_leviatan/O4:boss_odin/O4:boss_bahamut/O4:boss_elements/O4:boss_cpu/O4:boss_paledim/O4:boss_wyvern/O4:boss_plague/O4:boss_dlunar/O4:boss_ogopogo/O4:quest_mistcave/O4:quest_waterfall/O4:quest_antlionnest/O4:quest_hobs/O4:quest_fabul/O4:quest_ordeals/O4:quest_baroninn/O4:quest_baroncastle/O4:quest_magnes/O4:quest_zot/O4:quest_dwarfcastle/O4:quest_lowerbabil/O4:quest_falcon/O4:quest_sealedcave/O4:quest_monsterqueen/O4:quest_monsterking/O4:quest_baronbasement/O4:quest_giant/O4:quest_cavebahamut/O4:quest_murasamealtar/O4:quest_crystalaltar/O4:quest_whitealtar/O4:quest_ribbonaltar/O4:quest_masamunealtar/O4:quest_burnmist/O4:quest_curefever/O4:quest_unlocksewer/O4:quest_music/O4:quest_toroiatreasury/O4:quest_magma/O4:quest_supercannon/O4:quest_unlocksealedcave/O4:quest_bigwhale/O4:quest_traderat/O4:quest_forge/O4:quest_wakeyang/O4:quest_tradepan/O4:quest_tradepink/O4:quest_pass
+O5:char_cecil/O5:char_kain/O5:char_rydia/O5:char_tellah/O5:char_edward/O5:char_rosa/O5:char_yang/O5:char_palom/O5:char_porom/O5:char_cid/O5:char_edge/O5:char_fusoya/O5:boss_dmist/O5:boss_officer/O5:boss_octomamm/O5:boss_antlion/O5:boss_waterhag/O5:boss_mombomb/O5:boss_fabulgauntlet/O5:boss_milon/O5:boss_milonz/O5:boss_mirrorcecil/O5:boss_guard/O5:boss_karate/O5:boss_baigan/O5:boss_kainazzo/O5:boss_darkelf/O5:boss_magus/O5:boss_valvalis/O5:boss_calbrena/O5:boss_golbez/O5:boss_lugae/O5:boss_darkimp/O5:boss_kingqueen/O5:boss_rubicant/O5:boss_evilwall/O5:boss_asura/O5:boss_leviatan/O5:boss_odin/O5:boss_bahamut/O5:boss_elements/O5:boss_cpu/O5:boss_paledim/O5:boss_wyvern/O5:boss_plague/O5:boss_dlunar/O5:boss_ogopogo/O5:quest_mistcave/O5:quest_waterfall/O5:quest_antlionnest/O5:quest_hobs/O5:quest_fabul/O5:quest_ordeals/O5:quest_baroninn/O5:quest_baroncastle/O5:quest_magnes/O5:quest_zot/O5:quest_dwarfcastle/O5:quest_lowerbabil/O5:quest_falcon/O5:quest_sealedcave/O5:quest_monsterqueen/O5:quest_monsterking/O5:quest_baronbasement/O5:quest_giant/O5:quest_cavebahamut/O5:quest_murasamealtar/O5:quest_crystalaltar/O5:quest_whitealtar/O5:quest_ribbonaltar/O5:quest_masamunealtar/O5:quest_burnmist/O5:quest_curefever/O5:quest_unlocksewer/O5:quest_music/O5:quest_toroiatreasury/O5:quest_magma/O5:quest_supercannon/O5:quest_unlocksealedcave/O5:quest_bigwhale/O5:quest_traderat/O5:quest_forge/O5:quest_wakeyang/O5:quest_tradepan/O5:quest_tradepink/O5:quest_pass
+O6:char_cecil/O6:char_kain/O6:char_rydia/O6:char_tellah/O6:char_edward/O6:char_rosa/O6:char_yang/O6:char_palom/O6:char_porom/O6:char_cid/O6:char_edge/O6:char_fusoya/O6:boss_dmist/O6:boss_officer/O6:boss_octomamm/O6:boss_antlion/O6:boss_waterhag/O6:boss_mombomb/O6:boss_fabulgauntlet/O6:boss_milon/O6:boss_milonz/O6:boss_mirrorcecil/O6:boss_guard/O6:boss_karate/O6:boss_baigan/O6:boss_kainazzo/O6:boss_darkelf/O6:boss_magus/O6:boss_valvalis/O6:boss_calbrena/O6:boss_golbez/O6:boss_lugae/O6:boss_darkimp/O6:boss_kingqueen/O6:boss_rubicant/O6:boss_evilwall/O6:boss_asura/O6:boss_leviatan/O6:boss_odin/O6:boss_bahamut/O6:boss_elements/O6:boss_cpu/O6:boss_paledim/O6:boss_wyvern/O6:boss_plague/O6:boss_dlunar/O6:boss_ogopogo/O6:quest_mistcave/O6:quest_waterfall/O6:quest_antlionnest/O6:quest_hobs/O6:quest_fabul/O6:quest_ordeals/O6:quest_baroninn/O6:quest_baroncastle/O6:quest_magnes/O6:quest_zot/O6:quest_dwarfcastle/O6:quest_lowerbabil/O6:quest_falcon/O6:quest_sealedcave/O6:quest_monsterqueen/O6:quest_monsterking/O6:quest_baronbasement/O6:quest_giant/O6:quest_cavebahamut/O6:quest_murasamealtar/O6:quest_crystalaltar/O6:quest_whitealtar/O6:quest_ribbonaltar/O6:quest_masamunealtar/O6:quest_burnmist/O6:quest_curefever/O6:quest_unlocksewer/O6:quest_music/O6:quest_toroiatreasury/O6:quest_magma/O6:quest_supercannon/O6:quest_unlocksealedcave/O6:quest_bigwhale/O6:quest_traderat/O6:quest_forge/O6:quest_wakeyang/O6:quest_tradepan/O6:quest_tradepink/O6:quest_pass
+O7:char_cecil/O7:char_kain/O7:char_rydia/O7:char_tellah/O7:char_edward/O7:char_rosa/O7:char_yang/O7:char_palom/O7:char_porom/O7:char_cid/O7:char_edge/O7:char_fusoya/O7:boss_dmist/O7:boss_officer/O7:boss_octomamm/O7:boss_antlion/O7:boss_waterhag/O7:boss_mombomb/O7:boss_fabulgauntlet/O7:boss_milon/O7:boss_milonz/O7:boss_mirrorcecil/O7:boss_guard/O7:boss_karate/O7:boss_baigan/O7:boss_kainazzo/O7:boss_darkelf/O7:boss_magus/O7:boss_valvalis/O7:boss_calbrena/O7:boss_golbez/O7:boss_lugae/O7:boss_darkimp/O7:boss_kingqueen/O7:boss_rubicant/O7:boss_evilwall/O7:boss_asura/O7:boss_leviatan/O7:boss_odin/O7:boss_bahamut/O7:boss_elements/O7:boss_cpu/O7:boss_paledim/O7:boss_wyvern/O7:boss_plague/O7:boss_dlunar/O7:boss_ogopogo/O7:quest_mistcave/O7:quest_waterfall/O7:quest_antlionnest/O7:quest_hobs/O7:quest_fabul/O7:quest_ordeals/O7:quest_baroninn/O7:quest_baroncastle/O7:quest_magnes/O7:quest_zot/O7:quest_dwarfcastle/O7:quest_lowerbabil/O7:quest_falcon/O7:quest_sealedcave/O7:quest_monsterqueen/O7:quest_monsterking/O7:quest_baronbasement/O7:quest_giant/O7:quest_cavebahamut/O7:quest_murasamealtar/O7:quest_crystalaltar/O7:quest_whitealtar/O7:quest_ribbonaltar/O7:quest_masamunealtar/O7:quest_burnmist/O7:quest_curefever/O7:quest_unlocksewer/O7:quest_music/O7:quest_toroiatreasury/O7:quest_magma/O7:quest_supercannon/O7:quest_unlocksealedcave/O7:quest_bigwhale/O7:quest_traderat/O7:quest_forge/O7:quest_wakeyang/O7:quest_tradepan/O7:quest_tradepink/O7:quest_pass
+O8:char_cecil/O8:char_kain/O8:char_rydia/O8:char_tellah/O8:char_edward/O8:char_rosa/O8:char_yang/O8:char_palom/O8:char_porom/O8:char_cid/O8:char_edge/O8:char_fusoya/O8:boss_dmist/O8:boss_officer/O8:boss_octomamm/O8:boss_antlion/O8:boss_waterhag/O8:boss_mombomb/O8:boss_fabulgauntlet/O8:boss_milon/O8:boss_milonz/O8:boss_mirrorcecil/O8:boss_guard/O8:boss_karate/O8:boss_baigan/O8:boss_kainazzo/O8:boss_darkelf/O8:boss_magus/O8:boss_valvalis/O8:boss_calbrena/O8:boss_golbez/O8:boss_lugae/O8:boss_darkimp/O8:boss_kingqueen/O8:boss_rubicant/O8:boss_evilwall/O8:boss_asura/O8:boss_leviatan/O8:boss_odin/O8:boss_bahamut/O8:boss_elements/O8:boss_cpu/O8:boss_paledim/O8:boss_wyvern/O8:boss_plague/O8:boss_dlunar/O8:boss_ogopogo/O8:quest_mistcave/O8:quest_waterfall/O8:quest_antlionnest/O8:quest_hobs/O8:quest_fabul/O8:quest_ordeals/O8:quest_baroninn/O8:quest_baroncastle/O8:quest_magnes/O8:quest_zot/O8:quest_dwarfcastle/O8:quest_lowerbabil/O8:quest_falcon/O8:quest_sealedcave/O8:quest_monsterqueen/O8:quest_monsterking/O8:quest_baronbasement/O8:quest_giant/O8:quest_cavebahamut/O8:quest_murasamealtar/O8:quest_crystalaltar/O8:quest_whitealtar/O8:quest_ribbonaltar/O8:quest_masamunealtar/O8:quest_burnmist/O8:quest_curefever/O8:quest_unlocksewer/O8:quest_music/O8:quest_toroiatreasury/O8:quest_magma/O8:quest_supercannon/O8:quest_unlocksealedcave/O8:quest_bigwhale/O8:quest_traderat/O8:quest_forge/O8:quest_wakeyang/O8:quest_tradepan/O8:quest_tradepink/O8:quest_pass
+# END_AUTO_OBJECTIVES
+Orandom:1/Orandom:2/Orandom:3/Orandom:4/Orandom:5/Orandom:6/Orandom:7/Orandom:8 Orandom:quest/Orandom:tough_quest Orandom:boss Orandom:char 
+Orandom2:1/Orandom2:2/Orandom2:3/Orandom2:4/Orandom2:5/Orandom2:6/Orandom2:7/Orandom2:8 Orandom2:quest/Orandom2:tough_quest Orandom2:boss Orandom2:char
+Orandom3:1/Orandom3:2/Orandom3:3/Orandom3:4/Orandom3:5/Orandom3:6/Orandom3:7/Orandom3:8 Orandom3:quest/Orandom3:tough_quest Orandom3:boss Orandom3:char
+Orandom:onlycecil Orandom:onlykain Orandom:onlyrydia Orandom:onlytellah Orandom:onlyedward Orandom:onlyrosa Orandom:onlyyang Orandom:onlypalom Orandom:onlyporom Orandom:onlycid Orandom:onlyedge Orandom:onlyfusoya 
+Orandom2:onlycecil Orandom2:onlykain Orandom2:onlyrydia Orandom2:onlytellah Orandom2:onlyedward Orandom2:onlyrosa Orandom2:onlyyang Orandom2:onlypalom Orandom2:onlyporom Orandom2:onlycid Orandom2:onlyedge Orandom2:onlyfusoya 
+Orandom3:onlycecil Orandom3:onlykain Orandom3:onlyrydia Orandom3:onlytellah Orandom3:onlyedward Orandom3:onlyrosa Orandom3:onlyyang Orandom3:onlypalom Orandom3:onlyporom Orandom3:onlycid Orandom3:onlyedge Orandom3:onlyfusoya 
+Oreq:all/Oreq:1/Oreq:2/Oreq:3/Oreq:4/Oreq:5/Oreq:6/Oreq:7/Oreq:8/Oreq:9/Oreq:10/Oreq:11/Oreq:12/Oreq:13/Oreq:14/Oreq:15/Oreq:16/Oreq:17/Oreq:18/Oreq:19/Oreq:20/Oreq:21/Oreq:22/Oreq:23/Oreq:24/Oreq:25/Oreq:26/Oreq:27/Oreq:28/Oreq:29/Oreq:30/Oreq:31
+Ohardreq:1 Ohardreq:2 Ohardreq:3 Ohardreq:4 Ohardreq:5 Ohardreq:6 Ohardreq:7 Ohardreq:8 Ohardreq:9 Ohardreq:10 Ohardreq:11 Ohardreq:12 Ohardreq:13 Ohardreq:14 Ohardreq:15 Ohardreq:16 Ohardreq:17 Ohardreq:18
+Ogated:1/Ogated:2/Ogated:3/Ogated:4/Ogated:5/Ogated:6/Ogated:7/Ogated:8/Ogated:9/Ogated:10/Ogated:11/Ogated:12/Ogated:13/Ogated:14/Ogated:15/Ogated:16/Ogated:17/Ogated:18
+Owin:game/Owin:crystal
+Kvanilla Kmain Ksummon Kmoon Kmiab:standard Kmiab:above Kmiab:below Kmiab:lst Kmiab:all Kforge Kpink Knofree/Knofree:dwarf/Knofree:package Kunsafe/Kunsafer Kforce:magma/Kforce:hook Kunweighted Klatedark/Kunreliabledark
+Kstart:package/Kstart:sandruby/Kstart:baron/Kstart:twinharp/Kstart:earthcrystal/Kstart:magma/Kstart:tower/Kstart:hook/Kstart:luca/Kstart:darkness/Kstart:rat/Kstart:pan/Kstart:crystal/Kstart:legend/Kstart:adamant/Kstart:spoon/Kstart:pink/Kstart:pass/Kstart:zonk
+Pnone Pshop Pkey Pchests
+Cvanilla Cstandard/Crelaxed Cnofree Cnoearned Cmaybe Cnopartner
+Cdistinct:1/Cdistinct:2/Cdistinct:3/Cdistinct:4/Cdistinct:5/Cdistinct:6/Cdistinct:7/Cdistinct:8/Cdistinct:9/Cdistinct:10/Cdistinct:11
+Cstart:cecil Cstart:kain Cstart:rydia Cstart:tellah Cstart:edward Cstart:rosa Cstart:yang Cstart:palom Cstart:porom Cstart:cid Cstart:edge Cstart:fusoya Cstart:any
+Cstart:not_cecil Cstart:not_kain Cstart:not_rydia Cstart:not_tellah Cstart:not_edward Cstart:not_rosa Cstart:not_yang Cstart:not_palom Cstart:not_porom Cstart:not_cid Cstart:not_edge Cstart:not_fusoya
+Conly:cecil Conly:kain Conly:rydia Conly:tellah Conly:edward Conly:rosa Conly:yang Conly:palom Conly:porom Conly:cid Conly:edge Conly:fusoya
+Cno:cecil Cno:kain Cno:rydia Cno:tellah Cno:edward Cno:rosa Cno:yang Cno:palom Cno:porom Cno:cid Cno:edge Cno:fusoya
+Crestrict:cecil Crestrict:kain Crestrict:rydia Crestrict:tellah Crestrict:edward Crestrict:rosa Crestrict:yang Crestrict:palom Crestrict:porom Crestrict:cid Crestrict:edge Crestrict:fusoya
+Cthrift:2/Cthrift:3/Cthrift:4/Cthrift:5
+Cspells:j/Cspells:anti Cabilities:j/Cabilities:fullgood Cpaladin Cnekkie Cnodupes Cfuse:gear/Cfuse:equip 
+Cstatscap:28/Cstatscap:50/Cstatscap:69/Cstatscap:127/Cstatscap:255
+Cparty:1/Cparty:2/Cparty:3/Cparty:4 Cbye Cpermajoin Cpermadeath/Cpermadeader/Cmostlydead/Cbrieflydead Chero Csuperhero
+Ctreasure:free Ctreasure:earned Ctreasure:unsafe Ctreasure:relaxed Chi Cfifo
+Tvanilla Tshuffle/Tstandard/Tpro/Tsemipro/Twild/Twildish/Tstandardish/Tvanillaish/Tempty
+Tsparse:10/Tsparse:20/Tsparse:30/Tsparse:40/Tsparse:50/Tsparse:60/Tsparse:70/Tsparse:80/Tsparse:90
+Tsparsey:underground Tsparsey:moon Tsparsey:overworld
+Tplayable Tadjmiabareas Tbuffweights
+Tunrestrict:treasury Tunrestrict:moon Tunrestrict:underworld Tunrestrict:overworld
+Tno:j Tmaxtier:3/Tmaxtier:4/Tmaxtier:5/Tmaxtier:6/Tmaxtier:7 Tmintier:2/Tmintier:3/Tmintier:4/Tmintier:5 Tmoney/Tjunk
+Svanilla Sshuffle/Sstandard/Spro/Swild/Swildish/Scabins/Svanillaish/Sempty/Ssame Ssingles Sfree/Smixed:shaken/Smixed:stirred Sunsafe Ssell:quarter/Ssell:0 Splayable Sethersell
+Sprice:20/Sprice:40/Sprice:60/Sprice:80/Sprice:120/Sprice:140/Sprice:160/Sprice:180/Sprice:200/Sprice:400
+Spricey:items Spricey:weapons Spricey:armor
+Salways:apples Salways:sirens Salways:vampires Salways:hrglass Salways:bacchus Salways:starveil Salways:cure3 Salways:illusion Salways:damage_items Salways:coffin
+Sno:j Sno:apples Sno:sirens Sno:vampires Sno:hrglass Sno:bacchus Sno:starveil Sno:cure3 Sno:illusion Sno:life Sno:damage_items Sno:coffin
+Bvanilla Bstandard/Bpro/Bfriendly/Bcruel/Beasy Bnofree Bunsafe Balt:gauntlet Bstats:j/Bstats:et Bslots Bzones
+Brestrict:summon Brestrict:moon Brestrict:zot Brestrict:hook Brestrict:giant Brestrict:sealedcave Brestrict:package 
+Bwhyburn/Bwhichburn/Bitburns Bflatvern Bwhybez Bwhichbez Bwoahdin Bthehades Bspellpower Bnewscriptstats Bremove:officer_slot Bremove:kingqueen_slot
+Etoggle Evanilla/Ereduce/Enorepeats/Enoencounters Ekeep:doors Ekeep:behemoths Edanger Ecantrun/Erunspoils:100/Erunspoils:50/Erunspoils:25 Enoexp Enogp Eno:jdrops/Eno:sirens Enodmachin Enomacgiant
+Etable:shuffle7/Etable:shuffle8/Etable:relocatedish/Etable:relocated/Etable:wildish/Etable:wild/Etable:chaos/Etable:uniquelygood
+Hrandom Hvanilla Hnone
+Gnone Gdupe Gmp Gwarp Glife/Glife2f/Gnolifer Gsylph Gbackrow G64
+Fweighted/Fvanilla/Flocation/Fsequential:p/Fsequential:r/Fnerfed
+Fslowstart/Funlearn
+Fmaybe Funcapped Frandomhp Fomnimage
+Aagnostic/Avanilla/Ahero/Aslowest/Afastest/Aaverage/Amedian/Arandom/Amonster/Aflat/A750formula/Aanchor:7/Aanchor:27/Aanchor:28/Aanchor:41/Aanchor:42
+Ascale:1/Ascale:10
+Xsplit
+Xnoboost
+Xnokeybonus
+Xcrystalbonus
+Xobjectivebonus:25/Xobjectivebonus:10/Xobjectivebonus:5/Xobjectivebonus:num
+Xkicheckbonus:10/Xkicheckbonus:5/Xkicheckbonus:2/Xkicheckbonus:num
+Xzonkbonus:10/Xzonkbonus:5/Xzonkbonus:2
+Xmiabbonus:100/Xmiabbonus:50
+Xmoonbonus:200/Xmoonbonus:100
+Xmaxlevelbonus
+Xsmallparty
+Xgeometric:90/Xgeometric:80/Xgeometric:70/Xgeometric:60/Xgeometric:50/Xgeometric:40/Xgeometric:30/Xgeometric:20/Xgeometric:10/Xgeometric:0
+Zvanilla/Zphysical/Zailments/Zchaos/Zlavosshell
+Zunsure:vanilla Zunsure:physical Zunsure:ailments Zunsure:chaos Zunsure:lavosshell
+Zwhichbang
+Zphaseshift
+Znonerfs/Zmustnerf
+Zdrain
+Znocosplay
+-kit:basic/-kit:better/-kit:loaded/-kit:cata/-kit:freedom/-kit:cid/-kit:yang/-kit:money/-kit:grabbag/-kit:miab/-kit:archer/-kit:fabul/-kit:castlevania/-kit:summon/-kit:notdeme/-kit:meme/-kit:defense/-kit:mist/-kit:mysidia/-kit:baron/-kit:dwarf/-kit:eblan/-kit:libra/-kit:99/-kit:green/-kit:adamant/-kit:cursed/-kit:hero/-kit:support/-kit:heroplusplus/-kit:exit/-kit:atb/-kit:egg/-kit:zelda/-kit:random
+-kit2:basic/-kit2:better/-kit2:loaded/-kit2:cata/-kit2:freedom/-kit2:cid/-kit2:yang/-kit2:money/-kit2:grabbag/-kit2:miab/-kit2:archer/-kit2:fabul/-kit2:castlevania/-kit2:summon/-kit2:notdeme/-kit2:meme/-kit2:defense/-kit2:mist/-kit2:mysidia/-kit2:baron/-kit2:dwarf/-kit2:eblan/-kit2:libra/-kit2:99/-kit2:green/-kit2:adamant/-kit2:cursed/-kit2:hero/-kit2:support/-kit2:heroplusplus/-kit2:exit/-kit2:atb/-kit2:egg/-kit2:zelda/-kit2:random
+-kit3:basic/-kit3:better/-kit3:loaded/-kit3:cata/-kit3:freedom/-kit3:cid/-kit3:yang/-kit3:money/-kit3:grabbag/-kit3:miab/-kit3:archer/-kit3:fabul/-kit3:castlevania/-kit3:summon/-kit3:notdeme/-kit3:meme/-kit3:defense/-kit3:mist/-kit3:mysidia/-kit3:baron/-kit3:dwarf/-kit3:eblan/-kit3:libra/-kit3:99/-kit3:green/-kit3:adamant/-kit3:cursed/-kit3:hero/-kit3:support/-kit3:heroplusplus/-kit3:exit/-kit3:atb/-kit3:egg/-kit3:zelda/-kit3:random
+-noadamants
+-nocursed
+-spoon
+-monsterevade
+-monsterflee
+-infarrows
+-warpitem
+-gravitysap:calm/-gravitysap:danger
+-smith:super/-smith:alt -smith:playable/-smith:good -smith:omni -smith:spoilsuper -smith:sellsuper
+-t8scramble:0/-t8scramble:1/-t8scramble:2/-t8scramble:3/-t8scramble:4/-t8scramble:5/-t8scramble:6/-t8scramble:7/-t8scramble:8/-t8scramble:9/-t8scramble:10/-t8scramble:11/-t8scramble:12/-t8scramble:dkc -t8scramble:playable -t8scramble:spread
+-singleuse:cursed -singleuse:crystal -singleuse:adamant
+-starting:blackchocobo/-starting:underground
+-speedmodbalance
+-multifast
+-prng:shuffle/-prng:random/-prng:consecutive/-prng:mostlysingle
+-miscbugfixes
+-call:levelup/-call:all -call:vanillahobs -call:vanillagrowup/-call:nogrowup -call:noorbs
+-zotspell
+-vanilla:fashion
+-vanilla:miabs
+-vanilla:giant
+-vintage
+-pushbtojump
+-doorsrando:normal/-doorsrando:gated/-doorsrando:blueplanet/-doorsrando:why/-doorsrando:all
+-entrancesrando:normal/-entrancesrando:gated/-entrancesrando:blueplanet/-entrancesrando:why/-entrancesrando:all
+-panicbutton
+-forcesealed
+-wacky:random/-wacky:random2/-wacky:random3/-wacky:random4/-wacky:random5/-wacky:random6
+-wacky:musical
+-wacky:bodyguard
+-wacky:fistfight
+-wacky:omnidextrous
+-wacky:biggermagnet
+-wacky:sixleggedrace
+-wacky:floorislava
+-wacky:neatfreak
+-wacky:timeismoney
+-wacky:nightmode
+-wacky:mysteryjuice
+-wacky:misspelled
+-wacky:enemyunknown
+-wacky:kleptomania
+-wacky:darts
+-wacky:unstackable
+-wacky:menarepigs
+-wacky:skywarriors
+-wacky:zombies
+-wacky:afflicted
+-wacky:batman
+-wacky:battlescars
+-wacky:imaginarynumbers
+-wacky:tellahmaneuver
+-wacky:3point
+-wacky:friendlyfire
+-wacky:payablegolbez
+-wacky:gottagofast
+-wacky:worthfighting
+-wacky:saveusbigchocobo
+-wacky:isthisrandomized
+-wacky:forwardisback
+-wacky:mirrormirror
+-wacky:dropitlikeitshot
+-wacky:whatsmygear
+-wacky:scrambledstats
+-wacky:advertising
+-wacky:skillissue
+-wacky:workexperience
+-wacky:moneygains
+-wacky:wardrobe
+-tweak:kainmagic/-tweak:harmspell -tweak:edwardheal -tweak:darkpaladin/-tweak:rosadin -tweak:cidairship -tweak:twinmeteo -tweak:chocobosummon 
+-tweak:edwardsing/-tweak:edwardsingbetter -tweak:cidpeep -tweak:rosapray -tweak:fusoyaregen -tweak:yanghp -tweak:tellahrecall
+-tweak:edgedart -tweak:magicwhips -tweak:rydiaredmage
+-spoil:all
+-spoil:keyitems
+-spoil:rewards
+-spoil:chars
+-spoil:treasure/-spoil:miabs
+-spoil:shops
+-spoil:bosses
+-spoil:encounters
+-spoil:misc
+-spoil:sparse10/-spoil:sparse20/-spoil:sparse30/-spoil:sparse40/-spoil:sparse50/-spoil:sparse60/-spoil:sparse70/-spoil:sparse80/-spoil:sparse90
+
+----- IMPLICIT
+
+Onone    : ~/^O(mode|\d+|random):/
+Kvanilla : ~Kmain
+Pnone    : ~Pkey & ~Pshop & ~Pchests
+Cvanilla : ~Cstandard & ~Crelaxed
+Tvanilla : ~Tshuffle & ~Tstandard & ~Tpro & ~Tsemipro & ~Twild & ~Twildish & ~Tstandardish & ~Tvanillaish & ~Tempty
+Svanilla : ~Sshuffle & ~Sstandard & ~Spro & ~Swild & ~Swildish & ~Scabins & ~Svanillaish & ~Sempty & ~Ssame
+Bvanilla : ~Bstandard & ~Bpro & ~Bfriendly & ~Bcruel & ~Beasy
+Etoggle  : ~Evanilla & ~Ereduce & ~Enorepeats & ~Enoencounters
+Hrandom  : ~Hvanilla & ~Hnone
+Gnone    : ~/^G(?!none)/
+Fweighted : ~Fvanilla & ~Flocation & ~Fsequential:p & ~Fsequential:r & ~Fnerfed
+Aagnostic : ~Avanilla & ~Ahero & ~Aslowest & ~Afastest & ~Aaverage & ~Amedian & ~Arandom & ~Amonster & ~Aflat & ~A750formula & ~/^Aanchor:/
+Zvanilla : ~Zphysical & ~Zailments & ~Zchaos & ~Zlavosshell 
+
+----- SLUGS
+
+Onone                objective_none
+Omode:classicforge   objective_mode_classicforge
+Omode:classicgiant   objective_mode_classicgiant
+Omode:external       objective_mode_external
+Owin:crystal         objective_zeromus
+
+Kvanilla             key_items_vanilla
+Kmain                key_items_in_main_quests
+Ksummon              key_items_in_summon_quests
+Kmoon                key_items_in_moon_bosses
+Kforge               key_item_from_forge
+Kpink                key_item_from_pink_tail
+Knofree              no_free_key_item
+Knofree:dwarf        no_free_key_item_dwarf
+Knofree:package      no_free_key_item_package
+Kunsafe              key_items_unsafe
+Kunsafer             key_items_unsafer
+Kforce:magma         key_items_force_magma
+Kforce:hook          key_items_force_hook
+Kunweighted          key_items_unweighted
+Klatedark            key_items_late_darkness
+Kunreliabledark      key_items_unreliable_darkness
+Kstart:package          key_items_start_package
+Kstart:sandruby         key_items_start_sandruby
+Kstart:baron            key_items_start_baron
+Kstart:twinharp         key_items_start_twinharp
+Kstart:earthcrystal     key_items_start_earthcrystal
+Kstart:magma            key_items_start_magma
+Kstart:tower            key_items_start_tower
+Kstart:hook             key_items_start_hook
+Kstart:luca             key_items_start_luca
+Kstart:darkness         key_items_start_darkness
+Kstart:crystal          key_items_start_crystal
+Kstart:rat              key_items_start_rat
+Kstart:pan              key_items_start_pan
+Kstart:legend           key_items_start_legend
+Kstart:adamant          key_items_start_adamant
+Kstart:spoon            key_items_start_spoon
+Kstart:pink             key_items_start_pink
+Kstart:pass             key_items_start_pass
+Kstart:zonk             key_items_start_zonk
+
+Pnone                pass_none
+Pshop                pass_in_shop
+Pkey                 pass_in_key_items
+Pchests              pass_in_chests
+
+Cvanilla             characters_vanilla
+Cstandard            characters_standard
+Crelaxed             characters_relaxed
+Cnofree              no_free_characters
+Cnoearned            no_earned_characters
+Cnopartner           no_starting_partner
+Cmaybe               characters_not_guaranteed
+Cspells:j            japanese_spells
+Cspells:anti         antidale_spells_progression
+Cabilities:j         japanese_abilities
+Cabilities:fullgood  all_good_abilities
+Cnodupes             characters_no_duplicates
+Cfuse:gear           characters_fuse_gear_bonuses
+Cfuse:equip          characters_fuse_equip_bonuses
+Cnekkie              characters_nekkie
+Cpaladin             characters_cecil_paladin
+Cbye                 characters_irretrievable
+Cpermajoin           characters_commitment
+Cpermadeath          characters_permadeath
+Cpermadeader         characters_permadeader
+Chi                  characters_force_add
+Cfifo                characters_first_in_first_out
+Cmostlydead          characters_mostly_dead
+Cbrieflydead         characters_briefly_dead
+Chero                hero_challenge
+Csuperhero           superhero_challenge
+Ctreasure:free       characters_in_treasure_free
+Ctreasure:earned     characters_in_treasure_earned
+Ctreasure:unsafe     characters_in_treasure_unsafe
+Ctreasure:relaxed    characters_in_treasure_relaxed
+
+Tvanilla             treasure_vanilla
+Tshuffle             treasure_shuffle
+Tstandard            treasure_standard
+Tpro                 treasure_pro
+Tsemipro             treasure_semipro
+Twild                treasure_wild
+Twildish             treasure_wild_weighted
+Tstandardish         treasure_standard_weighted
+Tvanillaish          treasure_vanillaish
+Tempty               treasure_empty
+Tno:j                treasure_no_j_items
+Tplayable            treasure_playable
+Tadjmiabareas        treasure_adjust_miab_areas
+Tbuffweights         treasure_buffed_pro_weights
+Tsparsey:underground treasure_sparse_underground
+Tsparsey:moon        treasure_sparse_moon
+Tsparsey:overworld   treasure_sparse_overworld
+Tjunk                treasure_junk
+Tmoney               treasure_money
+
+Svanilla             shops_vanilla
+Sshuffle             shops_shuffle
+Sstandard            shops_standard
+Spro                 shops_pro
+Swild                shops_wild
+Swildish             shops_wildish
+Scabins              shops_cabins
+Svanillaish          shops_vanillaish
+Ssame                shops_same
+Ssingles             shops_singles
+Sempty               shops_empty
+Sfree                shops_free
+Sunsafe              shops_unsafe
+Smixed:shaken        shops_mixed_all
+Smixed:stirred       shops_mixed_exclude
+Ssell:quarter        shops_sell_quarter
+Ssell:0              shops_sell_zero
+Sno:j                shops_no_j_items
+Sno:apples           shops_no_apples
+Sno:sirens           shops_no_sirens
+Sno:vampires         shops_no_vampires
+Sno:life             shops_no_life
+Sno:vampires         shops_no_vampires
+Sno:hrglass          shops_no_hourglass
+Sno:bacchus          shops_no_bacchus
+Sno:starveil         shops_no_starveil
+Sno:cure3            shops_no_cure3
+Sno:illusion         shops_no_illusion
+Sno:coffin           shops_no_coffin
+Sno:damage_items     shops_no_damage_items
+
+Salways:apples       shops_always_apples
+Salways:sirens       shops_always_sirens 
+Salways:vampires     shops_always_vampires 
+Salways:hrglass      shops_always_hourglass
+Salways:bacchus      shops_always_bacchus 
+Salways:starveil     shops_always_starveil 
+Salways:cure3        shops_always_cure3 
+Salways:illusion     shops_always_illusion
+Salways:coffin       shops_always_coffin
+Salways:damage_items  shops_always_damage_items
+Splayable            shops_playable
+Sethersell           shops_ethers_sell_full
+
+Bvanilla             bosses_vanilla
+Bstandard            bosses_standard
+Bpro                 bosses_pro
+Bfriendly            bosses_friendly
+Bcruel               bosses_cruel
+Beasy                bosses_easy
+Bnofree              no_free_bosses
+Bunsafe              bosses_unsafe
+Balt:gauntlet        bosses_alt_gauntlet
+Bstats:j             japanese_bosses
+Bstats:et            easy_type_bosses
+Bslots               boss_slot_shuffle
+Bzones               bosses_within_zones
+Brestrict:summon     bosses_no_required_at_summon
+Brestrict:moon       bosses_no_required_on_moon
+Brestrict:zot        bosses_no_required_in_zot
+Brestrict:hook       bosses_no_required_on_hook
+Brestrict:giant      bosses_no_required_in_giant
+Brestrict:sealedcave bosses_no_required_in_sealedcave
+Brestrict:package    bosses_no_required_at_package
+Bwhyburn             wyvern_no_meganuke
+Bwhichburn           wyvern_random_meganuke
+Bflatvern            wyvern_flat_spellpower_nuke
+Bwhybez              golbez_no_shadow
+Bwhichbez            golbez_random_spells
+Bitburns             wyvern_all_bad_things
+Bwoahdin             odin_random_spell
+Bthehades            kingqueen_fire_upgrade
+Bspellpower          bosses_nonzero_spellpower
+Bnewscriptstats      bosses_new_scripted_stat_changes            
+Bremove:officer_slot    no_officer_slot
+Bremove:kingqueen_slot  no_kingqueen_slot
+
+Evanilla             encounter_vanilla
+Etoggle              encounter_toggle
+Ereduce              encounter_reduction
+Enorepeats           encounter_norepeats
+Enoencounters        encounter_off
+Ekeep:doors          encounter_keep_doors
+Ekeep:behemoths      encounter_keep_behemoths
+Edanger              encounter_dangerous
+Ecantrun             encounter_cant_run
+Enoexp               experience_not_for_random_encounters
+Enogp                no_gp_for_random_encounters
+Enodmachin           encounter_no_dmachin
+Eno:jdrops           drops_no_j
+Eno:sirens           drops_no_sirens
+Enomacgiant          encounter_no_macgiant
+
+Hrandom              random_harp
+Hvanilla             vanilla_harp
+Hnone                no_harp
+
+Gdupe                glitch_allow_duplication
+Gmp                  glitch_allow_mp_underflow
+Gwarp                glitch_allow_dwarf_warp
+Glife                glitch_allow_life
+Glife2f              glitch_modified_life
+Gnolifer             glitch_prevent_life2
+Gsylph               glitch_allow_sylph
+Gbackrow             glitch_allow_backrow
+G64                  glitch_allow_64
+
+Fvanilla       vanilla_fusoya
+Flocation      location_fusoya
+Fsequential:p  sequential_p_fusoya
+Fsequential:r  sequential_r_fusoya
+Fnerfed        nerfed_fusoya
+Fmaybe         maybe_fusoya
+Fslowstart     slowstart_fusoya
+Funlearn       unlearn_fusoya
+Funcapped      uncapped_fusoya
+Frandomhp      randomhp_fusoya
+Fomnimage      add_spells_fusoya
+
+-noadamants          no_adamants
+-nocursed            no_cursed_rings
+-vintage             vintage
+-spoon               edward_spoon
+-monsterevade        give_monsters_evade
+-monsterflee         let_monsters_flee
+-infarrows           infinite_arrows
+-warpitem            eagleeye_warp
+-gravitysap:calm     gravity_sap
+-gravitysap:danger   gravity_sap_danger
+-smith:super         supersmith
+-smith:alt           altsmith
+-smith:playable      playablesmith
+-smith:good          goodsmith
+-smith:omni          omnismith
+-smith:spoilsuper    spoilsmith
+-smith:sellsuper     sellsmith
+-t8scramble:playable tier8_scramble_playable
+-t8scramble:spread   tier8_scramble_spread
+-singleuse:cursed    single_use_cursed_ring
+-singleuse:crystal   single_use_crystal_sword
+-singleuse:adamant   single_use_adamant
+-starting:blackchocobo  starting_blackchocobo
+-starting:underground   starting_underground
+
+Avanilla     vanilla_agility
+Ahero        hero_agility
+Aslowest     slowest_agility
+Afastest     fastest_agility
+Aaverage     average_agility
+Amedian      median_agility
+Arandom      random_agility
+Amonster     monster_agility
+Aflat        flat_agility
+A750formula  formula_agility
+-speedmodbalance     balance_speed_mod_range
+-multifast           multitarget_fast
+
+Xsplit           experience_split
+Xnoboost         experience_no_boost
+Xnokeybonus      experience_no_key_item_bonus
+Xcrystalbonus    experience_crystal_bonus
+Xmaxlevelbonus   experience_max_level_bonus
+Xsmallparty      experience_small_party
+-miscbugfixes        bug_fixes
+-call:levelup        call_level_up
+-call:all            call_start_all 
+-call:vanillahobs    vanilla_hobs
+-call:vanillagrowup  vanilla_dwarf_summons
+-call:nogrowup       no_dwarf_summons
+-call:noorbs         no_call_orbs
+-zotspell            random_zot_spell
+-vanilla:fashion     vanilla_fashion
+-vanilla:miabs       vanilla_miabs
+-vanilla:giant       vanilla_giant
+
+Znocosplay         vanilla_z
+Zwhichbang         z_random_bigbangs
+Zphaseshift        z_random_phases
+Znonerfs           z_no_nerfs
+Zmustnerf          z_must_nerf
+Zdrain             z_drain_attacks
+
+-pushbtojump         jump
+
+-tweak:kainmagic     kainmagic
+-tweak:edwardheal    edwardheal
+-tweak:edwardsing        edwardsing
+-tweak:edwardsingbetter  edwardsing_better
+-tweak:darkpaladin   darkpaladin
+-tweak:rosadin       rosapaladin
+-tweak:rosapray      rosapray
+-tweak:cidairship    cidairship
+-tweak:cidpeep       cidpeep
+-tweak:harmspell     harmspell
+-tweak:twinmeteo     twinmeteo
+-tweak:chocobosummon bigchocobosummon
+-tweak:fusoyaregen   fusoyaregen
+-tweak:yanghp        yanghp
+-tweak:tellahrecall  tellahrecall
+-tweak:edgedart      edgedart
+-tweak:magicwhips    magicwhips
+-tweak:rydiaredmage  rydiaredmage

@@ -1,0 +1,754 @@
+msfpatch {
+    .addr $03ee23
+        jsl $=ExperienceAcceleration_Init
+}
+
+msfpatch {
+    ExperienceAcceleration_Init:
+        // %flag experience_not_for_random_encounters on%
+        // check for boss gauntlet bit flag -> in a boss fight
+        lda $129f
+        and #$20
+        bne $+InBossBattle
+
+        lda $7e06c6  // check if fighting MIAB battle
+        bne $+InBossBattle
+
+        // not in boss battle; EXP is zero
+        stz $3591
+        stz $3592
+        stz $3593
+
+        // ugly: pop return stack
+        pla pla pla
+
+        jml $03ee3b // return to code case that handles 0 EXP
+
+    %InBossBattle:
+        // %end%
+
+        // %flag experience_split on%
+        jsl $13ff5f  // do division as requested by original command
+        // %end%
+
+        // %flag experience_split off%
+        // load full EXP amount from battle
+        // rather than dividing by party member
+        lda $3591
+        sta $ad
+        lda $3592
+        sta $ae
+        lda $3593
+        sta $af
+        // %end%
+
+        // %if run_experience_penalty%
+        // if we are running and experience is halved or quartered,
+        // do that here
+        lda $a8 
+        and #$40
+        beq $+NextModifier__RunPenalty
+        ldy {% run penalty loop %}
+    %RunPenaltyLoop:
+        lsr $af
+        ror $ae
+        ror $ad
+        dey
+        bne $-RunPenaltyLoop
+    %NextModifier__RunPenalty:
+        // %end%
+
+        // %if wacky_workexperience%
+        // use average party level to build a scale factor to the experience;
+        // do first to avoid potential obnoxious handling of overflow scenarios
+        // (since it can reduce experience instead of increase it)
+
+        // compute average party level; code modified from
+        // encounter_dangerous.f4c (one day we'll make it a function)
+        ldx #$0000
+        stz $_Util__Divide_Dividend0
+        stz $_Util__Divide_Dividend1
+        stz $_Util__Divide_Dividend2
+        stz $_Util__Divide_Divisor0
+    %WackyWorkExp_LevelSumLoop:
+        lda $1000,x
+        and #$1f
+        beq $+WackyWorkExp_LevelSumLoopNext
+        inc $_Util__Divide_Divisor0
+        lda $1002,x
+        clc
+        adc $_Util__Divide_Dividend0
+        sta $_Util__Divide_Dividend0
+        bcc $+WackyWorkExp_LevelSumLoopNext
+        inc $_Util__Divide_Dividend1
+    %WackyWorkExp_LevelSumLoopNext:
+        jsr $_Util__XPlus40
+        cpx #$0140 // stop after the last party slot
+        bcc $-WackyWorkExp_LevelSumLoop
+
+        stz $_Util__Divide_Divisor1
+        jsr $_Util__Divide
+
+        // divide by 8 and add 1; put that in Y
+        lda $_Util__Divide_Quotient0
+        lsr a
+        lsr a
+        lsr a
+        inc a
+        tay
+
+        // next, get a scaling factor out of 48 (= 8*6),
+        // so that you need level 40 to get full experience
+        cpy #$0006
+        beq $+NextModifier__WackyWorkExp
+        lda $ad
+        sta $_Util__Divide_Dividend0
+        lda $ae
+        sta $_Util__Divide_Dividend1
+        lda $af
+        sta $_Util__Divide_Dividend2
+        lda #$06
+        sta $_Util__Divide_Divisor0
+        stz $_Util__Divide_Divisor1
+        jsr $_Util__Divide
+        stz $ad
+        stz $ae
+        stz $af
+        stz $_Util__Divide_Dividend0
+        stz $_Util__Divide_Dividend1
+        stz $_Util__Divide_Dividend2
+    %WackyWorkExp_Loop1Start:
+        clc
+        lda $ad
+        adc $_Util__Divide_Quotient0
+        sta $ad
+        lda $ae
+        adc $_Util__Divide_Quotient1
+        sta $ae
+        lda $af
+        adc $_Util__Divide_Quotient2
+        bcc $03
+        jmp $_MaxExp
+        sta $af
+        lda $_Util__Divide_Remainder0
+        adc $_Util__Divide_Dividend0
+        sta $_Util__Divide_Dividend0
+        // remainder is at most 5, loop is at most 13 times.
+        dey
+        bne $-WackyWorkExp_Loop1Start
+        // also handle the remainder
+        jsr $_Util__Divide
+        clc 
+        lda $_Util__Divide_Quotient0
+        adc $ad
+        sta $ad
+        lda $_Util__Divide_Quotient1
+        adc $ae
+        sta $ae
+        lda $_Util__Divide_Quotient2
+        adc $af
+        bcc $03
+        jmp $_MaxExp
+        sta $af
+
+    %NextModifier__WackyWorkExp:
+        // %end%
+
+        // %flag experience_max_level_bonus on%
+        // compute max party level, mult by 2, compare against min monster level
+        // each five levels of deficit gives a 20% bonus
+
+        // while I would love to use the precalculated average formation level, it's... wonky,
+        // and doesn't work with boss bit monsters as-is, and changing that behaviour
+        // is not reasonable at the moment. so calculate min monster level:
+        ldx #$0280
+        ldy #$0005
+        lda #$63 // max level is 99
+        pha
+    %MonsterMinLevelLoop:
+        lda $3540,y // check if this monster slot is empty via the empty_slot array
+        bne $+MonsterMinLevelLoopNext
+        pla
+        cmp $2002,x // battle records start at $2000, byte $02 is level
+        // if the current min monster level is >= the next level, update
+        bcc $+MonsterMinLevelNotSmaller
+        lda $2002,x
+    %MonsterMinLevelNotSmaller:
+        pha        
+    %MonsterMinLevelLoopNext:
+        iny
+        jsr $_Util__XPlus80
+        cpy #$000d // stop after the last monster slot
+        bcc $-MonsterMinLevelLoop
+        // now the min monster level is the top item on the stack
+
+        // next, find the max party level, similarly to average party level
+        ldx #$0000
+        lda #$00
+        pha
+    %PartyMaxLevelLoop:
+        lda $1000,x // checking character records, not battle records
+        beq $+PartyMaxLevelLoopNext
+        pla
+        cmp $1002,x
+        // if the current max level is >= the next level, don't update
+        bcs $+PartyMaxLevelNotBigger 
+        lda $1002,x
+    %PartyMaxLevelNotBigger:
+        pha
+    %PartyMaxLevelLoopNext:
+        jsr $_Util__XPlus40
+        cpx #$0140
+        bcc $-PartyMaxLevelLoop
+        pla // now A has the max party level, min monster level is on top of stack 
+
+        // multiply by 2
+        asl a
+        
+        // subtract twice the max party level from the min monster level
+        sta $3945
+        pla
+        sec
+        sbc $3945
+        bcc $+NextModifier__Max
+        // result was non-negative, so divide by 5
+        sta $3945
+        stz $3946
+        lda #$05
+        sta $3947
+        stz $3948
+        jsr $_Util__BattleDivide3949 // $3949 is the number of 20% bonuses
+
+        ldy $3949
+        lda #$05
+        jsr $_DivideAndAddLoop
+        bcc $+NextModifier__Max
+        jmp $_MaxExp
+
+    %NextModifier__Max:
+        // %end%
+
+        // %flag experience_no_key_item_bonus off%
+        // check for key item bonus
+        lda $=Stats_KeyItems
+        cmp #$0a
+        bcc $+NextModifier
+
+        clc
+        rol $ad
+        rol $ae
+        rol $af
+        bcc $+NextModifier
+        jmp $_MaxExp
+
+    %NextModifier:
+        // %end%
+
+        // %flag experience_crystal_bonus on%
+        // check for having the Crystal
+        lda #$10
+        ldx #$_Tracker__KeyItemFoundFlags
+        jsl $=Tracker__CheckBit
+        bcc $+NextModifier__Crys
+
+        clc
+        rol $ad
+        rol $ae
+        rol $af
+        bcc $+NextModifier__Crys
+        jmp $_MaxExp
+
+    %NextModifier__Crys:
+        // %end%
+
+        // %if experience_objective_bonus%
+        // note that this toggle only makes sense if there are objectives, so ignore the case of Onone
+        // repeat the counting in tracker.f4c to find the number of objectives (stored in Y)
+        ldy #$0000
+        ldx #$0000
+    %CountLoop:
+        lda $=Objectives__IDs,x
+        beq $+CountLoopNext
+        lda $=Objectives__Thresholds,x
+        cmp $_Objectives__Progress,x
+        beq $+ObjectiveCompleted
+        bcc $+ObjectiveCompleted
+        bra $+CountLoopNext
+    %ObjectiveCompleted:
+        iny
+    %CountLoopNext:
+        inx
+        cpx #$_Objectives__MaxCount
+        bcc $-CountLoop
+
+        lda {% experience objective bonus divisor %}
+        jsr $_DivideAndAddLoop
+        bcc $+NextModifier__Obj
+        jmp $_MaxExp
+
+    %NextModifier__Obj:
+        // %end%
+
+        // %if experience_kicheck_bonus%
+        // look at $_Rewards__KeyItemChecksCount to see how many
+        // KI checks have been completed, then subtract 1 (for the starting key item)
+
+        lda $=Rewards__KeyItemChecksCount
+        dec a
+        xba
+        lda #$00
+        xba
+        tay
+
+        lda {% experience key item check bonus divisor %}
+        jsr $_DivideAndAddLoop
+        bcc $+NextModifier__KI
+        jmp $_MaxExp
+
+    %NextModifier__KI:
+        // %end%
+
+        // %if experience_zonk_bonus%
+        // load the zonk count; the starting key item check doesn't
+        // really count as a zonk (no choice), so if the starting check
+        // wasn't a key item (i.e. a zonk), need to subtract one 
+        // (by subtracting 0 with carry clear)
+        lda {% starting key item zonk %}
+        bne $+StartingZonk
+        sec
+        bra $+ComputeDifference
+    %StartingZonk:
+        clc
+    %ComputeDifference:
+        lda $_Rewards__ZonkChecksCount
+        sbc #$00
+        // setting the carry means we compute (zonk checks - 0 - 1 + 1) = zonk checks
+        // clearing the carry means we compute (zonk checks - 0 - 1)
+
+        xba
+        lda #$00
+        xba
+        tay
+
+        lda {% experience zonk bonus divisor %}
+        jsr $_DivideAndAddLoop
+        bcc $+NextModifier__Zonk
+        jmp $_MaxExp
+
+    %NextModifier__Zonk:
+        // %end%
+
+        // %if experience_miab_bonus%
+        // check if this encounter is a miab
+        lda $7e06c6 // same check as Enoexp
+        beq $+NextModifier__MIAB
+
+        lda #$02
+        ldy {% experience miab bonus multiplier %}
+        jsr $_DivideAndAddLoop
+        bcc $+NextModifier__MIAB
+        jmp $_MaxExp
+
+    %NextModifier__MIAB:
+        // %end%
+
+        // %if experience_moon_bonus%
+        // check if the map area is 2 (the surface of the moon)
+        lda $1700
+        cmp #$02
+        beq $+OnMoon
+        // check if the map area is 3
+        // and the map ID is at least 0x5A
+        // (the map area being 3/dungeon forces the map ID to reload)
+        cmp #$03
+        bne $+NextModifier__Moon
+        lda $1701
+        xba
+        lda $1702
+        tax
+        cpx #$015a
+        bcc $+NextModifier__Moon
+
+    %OnMoon:
+        lda #$01 // yes, dividing by 1; oh well
+        ldy {% experience moon bonus multiplier %}
+        jsr $_DivideAndAddLoop
+        bcc $+NextModifier__Moon
+        jmp $_MaxExp
+
+    %NextModifier__Moon:
+        // %end%
+
+        // %flag experience_small_party on%
+        // provide extra exp depending on the number of
+        // empty party slots (10% for each empty slot up to/including that slot);
+        // because _battle_spoils occurs between instances of Perma/etc.-death,
+        // characters leaving the party create empty slots 
+        tdc
+        tax
+        stx $df
+        stx $e1
+
+        // first, put the number of empty slots plus 1 into $e1
+        inc $e1
+    %SmallPartyLoop1:
+        lda $1000,x
+        bne $+SmallPartyLoop1Next
+        inc $e1
+    %SmallPartyLoop1Next:
+        cpx #$140
+        bcs $+SmallPartyNext
+        jsr $_Util__XPlus40
+        bra $-SmallPartyLoop1        
+
+    %SmallPartyNext:
+        // next, put 6-(max party size) in A
+        lda #$06
+        sec
+        sbc $21f0ff
+
+        // now, compute the number of bonuses in $df
+    %SmallPartyLoop2:
+        cmp $e1
+        bcs $+SmallPartyDone
+        pha
+        clc
+        adc $df
+        sta $df
+        pla
+        inc a
+        bra $-SmallPartyLoop2
+
+    %SmallPartyDone:
+        lda $df
+        tay
+        lda #$0a
+        jsr $_DivideAndAddLoop
+        bcc $+NextModifier__Small
+        jmp $_MaxExp
+
+    %NextModifier__Small:
+        // %end%
+
+        bra $+ExperienceAcceleration_CalculateMedianLevel
+    
+    DivideAndAddLoop:
+        // ideally, we simply multiply exp by a scale factor.
+        // we can't, because of integer arithmetic!
+        // so instead, our scale factors look like (1 + loop/div),
+        // and we compute new exp = exp + loop * (exp/div),
+        // computed using integer arithmetic.
+
+        // note that exp = q * div + r, so that
+        // loop * exp = (loop * q) * div + loop * r
+        //            = (loop * q) * div + q_1 * div + r_1
+        //            = (loop * q + q_1) * div + r_1,
+        // so we can minimize division error by handling
+        // the remainder term effectively. (thanks to Wylem for the idea!)
+        // the end result is:
+        // new exp = exp + (loop * q + q_1),
+        // where q is the integer division of exp by A
+        // and q_1 is the integer division of loop * r by A.
+
+        // A is the special divisor, assumed to be one byte
+        // Y is the loop parameter, assumed to be #$00yy
+        sta $_Util__Divide_Divisor0
+        stz $_Util__Divide_Divisor1
+        lda $ad
+        sta $_Util__Divide_Dividend0
+        lda $ae
+        sta $_Util__Divide_Dividend1
+        lda $af
+        sta $_Util__Divide_Dividend2
+        jsr $_Util__Divide
+        // now $_Util__Divide_Quotient0-2 contains the experience divided by the parameter
+
+        // $Util__Divide_Remainder0-2 contains the integer division remainder;
+        // we'll add Y copies of it into the dividend and divide again (the divisor doesn't change)
+        stz $_Util__Divide_Dividend0
+        stz $_Util__Divide_Dividend1
+        stz $_Util__Divide_Dividend2
+
+    %AddingLoopStart:
+        // add the result back to the experience the required number of times
+        cpy #$0001
+        bcc $+RemainderHandling
+        clc
+        lda $_Util__Divide_Quotient0
+        adc $ad
+        sta $ad
+        lda $_Util__Divide_Quotient1
+        adc $ae
+        sta $ae
+        lda $_Util__Divide_Quotient2
+        adc $af
+        bcs $+DoneLoop
+        sta $af
+        // now add the remainder into the dividend spot, if we haven't
+        // maxed out experience already (no overflow risk here if so)
+        // no need to clear the carry, if we're here (it's already clear)
+        // no need to deal with the third byte
+        lda $_Util__Divide_Remainder0
+        adc $_Util__Divide_Dividend0
+        sta $_Util__Divide_Dividend0
+        lda $_Util__Divide_Remainder1
+        adc $_Util__Divide_Dividend1
+        sta $_Util__Divide_Dividend1
+        dey
+        bra $-AddingLoopStart
+    %RemainderHandling:
+        jsr $_Util__Divide
+        // now we just add the quotient to the experience once
+        clc 
+        lda $_Util__Divide_Quotient0
+        adc $ad
+        sta $ad
+        lda $_Util__Divide_Quotient1
+        adc $ae
+        sta $ae
+        lda $_Util__Divide_Quotient2
+        adc $af
+        bcs $+DoneLoop
+        sta $af
+    %DoneLoop:
+        rts
+
+    MaxExp:
+        lda #$ff
+        sta $ad
+        sta $ae
+        sta $af
+
+    ExperienceAcceleration_CalculateMedianLevel:
+        // I am sincerely hoping at this point that
+        // I can take a dump on enemy battle record data:
+        // 7e2630-7e2636 : enemy 7 slot, battle equipment
+        stz $2636 // will store number of party members
+        ldx #$0000
+        ldy #$0000
+    ExperienceAcceleration_CalculateMedianLevel_LoopStart:
+        lda $1000,x
+        and #$1f
+        beq $+ExperienceAcceleration_CalculateMedianLevel_LoopNext
+        lda $1002,x
+        sta $2630,y
+        inc $2636
+        iny
+    ExperienceAcceleration_CalculateMedianLevel_LoopNext:
+        rep #$20
+        .mx 0x00
+        txa
+        clc
+        adc #$0040
+        tax
+        lda #$0000
+        sep #$20
+        .mx 0x20
+        cpx #$0140
+        bne $-ExperienceAcceleration_CalculateMedianLevel_LoopStart
+
+        // if we have less than 5 party members this bonus does
+        // not apply
+        lda $2636
+        cmp #$05
+        bcs $+ExperienceAcceleration_CalculateMedianLevel_Sort
+        stz $2635
+        jmp $_ExperienceAcceleration_InitDone
+
+    ExperienceAcceleration_CalculateMedianLevel_Sort:
+        ldx #$0000
+    ExperienceAcceleration_CalculateMedianLevel_SortLoopStart:
+        txa
+        tay
+        iny
+    ExperienceAcceleration_CalculateMedianLevel_SortInnerLoopStart:
+        lda $2630,y
+        cmp $2630,x
+        bcs $+ExperienceAcceleration_CalculateMedianLevel_SortInnerLoopNext
+        pha
+        lda $2630,x
+        sta $2630,y
+        pla
+        sta $2630,x
+    ExperienceAcceleration_CalculateMedianLevel_SortInnerLoopNext:
+        iny
+        tya
+        cmp $2636
+        bne $-ExperienceAcceleration_CalculateMedianLevel_SortInnerLoopStart
+
+        inx
+        txa
+        inc a
+        cmp $2636
+        bne $-ExperienceAcceleration_CalculateMedianLevel_SortLoopStart
+
+        // actually get the median and save it
+        lda $2636
+        lsr a
+        tax
+        lda $2630,x
+        sta $2635       // this is where our median is stored
+
+    ExperienceAcceleration_InitDone:
+        rtl
+}
+
+msfpatch {
+    .addr $03ee9f
+        jml $=ExperienceAcceleration_Individual
+}
+
+msfpatch {
+    ExperienceAcceleration_Individual:
+        // copy exp amount value
+        lda $3591
+        sta $ad
+        lda $3592
+        sta $ae
+        lda $3593
+        sta $af
+
+        // %if wacky_workexperience%
+        // first, determine axtor-specific modifier
+        // using the formation number
+        phx
+        lda $1000,x
+        and #$1f
+        pha
+        lda #$00
+        xba
+        lda $1801
+        inc a
+        asl a
+        asl a
+        asl a
+        eor $1800
+        tax
+        pla
+        clc
+        adc $14ee00,x
+        sta $_Util__Divide_Dividend0
+        stz $_Util__Divide_Dividend1
+        stz $_Util__Divide_Dividend2
+        lda #$05
+        sta $_Util__Divide_Divisor0
+        stz $_Util__Divide_Divisor1
+        jsr $_Util__Divide
+        plx
+
+        // then, use 2+remainder as the numerator
+        // of a fraction over 4 (so, 2-6 over 4),
+        // unless it would be no change
+        lda $_Util__Divide_Remainder0
+        cmp #$02
+        beq $+NextIndividual__WackyWorkExp
+        // only increment once because we start with
+        // one copy of the exp value in $ad-af
+        inc a
+        tay
+        // use Util__Divide_Remainder0-1 for remainder tracking
+        stz $_Util__Divide_Remainder0
+        stz $_Util__Divide_Remainder1
+        lsr $af
+        ror $ae
+        ror $ad
+        bcc $03
+        inc $_Util__Divide_Remainder0
+        lsr $af
+        ror $ae
+        ror $ad
+        bcc $06
+        inc $_Util__Divide_Remainder0
+        inc $_Util__Divide_Remainder0
+        // put the new values in dead-end registers for use
+        lda $ad
+        sta $_Util__Divide_Quotient0
+        lda $ae
+        sta $_Util__Divide_Quotient1
+        lda $af
+        sta $_Util__Divide_Quotient2
+    %WackyWorkExp_Loop2Start:
+        clc
+        lda $ad
+        adc $_Util__Divide_Quotient0
+        sta $ad
+        lda $ae
+        adc $_Util__Divide_Quotient1
+        sta $ae
+        lda $af
+        adc $_Util__Divide_Quotient2
+        bcc $03
+        jmp $_MaxExp_Individual
+        sta $af
+        lda $_Util__Divide_Remainder1
+        adc $_Util__Divide_Remainder0
+        sta $_Util__Divide_Remainder1
+        dey
+        bne $-WackyWorkExp_Loop2Start
+        // add in the remainder exp, which is just in one byte
+        lsr a
+        lsr a
+        clc
+        adc $ad
+        sta $ad
+        lda $ae
+        adc #$00
+        sta $ae
+        lda $af
+        adc #$00
+        bcc $03
+        jmp $_MaxExp_Individual
+        sta $af
+
+    %NextIndividual__WackyWorkExp:
+        // %end%
+
+        // %flag experience_no_boost off%
+        // check for level under median
+        lda $1002,x
+        clc
+        adc #$04
+        cmp $2635
+        bcs $+NextIndividual__MedianBoost
+
+        // double the experience gained
+        clc
+        rol $ad
+        rol $ae
+        rol $af
+        bcs $+MaxExp_Individual
+
+    %NextIndividual__MedianBoost:
+        // %end%
+
+        bra $+ExperienceAcceleration_IndividualFinish
+
+        // cap at max value if overflowed
+    MaxExp_Individual:
+        lda #$ff
+        sta $ad
+        sta $ae
+        sta $af
+
+        // perform actual EXP addition (copy of original code at $03ee9f
+        // except using copy of EXP value at $ad-af)
+    ExperienceAcceleration_IndividualFinish:
+        clc
+        lda $1037,x
+        adc $ad
+        sta $1037,x
+        lda $1038,x
+        adc $ae
+        sta $1038,x
+        lda $1039,x
+        adc $af
+        // the original code didn't check for overflows when adding exp
+        // to characters, because it didn't need to. ... we do.
+        bcc $+NoCharExpOverflow
+        jml $03eecd
+    %NoCharExpOverflow:
+        sta $1039,x
+
+        // return
+        jml $03eebb
+}

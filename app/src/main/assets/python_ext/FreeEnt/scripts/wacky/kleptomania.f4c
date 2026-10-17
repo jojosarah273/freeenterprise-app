@@ -1,0 +1,39 @@
+// make sneak pull from our extended table
+msfpatch {
+    .addr $03e24d
+        jml $=Wacky__Kleptomania
+
+    .new
+    Wacky__Kleptomania:
+        // load current target monster slot
+        lda $ce
+        and #$7f
+        tax
+        // lookup monster type index (0-2)
+        lda $29b5,x
+        tax
+        // lookup actual monster type
+        lda $29ad,x
+        tax
+        // get item to sneak from extended data
+        lda $=Wacky__ROMData_kleptomania,x
+        // return to sneak flow
+        jml $03e25a
+}
+
+// don't skip icon in alert message
+msfpatch {
+    .addr $02A59E
+        nop
+        lda #$09
+}
+
+// improve Sneak success rate
+msfpatch {
+    .addr $03E1F0
+        lda #$4b  // 75 in decimal
+}
+
+
+// ----------------------------------------------
+// give everyone Sneak in update_abilities.py

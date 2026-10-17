@@ -1,0 +1,111 @@
+npc(#TrainingRoomSoldierOutside)
+{
+    sprite #Namingway
+    eventcall {
+        $F8
+    }
+}
+
+event($F8) {
+    message #msg.fe_WackyChallengeIntro
+    message #msg.fe_WackyChallengeTitle
+	// %if wacky_challenge_2%
+	message #msg.fe_WackyChallengeDelimiter
+	message #msg.fe_WackyChallengeTitle2
+	// %end%
+	// %if wacky_challenge_3%
+	message #msg.fe_WackyChallengeDelimiter
+	message #msg.fe_WackyChallengeTitle3
+	// %end%
+	// %if wacky_challenge_4%
+	message #msg.fe_WackyChallengeDelimiter
+	message #msg.fe_WackyChallengeTitle4
+	// %end%
+	// %if wacky_challenge_5%
+	message #msg.fe_WackyChallengeTitle5
+	// %end%
+	// %if wacky_challenge_6%
+	message #msg.fe_WackyChallengeTitle6
+	// %end%
+	// %if wacky_challenge_7%
+	message #msg.fe_WackyChallengeTitle7
+	// %end%
+	// %if wacky_challenge_8%
+	message #msg.fe_WackyChallengeTitle8
+	// %end%
+	// %if wacky_challenge_9%
+	message #msg.fe_WackyChallengeTitle9
+	// %end%
+	// %if wacky_challenge_10%
+	message #msg.fe_WackyChallengeTitle10
+	// %end%
+	// %if wacky_challenge_11%
+	message #msg.fe_WackyChallengeTitle11
+	// %end%
+	// %if wacky_challenge_12%
+	message #msg.fe_WackyChallengeTitle12
+	// %end%
+	// %if wacky_challenge_13%
+	message #msg.fe_WackyChallengeTitle13
+	// %end%
+	// %if wacky_challenge_14%
+	message #msg.fe_WackyChallengeTitle14
+	// %end%
+	// %if wacky_challenge_15%
+	message #msg.fe_WackyChallengeTitle15
+	// %end%
+	// %if wacky_challenge_16%
+	message #msg.fe_WackyChallengeTitle16
+	// %end%
+	// %if wacky_challenge_17%
+	message #msg.fe_WackyChallengeTitle17
+	// %end%
+	// %if wacky_challenge_18%
+	message #msg.fe_WackyChallengeTitle18
+	// %end%
+	// %if wacky_challenge_19%
+	message #msg.fe_WackyChallengeTitle19
+	// %end%
+	// %if wacky_challenge_20%
+	message #msg.fe_WackyChallengeTitle20
+	// %end%
+	// %if wacky_challenge_21%
+	message #msg.fe_WackyChallengeTitle21
+	// %end%
+	// %if wacky_challenge_22%
+	message #msg.fe_WackyChallengeTitle22
+	// %end%
+	// %if wacky_challenge_23%
+	message #msg.fe_WackyChallengeTitle23
+	// %end%
+	// %if wacky_challenge_24%
+	message #msg.fe_WackyChallengeTitle24
+	// %end%
+	// %if wacky_challenge_25%
+	message #msg.fe_WackyChallengeTitle25
+	// %end%
+	// %if wacky_challenge_26%
+	message #msg.fe_WackyChallengeTitle26
+	// %end%
+	// %if wacky_challenge_27%
+	message #msg.fe_WackyChallengeTitle27
+	// %end%
+	// %if wacky_challenge_28%
+	message #msg.fe_WackyChallengeTitle28
+	// %end%
+	// %if wacky_challenge_29%
+	message #msg.fe_WackyChallengeTitle29
+	// %end%
+	// %if wacky_challenge_30%
+	message #msg.fe_WackyChallengeTitle30
+	// %end%
+	// %if wacky_challenge_31%
+	message #msg.fe_WackyChallengeTitle31
+	// %end%
+	// %if wacky_challenge_32%
+	message #msg.fe_WackyChallengeTitle32
+	// %end%
+    // %if wacky_challenge_show_detail%
+    message #msg.fe_WackyChallengeDetail
+    // %end%
+}

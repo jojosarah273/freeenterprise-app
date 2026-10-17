@@ -1,0 +1,47 @@
+// Dark Wave doesn't cap its damage, so there's a graphical mistake if it does >9999 damage
+// ("Miss!" or lower 4 out of 5 decimal digits of damage instead of 9999).
+
+// Unfortunately, both Kick and Dark Wave can miss, so we need to handle 
+// both cases so that Kick doesn't do 9999 when it's supposed to do 
+// no damage. 
+
+
+msfpatch {
+    .addr $03e7ca
+        jml $=KickDarkWave__HandleMiss
+        nop
+
+    .addr $03e7cf
+        jml $=KickDarkWave__CapDamage
+
+    .new
+    KickDarkWave__HandleMiss:
+        ldx #$4000
+        stx $c9
+        bra $+KickDarkWave__StoreDamage
+
+    KickDarkWave__CapDamage:
+        ldx $c9
+        beq $-KickDarkWave__HandleMiss
+
+        // %if ~wacky_isthisrandomized%
+        cpx #$270f
+        bcc $+KickDarkWave__StoreDamage
+        // cap damage at #$270f (i.e. 9999) 
+        ldx #$270f
+        stx $c9
+        // %end%
+        // %if wacky_isthisrandomized%
+        cpx #$270f
+        bcs $+KickDarkWave__WackyDamage
+        jsl $=Wacky__IsThisRandomized_DoRounding
+        stx $c9
+        bra $+KickDarkWave__StoreDamage
+    %KickDarkWave__WackyDamage:
+        // max damage is 5000, not 9999
+        ldx #$1388
+        stx $c9
+        // %end%
+    %KickDarkWave__StoreDamage:
+        jml $03e7d3
+}

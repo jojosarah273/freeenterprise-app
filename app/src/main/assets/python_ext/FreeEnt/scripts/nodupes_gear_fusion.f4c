@@ -1,0 +1,490 @@
+// implement fusing equipment to characters
+// for Cfuse:[gear/equip] under Cnodupes
+
+// RAM values:
+// $163D: $01 for "filter equipment", $00 for "normal field items"
+// $1690: item stat byte, to be bit-shifted and unused afterwards
+// $1691: positive stat change
+// $1692: negative stat change
+// $1693: stat change pair offset 0-7
+// $1694-8: STR/AGI/VIT/WIS/WIL stat change
+// $1699-a: X offset for character in party
+// $169b-c: job class for char (two bytes because of 16-bit mode)
+// $169d-e: bit field for that class number
+// $169f: slot number for char
+
+msfpatch{
+    .def ItemSelectionMenu_Equipment  $163D
+    .def FuseGear_StatByte       $1690
+    .def FuseGear_PosStat        $1691
+    .def FuseGear_NegStat        $1692
+    .def FuseGear_StatPair       $1693
+    .def FuseGear_StrChange      $1694
+    .def FuseGear_CharOffset     $1699
+    .def FuseGear_CharJob        $169B
+    .def FuseGear_JobBits        $169D
+    .def FuseGear_CharSlot       $169F
+
+    FuseGearDupes:
+        // Rewards__CurrentValueLo is the axtor code
+
+        // %quickstart%
+        // skip any possible other behaviour if it so happens that we have a dupe partner on quickstart
+        lda $_Rewards__CurrentSlot
+        cmp #$02   // #reward_slot.starting_partner_character
+        bne $01
+        rts
+        lda $_Rewards__CurrentValueLo
+        // %end%
+
+        // open menu for equipment fusion:
+        // open the inventory ($_ItemSelectionMenu_Equipment is the flag for "check equipment, not field items"),
+        // ID stat changes, display confirm choice option,
+        // return to menu if no,
+        // apply the stat changes if yes, display a result message, return short
+        // can only exit out entirely without fusing if pressing b in choice menu to do nothing
+
+        lda #$01
+        sta $_ItemSelectionMenu_Equipment
+
+        lda #$5a // refers to $15a since we're going to call the upper half via $b1e1 
+        sta $b2
+        // put the character's name into buffer 0, access with [name $e0]
+        lda $_Rewards__CurrentValueLo
+        ldx #$0000
+        jsl $=TextBuffer__LoadAxtorName
+
+        // for later, find the character in the party and save
+        // their X offset to $_FuseGear_CharOffset (2 bytes), job class in $_FuseGear_CharJob (2 bytes),
+        // slot number in $_FuseGear_CharSlot
+        ldx #$0000
+        stz $_FuseGear_CharSlot
+        stx $_FuseGear_CharJob
+    %FindFuseCharLoopStart:
+        lda $1000,x
+        and #$1f
+        cmp $_Rewards__CurrentValueLo
+        beq $+FoundFuseChar
+        jsr $_Util__XPlus40
+        inc $_FuseGear_CharSlot
+        bra $-FindFuseCharLoopStart
+    %FoundFuseChar:
+        stx $_FuseGear_CharOffset
+        lda $1001,x
+        and #$0f
+        sta $_FuseGear_CharJob
+
+        // load, display, close the initial prompt textbox
+        ldx #$b1e1
+        jsl $=Bank00LongCallX
+        ldx #$b0d1
+        jsl $=Bank00LongCallX
+        ldx #$b164
+        jsl $=Bank00LongCallX  
+
+        // run the select-item dialog
+        // the chosen item will be in $08fb (item ID or FF if no item)
+    SelectFusionItem:
+        ldx #$ad2d
+        jsl $=Bank00LongCallX
+
+        lda $08fb
+        beq $+NoFusion
+        cmp #$b0
+        bcc $+PossibleFusion
+
+    %NoFusion:
+        // display the "fuse nothing?" textbox and prompt to quit
+        lda #$5b
+        sta $b2
+        ldx #$b1e1
+        jsl $=Bank00LongCallX
+        ldx #$b0d1
+        jsl $=Bank00LongCallX
+
+        // this is the yes/no prompt routine (answer goes in $06db,
+        // which can be referenced by $db since D = $0600 here)
+        // 0 = yes
+        ldx #$abc7
+        jsl $=Bank00LongCallX
+
+        // closes upper dialog
+        ldx #$b164
+        jsl $=Bank00LongCallX
+
+        lda $db
+        bne $-SelectFusionItem
+
+        // display the "Nothing happened" textbox and jump to rtl
+        lda #$14 // refers to $14, via lower half of the bank ($b1c8)
+        sta $b2
+        ldx #$b1c8 
+        jsl $=Bank00LongCallX
+        ldx #$b0d1
+        jsl $=Bank00LongCallX
+        ldx #$b164
+        jsl $=Bank00LongCallX  
+        jmp $_DoneFusion
+
+    %PossibleFusion:
+        // load the stats byte; X = 8*item ID
+        lda $08fb
+        xba
+        lda #$00
+        xba
+        rep #$20
+        .mx 0x00
+        asl a
+        asl a
+        asl a
+        tax
+        lda #$0000
+        sep #$20
+        .mx 0x20
+        lda $0f9107,x
+
+        // we have (maybe all-0s) stat changes! so read the byte and
+        // set $_FuseGear_StatByte as the full stats byte,
+        // $_FuseGear_PosStat/$_FuseGear_NegStat as the stat increases/decreases,
+        // $_FuseGear_StatPair as the offset for which pair of changes it is,
+        // and $_FuseGear_StrChange,y ($1694-$1698) as the actual numbers for the five stats,
+        // for ease of recall  
+        sta $_FuseGear_StatByte
+        and #$07
+        sta $_FuseGear_StatPair
+        asl a
+        tax
+        lda $13feac,x
+        sta $_FuseGear_PosStat
+        lda $13fead,x
+        sta $_FuseGear_NegStat
+
+        // write the stats text to buffers 2-6
+        // and assign the correct stat change to $_FuseGear_StrChange,y
+        ldx #$0002
+        ldy #$0000
+    %StatLoopStart:
+        asl $_FuseGear_StatByte
+        bcc $+NegStatText
+        // if the carry is set, then we have positive stats/stat text
+        lda $_FuseGear_PosStat
+        sta $_FuseGear_StrChange,y
+        bra $+EndStat
+    %NegStatText:
+        lda $_FuseGear_NegStat
+        sta $_FuseGear_StrChange,y
+    %EndStat:
+        phx
+        phy
+        jsl $=FuseGearDupes__LoadStatText
+        ply
+        plx
+        inx
+        iny
+        cpy #$0005
+        bcc $-StatLoopStart
+
+        // put the item name in buffer 1, access w/ [name $e1]
+        lda $08fb
+        ldx #$0001
+        jsl $=TextBuffer__LoadItemName
+
+        // prompt to confirm stat changes
+        lda #$5c // refers to $14F since we're going to call the upper half via $b1e1 
+        sta $b2
+        ldx #$b1e1
+        jsl $=Bank00LongCallX
+        // show upper dialog
+        ldx #$b0d1
+        jsl $=Bank00LongCallX
+
+        // this is the yes/no prompt (answer goes in $06db,
+        // which can be referenced by $db since D = $0600 here)
+        ldx #$abc7
+        jsl $=Bank00LongCallX
+
+        // close upper dialog
+        ldx #$b164
+        jsl $=Bank00LongCallX  
+
+        lda $db
+        beq $+ApplyStatChanges
+        jmp $_SelectFusionItem
+
+    %ApplyStatChanges:
+        // pull X from $_FuseGear_CharOffset
+        ldx $_FuseGear_CharOffset
+        ldy #$0000
+
+        // add the appropriate stat change to each stat in order
+        // also, imitate the modified code from the spoils code
+        // in different_stats_cap.f4c (in case we have a
+        // different stats cap from a flag), with small changes
+        // X is the appropriate stat offset
+    %AddStatLoop:
+        clc
+        lda $_FuseGear_StrChange,y
+        bpl $+PositiveGearBonus
+        adc $100f,x
+        bcs $+NewStatObtained
+        lda #$01
+    %NewStatObtained:
+        // %if one_byte_cap%
+        bne $+EndStatChecks
+        lda #$01
+        bra $+EndStatChecks
+        // %else%
+        bra $+CheckZeroStat
+        // %end%
+        
+    %PositiveGearBonus:
+        adc $100f,x
+    %CheckMaxStat:
+        // %if one_byte_cap%
+        bcc $+EndStatChecks
+        lda #$ff
+        // %else%
+        cmp #${% new stats cap : 63 %}
+        bcc $+CheckZeroStat
+        lda #${% new stats cap : 63 %}
+        bra $+EndStatChecks
+    %CheckZeroStat:
+        bne $+EndStatChecks
+        lda #$01
+        // %end%
+
+    %EndStatChecks:
+        sta $100f,x
+        inx
+        iny
+        cpy #$0005
+        bcc $-AddStatLoop
+
+        // remove one copy of the item from your inventory,
+        // not the whole stack (unlike the vanilla game's function)
+        // since we had to pick something from the inventory, we just
+        // have to find it (it'll remove the first one it finds, sorry)
+        ldy #$0000
+    %RemoveItemLoop:
+        lda $1440,y
+        cmp $08fb
+        beq $+RemoveOneCopy
+        iny
+        iny
+        bra $-RemoveItemLoop
+    
+    %RemoveOneCopy:
+        lda $1441,y
+        sec
+        sbc #$01
+        bne $+UpdateItemCount
+        sta $1440,y
+    %UpdateItemCount:
+        sta $1441,y
+
+        // show completion textbox
+    %FusionTextboxes:
+        lda #$5d // refers to $15D since we're going to call the upper half via $b1e1 
+        sta $b2
+        ldx #$b1e1
+        jsl $=Bank00LongCallX
+        // play chime sfx
+        lda #$24
+        jsr $_Util__PlaySFX
+        // show upper dialog
+        ldx #$b0d1
+        jsl $=Bank00LongCallX
+
+        // closes upper dialog
+        ldx #$b164
+        jsl $=Bank00LongCallX
+
+        // wait for NMI?
+        ldx #$8f1e
+        jsl $=Bank00LongCallX
+        // erase dialogs?
+        ldx #$b51b
+        jsl $=Bank00LongCallX
+
+        // update character stats; needs to be done last,
+        // because the text buffers will get wiped
+        lda $_FuseGear_CharSlot
+        jsl $038006
+
+    DoneFusion:
+        stz $_ItemSelectionMenu_Equipment
+        rts
+}
+
+// modify the lower_dialog_inventory function
+// to conditionally switch to "check for equipment" mode
+// choose $_ItemSelectionMenu_Equipment for the flag for that 
+// (1 for equipment, 0 for field items)
+// note that this is just the "init dialog inventory"
+// function; we still need to run through the bank00 functions
+// to choose the item
+msfpatch{
+    .addr $00b0a5
+        jml $=LowerInventoryEquipment
+        nop nop
+
+    .new
+    LowerInventoryEquipment:
+        // displaced
+        ldx #$0000
+        ldy #$0000
+
+        lda $_ItemSelectionMenu_Equipment
+        bne $+NextPrep
+        // return to usual lower dialog inventory routine
+        jml $00b0ab
+
+    %NextPrep:
+        // %flag characters_fuse_equip_bonuses on%
+        // ID the character we're checking, put the resulting
+        // bit field in $_FuseGear_JobBits (2 bytes), return $_FuseGear_CharJob (2 bytes) to the class number
+        lda $_FuseGear_CharJob
+        pha
+        rep #$20
+        .mx 0x00
+        lda #$0001
+    %FuseEquipLoopStart:
+        dec $_FuseGear_CharJob
+        bmi $+FoundClassBit
+        asl a
+        bra $-FuseEquipLoopStart
+    %FoundClassBit:
+        sta $_FuseGear_JobBits
+        lda #$0000
+        sep #$20
+        .mx 0x20
+        pla
+        sta $_FuseGear_CharJob
+        stz $_(FuseGear_CharJob + 1)
+        // %end%        
+
+    %CheckEquipment:
+        // skip no-weapon, non-equipment, Legend, no-armour
+        lda #$00
+        xba
+        lda $1440,x
+        beq $+Skip
+        cmp #$b0
+        bcs $+Skip
+        cmp #$19
+        beq $+Skip
+        cmp #$60
+        beq $+Skip
+        // %flag characters_fuse_equip_bonuses on%
+        // ensure that the character can equip the item!
+        // ... which is easier said than done
+        // grab the flags byte (8*item ID + 6 offset)
+        phx
+        pha
+        rep #$20
+        .mx 0x00
+        asl a
+        asl a
+        asl a
+        tax
+        lda {% fuse equip omnidex : $0f9106,x %}
+        // pick out the equip index, multiply by 2
+        and #$001f
+        asl a
+        tax
+        lda $0fa550,x
+        and $_FuseGear_JobBits
+        sep #$20
+        .mx 0x20
+        bne $+Equippable
+        pla
+        plx
+        bra $+Skip
+    %Equippable:
+        pla 
+        plx
+        // %end%
+        sta $0712,y
+        lda $1441,x
+        sta $0713,y
+        iny
+        iny
+    %Skip:
+        inx
+        inx
+        cpx #$0060
+        bne $-CheckEquipment
+        jml $00b0d0
+}
+
+msfpatch{
+    // load appropriate sign and number
+    // for a specific stat and byte
+    // param: X = target buffer,
+    // use $_FuseGear_StatPair for the offset,
+    // carry = set for pos, clear for neg
+    FuseGearDupes__LoadStatText:
+        stx $_TextBuffer__TargetBuffer
+        php
+
+        // get the offset for the correct text,
+        // (stat byte & #$07) * 6, possibly plus 3, then +16
+        lda $_FuseGear_StatPair
+        asl a
+        sta $_TextBuffer__SourceAddrLo
+        asl a
+        clc
+        adc $_TextBuffer__SourceAddrLo
+        plp
+        bcs $+NoNegOffset
+        inc a
+        inc a
+        inc a
+    %NoNegOffset:
+        clc
+        adc #$10
+        sta $_TextBuffer__SourceAddrLo
+        lda #$8d
+        sta $_TextBuffer__SourceAddrHi
+
+        lda #$21
+        sta $_TextBuffer__SourceBank
+        lda #$03
+        sta $_TextBuffer__MaxLength
+
+        jml $=TextBuffer__Load
+}
+
+// +XX / (+/-)YY stat text to be loaded
+patch($218d10 bus) {
+CB 83 FF CB 80 FF
+CB 85 FF CB 80 FF
+CB 81 80 CB 80 FF
+CB 81 85 CB 80 FF
+CB 85 FF C2 85 FF
+CB 81 80 C2 81 80
+CB 81 85 C2 81 85
+CB 85 FF C2 81 80
+}
+
+text(bank 1 message $15A) {
+Choose equipment to
+fuse to [name $e0].
+}
+
+text(bank 1 message $15B) {
+Fuse nothing to [name $e0]?
+[next]
+}
+
+text(bank 1 message $15C) {
+Fuse [name $e1] to [name $e0]
+for [name $e2] STR, [name $e3] AGI,
+[name $e4] VIT, [name $e5] WIS, [name $e6] WIL?
+[next]
+}
+
+text(bank 1 message $15D) {
+[name $e1] successfully
+fused to [name $e0]!
+}

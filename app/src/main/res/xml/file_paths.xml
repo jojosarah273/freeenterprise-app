@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- app-private generated ROMs -->
+    <files-path name="roms" path="roms/" />
+    <!-- the FF4_FE library at the root of shared storage -->
+    <external-path name="ff4fe" path="FF4_FE/" />
+    <!-- fallback: app-specific external dir -->
+    <external-files-path name="ff4fe_fallback" path="FF4_FE/" />
+</paths>

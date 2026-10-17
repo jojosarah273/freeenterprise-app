@@ -1,0 +1,71 @@
+// Replace the EagleEye functionality (casts Sight) with
+// ticking off an external objective!
+
+// The Smut was already set for interior maps only. 
+// So, we don't need to re/write any checks.
+
+// write new event that checks off an objective; since this
+// file is only included if the objective exists and the "event"
+// f4c code is allowed to overwrite (unlike direct patches), we
+// can just call this after unused.f4c
+event($DB)
+{
+    player face down
+    player wave out
+    [#B #Objectives_Tick #objective.internal_external]
+}
+
+// add a check to prevent being able to TrashCan the EagleEye
+msfpatch {
+    EagleEyeNotTrashable:
+        cmp #$c8  // Crystal, displaced check
+        beq $+NotTrashable  // displaced
+        cmp #$e4  // EagleEye
+        beq $+NotTrashable
+        jml $01a39f  // jump to continue checking
+
+    NotTrashable:
+        jml $01a3a3  // jump to error
+
+    .addr $01a39b
+        jml $=EagleEyeNotTrashable
+}
+
+// add an exception to let the EagleEye not
+// be greyed-out in the inventory, like the Whistle and Sort
+
+msfpatch{
+    .addr $01a17c
+        jml $=EagleEyeSortException
+
+    .new
+    EagleEyeSortException:
+        // displaced
+        cmp #$fe
+        beq $+IsSort
+
+        cmp #$e4
+        beq $+IsEagleEye
+        jml $01a18b
+    %IsSort:
+        jml $01a180
+    %IsEagleEye:
+        pha
+        // check if we can actually use the EagleEye here!
+        // if not, grey it out; if yes, don't!
+        lda $1a04
+        and #$80
+        beq $+GreyOutEagleEye
+        pla
+        bra $-IsSort
+    %GreyOutEagleEye:
+        pla
+        jml $01a18b
+}
+
+// Removal from shops is in shop_rando
+// Removal from chests is in treasure_rando
+// Unsellable/non-discardable is in randomizer_keyitems.f4c
+// Not-trashable is in items.f4c (quick-trash) and here (normal trash)
+// Place one in a starter kit via objective_rando and kit_rando
+// Avoid changing things in call_orbs.f4c and elsewhere

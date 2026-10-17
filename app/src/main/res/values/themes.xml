@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- NoActionBar: the app draws its own chrome (FF4 windows / classic bars).
+         No title bar, no action bar, nothing above our content. -->
+    <style name="Theme.FreeEnterprise" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#303065</item>
+        <item name="colorPrimaryDark">#23234a</item>
+        <item name="colorAccent">#ffee96</item>
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+    </style>
+</resources>

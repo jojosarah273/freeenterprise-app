@@ -1,0 +1,127 @@
+consts(item) {
+    $FD fe_CharacterChestItem
+}
+
+text(bank 1 message $83) {
+Found [name $e0] in a chest!
+}
+
+// three  bytes per treasure. First byte = WorldID, Next byte = MapID, last byte = treasure Index.  
+// 3 bytes * 16 possible characters in treasure total = 48 bytes total
+// The byte group the treasure is in also corresponds to the reward slot in the lookup for character treasure rewards slot
+patch($21fa50 bus) {
+// %character treasure rewards%    
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+// %end%
+}
+
+// One byte per character slot
+patch($21fa90 bus)
+{
+// %character treasure slots%
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+// %end%
+}
+
+msfpatch {
+    .def  CharacterTreasureRewardLoc__IDs       $21fa50
+    .def  CharacterTreasureRewardSlot__IDs       $21fa90
+    // 8 checks per world total (2 bytes per check)
+    .def  CharacterTreasure__MaxCount              0x10
+    .def  CharacterTreasure__TreasureIndex      $7e1592
+    .def  CharacterTreasure__RewardSlotIndex      $7e1590
+}
+
+msfpatch {
+    TreasureCharacter_IsCharReward:    
+        lda $08fc
+        sec
+        sbc $0fe7   // subtract mapinfo's treasure offset
+        sta $_CharacterTreasure__TreasureIndex
+        clc
+        ldx #$0000
+        ldy #$0000 // current slot index
+    %CheckLoopCharacterChest:
+        lda $=CharacterTreasureRewardLoc__IDs,x                
+        cmp $1701
+        beq $+WorldMatched
+        inx
+        inx
+        inx
+        bra $+NextCharacterChest
+    %WorldMatched:
+        inx
+        lda $=CharacterTreasureRewardLoc__IDs,x
+        cmp $1702
+        beq $+MapIdMatch
+        inx
+        inx
+        bra $+NextCharacterChest
+    %MapIdMatch:      
+        inx
+        lda $=CharacterTreasureRewardLoc__IDs,x
+        cmp $_CharacterTreasure__TreasureIndex
+        beq $+DoCharacterReward
+        inx
+    %NextCharacterChest:
+        iny
+        cpy #$_CharacterTreasure__MaxCount
+        bcc $-CheckLoopCharacterChest
+        bra $+NoCharacterReward
+    %DoCharacterReward:
+        lda #$01
+        sty $_Rewards__PendingCharacterDeliverySlot
+        rtl
+    %NoCharacterReward:
+        lda #$00
+        stz $_Rewards__PendingCharacterDeliverySlot
+        rtl
+}
+
+msfpatch {
+    TreasureCharacter_DeliverCharacterReward:
+        ldx $_Rewards__PendingCharacterDeliverySlot
+        stz $_Rewards__PendingCharacterDeliverySlot
+        lda $=CharacterTreasureRewardSlot__IDs,x
+        sta $_CharacterTreasure__RewardSlotIndex
+        //pha
+        ldx #$0000
+        jsl $=Rewards__LoadNameFromSlot
+
+         // overwrite message code
+        lda #$83 // Found character message
+        sta $b2
+
+        // display messages
+        ldx #$b1c8  // _load_message_bank_1_lo_offset
+        stx $_Bank00LongCallAddr
+        jsl $=Bank00LongCall
+        ldx #$b0d1  // _show_upper_dialog
+        stx $_Bank00LongCallAddr
+        jsl $=Bank00LongCall
+        ldx #$b164  // _close_upper_dialog
+        stx $_Bank00LongCallAddr
+        jsl $=Bank00LongCall
+
+        lda $_CharacterTreasure__RewardSlotIndex
+        jsr $_Lookup_AxtorToActor
+        jsl $=Objectives__StageProgress        
+
+        ldx #$6dff  // end event on return
+        stx $1615   // [hardcoded]
+        lda #$.Objectives__ProcessEventID  // Load the $08 event handler (which tackles objectives)
+        ldx #$df63 // _decode_event
+        stx $_Bank00LongCallAddr
+        jsl $=Bank00LongCallX                 
+
+        lda $_CharacterTreasure__RewardSlotIndex
+        jsl $=Rewards__DeliverFromSlot
+        sec
+        rtl
+    %NoCharacterReward:
+        clc      
+        rtl
+}

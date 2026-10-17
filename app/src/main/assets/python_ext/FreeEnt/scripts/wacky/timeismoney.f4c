@@ -1,0 +1,53 @@
+// give 1 GP per frame
+msfpatch {
+    .addr $01818A
+        jml $=TimeIsMoney__MenuScreens
+
+    .new
+    TimeIsMoney__MenuScreens:
+        pha // displaced
+        inc $16a0
+        bne $+DoneOverflow
+        inc $16a1
+        bne $+DoneOverflow
+        inc $16a2
+        bne $+DoneOverflow
+
+        lda #$ff
+        sta $16a0
+        sta $16a1
+        sta $16a2
+    
+    %DoneOverflow:
+        inc $16a3 // displaced
+        jml $01818e
+}
+
+msfpatch {
+    .addr $00923b
+        jsl $=TimeIsMoney__MapAndBattleScreens
+        nop nop
+
+    .addr $03f7cd
+        jsl $=TimeIsMoney__MapAndBattleScreens
+        nop nop
+
+    .new
+    TimeIsMoney__MapAndBattleScreens:
+        inc $16a0
+        bne $+DoneOverflow
+        inc $16a1
+        bne $+DoneOverflow
+        inc $16a2
+        bne $+DoneOverflow
+
+        lda #$ff
+        sta $16a0
+        sta $16a1
+        sta $16a2
+    
+    %DoneOverflow:
+        inc $16a3 // displaced
+        lda $16a3 // displaced
+        rtl
+}

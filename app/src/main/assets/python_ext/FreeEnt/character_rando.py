@@ -1,0 +1,876 @@
+import os
+
+from . import rewards
+from .address import *
+from .spoilers import SpoilerRow
+from . import databases
+
+
+_DEBUG = False
+
+# maps slots to axtors
+SLOTS = {
+    'dkcecil_slot' : 0x01, 
+    'kain1_slot' : 0x02, 
+    'crydia_slot' : 0x03, 
+    'tellah1_slot' : 0x04,
+    'edward_slot' : 0x05, 
+    'rosa1_slot' : 0x06, 
+    'yang1_slot' : 0x07, 
+    'palom_slot' : 0x08,
+    'porom_slot' : 0x09, 
+    'tellah2_slot' : 0x0A, 
+    'yang2_slot' : 0x0D, 
+    'cid_slot' : 0x0E, 
+    'kain2_slot' : 0x0F, 
+    'rosa2_slot' : 0x10, 
+    'arydia_slot' : 0x11, 
+    'edge_slot' : 0x12,
+    'fusoya_slot' : 0x13, 
+    'kain3_slot' : 0x14,
+}
+
+DEFAULTS = {
+    'dkcecil_slot' : 'cecil',
+    'kain1_slot' : 'kain', 
+    'crydia_slot' : 'rydia', 
+    'tellah1_slot' : 'tellah',
+    'edward_slot' : 'edward', 
+    'rosa1_slot' : 'rosa', 
+    'yang1_slot' : 'yang', 
+    'palom_slot' : 'palom',
+    'porom_slot' : 'porom', 
+    'tellah2_slot' : 'tellah', 
+    'yang2_slot' : 'yang', 
+    'cid_slot' : 'cid', 
+    'kain2_slot' : 'kain', 
+    'rosa2_slot' : 'rosa', 
+    'arydia_slot' : 'rydia', 
+    'edge_slot' : 'edge',
+    'fusoya_slot' : 'fusoya', 
+    'kain3_slot' : 'kain',
+}
+
+MUTUALLY_EXCLUSIVE_SLOTS = [
+    ['dkcecil_slot', 'kain1_slot'],
+    ['palom_slot', 'porom_slot'],
+    ['kain2_slot', 'rosa2_slot']
+]
+
+# maps characters to corresponding reference actors
+CHARACTERS = {
+    'cecil' : 0x01, 
+    'kain' : 0x02, 
+    'rydia' : 0x03, 
+    'tellah' : 0x04, 
+    'edward' : 0x05, 
+    'rosa' : 0x06, 
+    'yang' : 0x07, 
+    'palom' : 0x08, 
+    'porom' : 0x09, 
+    'cid' : 0x0E, 
+    'edge' : 0x12, 
+    'fusoya' : 0x13
+}
+
+
+STARTING_SLOTS = ['dkcecil_slot', 'kain1_slot']
+FREE_SLOTS = [
+    'tellah1_slot', 'edward_slot', 'palom_slot', 'porom_slot', 'tellah2_slot'
+    ]
+
+EASY_SLOTS = ['yang1_slot', 'yang2_slot']
+HARD_SLOTS = [s for s in SLOTS if s not in (FREE_SLOTS + EASY_SLOTS + STARTING_SLOTS)]
+EARNED_SLOTS = EASY_SLOTS + HARD_SLOTS
+
+PREGAME_NAMING_SPRITE_TABLE = [
+    0x0E, 0x36, 0xB0, 0x38, 0x16, 0x36, 0xB1, 0x38, 0x0E, 0x3E, 0xB2, 0x38, 0x16, 0x3E, 0xB3, 0x38, 
+    0x0E, 0x46, 0xB4, 0x38, 0x16, 0x46, 0xB5, 0x38, 0x0E, 0x56, 0xB6, 0x38, 0x16, 0x56, 0xB7, 0x38, 
+    0x0E, 0x5E, 0xB8, 0x38, 0x16, 0x5E, 0xB9, 0x38, 0x0E, 0x66, 0xBA, 0x38, 0x16, 0x66, 0xBB, 0x38, 
+    0x0E, 0x76, 0xBC, 0x38, 0x16, 0x76, 0xBD, 0x38, 0x0E, 0x7E, 0xBE, 0x38, 0x16, 0x7E, 0xBF, 0x38, 
+    0x0E, 0x86, 0xC0, 0x38, 0x16, 0x86, 0xC1, 0x38, 0x0E, 0x96, 0xC2, 0x38, 0x16, 0x96, 0xC3, 0x38, 
+    0x0E, 0x9E, 0xC4, 0x38, 0x16, 0x9E, 0xC5, 0x38, 0x0E, 0xA6, 0xC6, 0x38, 0x16, 0xA6, 0xC7, 0x38, 
+    0x5E, 0x36, 0xC8, 0x38, 0x66, 0x36, 0xC9, 0x38, 0x5E, 0x3E, 0xCA, 0x38, 0x66, 0x3E, 0xCB, 0x38, 
+    0x5E, 0x46, 0xCC, 0x38, 0x66, 0x46, 0xCD, 0x38, 0x5E, 0x56, 0xCE, 0x38, 0x66, 0x56, 0xCF, 0x38, 
+    0x5E, 0x5E, 0xD0, 0x38, 0x66, 0x5E, 0xD1, 0x38, 0x5E, 0x66, 0xD2, 0x38, 0x66, 0x66, 0xD3, 0x38, 
+    0x5E, 0x76, 0xD4, 0x38, 0x66, 0x76, 0xD5, 0x38, 0x5E, 0x7E, 0xD6, 0x38, 0x66, 0x7E, 0xD7, 0x38, 
+    0x5E, 0x86, 0xD8, 0x38, 0x66, 0x86, 0xD9, 0x38, 0x5E, 0x96, 0xDA, 0x38, 0x66, 0x96, 0xDB, 0x38, 
+    0x5E, 0x9E, 0xDC, 0x38, 0x66, 0x9E, 0xDD, 0x38, 0x5E, 0xA6, 0xDE, 0x38, 0x66, 0xA6, 0xDF, 0x38, 
+    0xAE, 0x36, 0xE0, 0x38, 0xB6, 0x36, 0xE1, 0x38, 0xAE, 0x3E, 0xE2, 0x38, 0xB6, 0x3E, 0xE3, 0x38, 
+    0xAE, 0x46, 0xE4, 0x38, 0xB6, 0x46, 0xE5, 0x38, 0xAE, 0x56, 0xE6, 0x38, 0xB6, 0x56, 0xE7, 0x38, 
+    0xAE, 0x5E, 0xE8, 0x38, 0xB6, 0x5E, 0xE9, 0x38, 0xAE, 0x66, 0xEA, 0x38, 0xB6, 0x66, 0xEB, 0x38, 
+    0xAE, 0x76, 0xEC, 0x38, 0xB6, 0x76, 0xED, 0x38, 0xAE, 0x7E, 0xEE, 0x38, 0xB6, 0x7E, 0xEF, 0x38, 
+    0xAE, 0x86, 0xF0, 0x38, 0xB6, 0x86, 0xF1, 0x38, 0xAE, 0x96, 0xF2, 0x38, 0xB6, 0x96, 0xF3, 0x38, 
+    0xAE, 0x9E, 0xF4, 0x38, 0xB6, 0x9E, 0xF5, 0x38, 0xAE, 0xA6, 0xF6, 0x38, 0xB6, 0xA6, 0xF7, 0x38,
+]
+
+def apply(env):
+    pregame_name_characters = set(CHARACTERS)
+
+    requested_start_characters = []
+    disrequested_start_characters = []    
+    start_character = None
+    restricted_characters = []
+
+    for ch in CHARACTERS:
+        if env.options.flags.has(f'Cstart:{ch}'):
+            requested_start_characters.append(ch)
+        if env.options.flags.has(f'Cstart:not_{ch}'):
+            disrequested_start_characters.append(ch)
+        if env.options.flags.has(f'Crestrict:{ch}'):
+            restricted_characters.append(ch)
+    
+    if not restricted_characters:
+        restricted_characters.extend(['fusoya', 'edge'])       
+
+    if requested_start_characters and disrequested_start_characters:
+        raise Exception("Cannot specify both inclusions and exclusions for starting character pool")
+    elif requested_start_characters:
+        start_character = env.rnd.choice(requested_start_characters)
+
+    assignable_slots = STARTING_SLOTS.copy()
+    
+    # maximum party size
+    max_party_size = env.options.flags.get_suffix('Cparty:')
+    if max_party_size:
+        max_party_size = int(max_party_size)
+    else:
+        max_party_size = 5
+
+    env.add_binary(BusAddress(0x21F0FF), [max_party_size])
+    
+    if env.options.flags.has('no_starting_partner'):
+        assignable_slots.remove('kain1_slot')
+
+    if env.options.flags.has('characters_in_treasure_earned') or not env.options.flags.has('no_earned_characters'):
+        assignable_slots.extend(EARNED_SLOTS)
+
+    if env.options.flags.has('characters_in_treasure_free') or not env.options.flags.has('no_free_characters'):
+        assignable_slots.extend(FREE_SLOTS)
+
+    if env.options.flags.has('objective_mode_classicgiant') and 'kain3_slot' in assignable_slots:
+        assignable_slots.remove('kain3_slot')
+
+    env.add_substitution('randomizer character count', '{:02X}'.format(len(assignable_slots)))
+
+    if env.options.flags.has('characters_vanilla'):
+        assignment = {slot : DEFAULTS[slot] for slot in assignable_slots}
+        if start_character is not None:
+            assignment['dkcecil_slot'] = start_character
+        elif disrequested_start_characters:
+            allowed_starting_characters = sorted(set(CHARACTERS) - set(disrequested_start_characters))
+            if (not allowed_starting_characters):
+                raise Exception("No character can be chosen as the starting character under these flags")
+            
+            assignment['dkcecil_slot'] = env.rnd.choice(allowed_starting_characters)
+
+        used_characters = set([assignment[slot] for slot in assignment if slot not in STARTING_SLOTS])
+        if not set(env.meta['objective_required_characters']).issubset(used_characters):
+            raise Exception("Objective required character is not present in vanilla character assignment.")
+    else:
+        allowed_characters = list(CHARACTERS)
+        only_characters = []
+        for ch in CHARACTERS:
+            if env.options.flags.has(f'Conly:{ch}'):
+                only_characters.append(ch)            
+            if env.options.flags.has(f'Cno:{ch}'):
+                allowed_characters.remove(ch)
+        if only_characters:
+            allowed_characters = only_characters
+        if not allowed_characters:
+            # fallback to all characters if user has excluded all characters
+            allowed_characters = list(CHARACTERS)
+
+        if start_character is None:
+            # pick a starting character now from the allowed pool
+            if env.options.flags.has('Cstart:any'):
+                allowed_starting_characters = list(CHARACTERS)
+            else:
+                if env.options.flags.has('characters_standard'):
+                    allowed_starting_characters = sorted(list(set(allowed_characters) - set(restricted_characters)))
+                    if not allowed_starting_characters:
+                        allowed_starting_characters = list(allowed_characters)
+                else:
+                    allowed_starting_characters = list(allowed_characters)
+
+                if disrequested_start_characters:
+                    allowed_starting_characters = sorted(set(allowed_starting_characters) - set(disrequested_start_characters))
+
+            # remove objective required characters from consideration, if able
+            if (set(allowed_starting_characters) - set(env.meta['objective_required_characters'])):
+                allowed_starting_characters = sorted(set(allowed_starting_characters) - set(env.meta['objective_required_characters']))
+
+            if not allowed_starting_characters:
+                raise Exception("No character can be chosen as the starting character under these flags")
+
+            # in particular, start_character is *never* None from here on out
+            start_character = env.rnd.choice(allowed_starting_characters)
+
+        # flag for later usage during character assignment
+        keep_starter_in_pool_early = False
+        mandatory_objective_required_char_count = env.meta['objective_req_char_count']
+
+        # ensure characters required by manual objectives are present
+        for char in env.meta['objective_required_characters']:
+            if char not in allowed_characters:
+                allowed_characters.append(char)
+
+        # remove hero from further allowance, if able
+        if (env.options.flags.has('hero_challenge') or env.options.flags.has('superhero_challenge')) and start_character in allowed_characters and len(allowed_characters) > 1 and start_character not in env.meta['objective_required_characters'] and len(allowed_characters) > mandatory_objective_required_char_count:
+            allowed_characters.remove(start_character)
+
+        pregame_name_characters = set(allowed_characters)
+
+        distinct_count = env.options.flags.get_suffix('Cdistinct:')
+        if distinct_count:
+            distinct_count = int(distinct_count)
+            distinct_characters = set()
+
+            # count objective-required characters against distinct count
+            forced_characters = sorted(list(env.meta['objective_required_characters']))
+            for c in forced_characters:
+                distinct_characters.add(c)
+
+            # count starting character against distinct count
+            distinct_characters.add(start_character)
+            
+            # pad character list if more distinct characters are needed
+            if len(distinct_characters) < distinct_count:
+                remaining_characters = [ch for ch in allowed_characters if ch not in distinct_characters]
+                for c in env.rnd.sample(remaining_characters, min(len(remaining_characters), distinct_count - len(distinct_characters))):
+                    distinct_characters.add(c)
+
+            # after pool is filled, prevent reassignment of starting character if not allowed by flags
+            # and not required by objectives (including handling all possible random character objectives)
+            if start_character not in forced_characters and start_character not in allowed_characters and len(distinct_characters) > 1 and len(distinct_characters) > mandatory_objective_required_char_count:
+                distinct_characters.remove(start_character)
+
+            allowed_characters = sorted(list(distinct_characters))        
+
+
+        # remove starting slot now that the start character is specified, but after we've already
+        # done the total available character count
+        assignable_slots.remove('dkcecil_slot')
+        
+        num_easy_slots = len([s for s in assignable_slots if s not in HARD_SLOTS])
+
+        def subtract_if_able(original_set, subtract_set):
+            result = original_set - subtract_set
+            if result:
+                original_set -= subtract_set
+
+        # create assignments until we find one that satisfies all
+        # constraints, or otherwise generate a bunch and take the one
+        # violating the fewest constraints
+        possible_assignments = []
+
+        for attempt in range( 2*len(SLOTS) ):
+            characters = []
+            if not env.options.flags.has('characters_not_guaranteed'):
+                characters.extend(allowed_characters)
+                if (start_character in characters and start_character not in env.meta['objective_required_characters']
+                    and len(allowed_characters) > mandatory_objective_required_char_count):
+                    characters.remove(start_character)
+            else:
+                # need to ensure that even on Cmaybe, we put in enough characters for random objectives
+                characters.extend(env.meta['objective_required_characters'])
+                characters.extend(env.rnd.sample(list(set(allowed_characters).difference(set(env.meta['objective_required_characters']))),mandatory_objective_required_char_count-len(env.meta['objective_required_characters'])))
+
+            # pre-cull characters if Cnoearned is on            
+            if env.options.flags.has('no_earned_characters') and not env.options.flags.has('characters_in_treasure_earned'):
+                valid_restricted_characters = list(restricted_characters)
+                while len(characters) > len(assignable_slots):
+                    # remove restricted characters first
+                    if valid_restricted_characters and not env.options.flags.has('characters_relaxed'):
+                        ch = env.rnd.choice(valid_restricted_characters)
+                        if ch in characters and ch not in env.meta['objective_required_characters']:
+                            characters.remove(ch)
+                        valid_restricted_characters.remove(ch)
+                    else:
+                        # remove any; it doesn't matter whom, as long as they aren't objective-required.
+                        ch_options = [c for c in characters if c not in env.meta['objective_required_characters']]
+                        characters.remove(env.rnd.choice(ch_options))
+            elif len(characters) > len(assignable_slots):
+                # obscure edge case for Cnopartner/nofree + Omode:classicgiant (but not Cnoearned): 
+                # we can have one too many characters, so pre-cull one depending on if there are 
+                # too many restricted characters for gated slots
+                valid_restricted_characters = list(restricted_characters)
+                if len(valid_restricted_characters) >= len(HARD_SLOTS) - 1:
+                    # cull a restricted character to help the randomizer; note that there are
+                    # len(HARD_SLOTS) - 1 available non-starting-character slots, i.e. 9-1 = 8.
+                    ch_options = [c for c in valid_restricted_characters if c in characters and c not in env.meta['objective_required_characters']]
+                    if ch_options:
+                        ch = env.rnd.choice(ch_options)
+                        characters.remove(ch)
+                else:
+                    # remove any; it doesn't matter whom, as long as they aren't objective-required (and they can't all be!).
+                    ch_options = [c for c in characters if c not in env.meta['objective_required_characters']]
+                    characters.remove(env.rnd.choice(ch_options))
+            # add characters to the pool as best as we're able            
+            while len(characters) < len(assignable_slots):        
+                character_choices = set(allowed_characters)                
+                # if weighted, remove restricted characters from pool if
+                # we don't have enough characters yet to fill the
+                # easy slots
+                if not env.options.flags.has('characters_relaxed'):
+                    num_unrestricted_characters_chosen = len([ch for ch in characters if ch not in restricted_characters])
+                    if num_unrestricted_characters_chosen < num_easy_slots:
+                        subtract_if_able(character_choices, set(restricted_characters))
+
+                # if no duplicates, try to ensure that there is 
+                # a different starting partner character
+                if env.options.flags.has('characters_no_duplicates'):
+                    if len(set(characters)) == 1:
+                        subtract_if_able(character_choices, set(characters))
+
+                characters.append(env.rnd.choice(sorted(character_choices)))            
+            cur_assignment = {}
+            cur_assignment_score = 0.0
+            if start_character is not None:
+                cur_assignment['dkcecil_slot'] = start_character
+
+            def calculate_slot_score(slot, ch, cur_assign, req_num, char_num_2):
+                slot_score = 0.0
+                if not env.options.flags.has('characters_relaxed') and ch in restricted_characters and slot not in HARD_SLOTS:
+                    slot_score += 1.0
+
+                if env.options.flags.has('characters_no_duplicates'):
+                    for mutex_set in MUTUALLY_EXCLUSIVE_SLOTS:
+                        if slot in mutex_set:
+                            for other_slot in mutex_set:
+                                if slot != other_slot and other_slot in cur_assignment and cur_assignment[other_slot] == ch:
+                                    slot_score += 0.5
+                                    break
+                
+                # assign a small positive score in the case that there are many objective characters required (more than half of allowed chars)
+                # and we are duplicating a non-starting/partner character, so that we ensure that we do actually put
+                # enough characters in the seed, but only until we've got all the characters required
+                if req_num > char_num_2:
+                    assigned_chars = set([cur_assign[s] for s in cur_assign if s not in STARTING_SLOTS])
+                    if len(assigned_chars) < req_num and ch in assigned_chars:
+                        slot_score += 0.05
+                        # print(f'ch: {ch} s: {slot} slot_score: {slot_score}')
+
+                return slot_score
+
+            env.rnd.shuffle(characters)
+            if not env.options.flags.has('characters_relaxed'):
+                characters.sort(key=lambda ch: (ch not in restricted_characters))
+
+            # print(characters)
+
+            for ch in characters:
+                scored_slots = []
+                for slot in assignable_slots:
+                    if slot in cur_assignment:
+                        continue                    
+                    scored_slots.append( (calculate_slot_score(slot, ch, cur_assignment, 
+                                                               mandatory_objective_required_char_count, len(allowed_characters) // 2), slot) )
+
+                scored_slots.sort()
+                eligible_slots = [pair for pair in scored_slots if pair[0] == scored_slots[0][0]]
+                selected_slot = env.rnd.choice(eligible_slots)
+                cur_assignment_score += selected_slot[0]
+                cur_assignment[selected_slot[1]] = ch
+
+            # reject this assignment if it violates objective requirements
+            assignment_impossible = False
+            for ch in env.meta['objective_required_characters']:
+                character_is_findable = False
+                for slot in cur_assignment:
+                    if cur_assignment[slot] == ch and slot not in STARTING_SLOTS:
+                        character_is_findable = True
+                        break
+                if not character_is_findable:
+                    assignment_impossible = True
+            nonstarting_chars = set()
+            for slot in [s for s in assignable_slots if s not in STARTING_SLOTS]:
+                # build set of viable objective characters, needs to have the mandatory number of objective characters to be valid
+                nonstarting_chars.add(cur_assignment[slot])
+            if len(nonstarting_chars) < mandatory_objective_required_char_count:
+                assignment_impossible = True
+
+            if not assignment_impossible:
+                possible_assignments.append( (cur_assignment_score, cur_assignment) )
+
+                if cur_assignment_score == 0.0:
+                    # tihs assignment violates no constraints, proceed with it
+                    break
+
+        if not possible_assignments:
+            raise Exception("Unable to find a possible character assignment after max number of attempts")
+
+        possible_assignments.sort(key=lambda ass: ass[0])
+        assignment = possible_assignments[0][1]
+        if _DEBUG and possible_assignments[0][0] > 0.0:
+            print('***')
+            print("*** could not find perfect assignment; this one has violation score {}".format(possible_assignments[0][0]))
+            print('***')
+
+    # assign defaults to unassigned slots for safety
+    # (also update pregame name screen characters at same time)
+    for slot in SLOTS:
+        if slot not in assignment:
+            assignment[slot] = None
+        elif assignment[slot] not in pregame_name_characters:
+            pregame_name_characters.add(assignment[slot])
+
+    axtor_map = [0x00] * 0x20           # 112
+    overworld_sprites_map = [0x00] * 0x20
+
+    # build substitutions table accordingly, and set metadata objective purposes
+    env.meta['available_characters'] = set()
+    env.meta['available_nonstarting_characters'] = set()
+    for slot in assignment:
+        character = assignment[slot]        
+        target_slot = SLOTS[slot]
+        # the Package char, SandRuby char, Baron Inn char, Zot chars, and the partner char all need piggies
+        slot_in_overworld = slot in ['crydia_slot', 'rosa1_slot', 'yang2_slot', 'rosa2_slot', 'kain1_slot', 'kain2_slot']
+        if character is None:
+            axtor_map[target_slot] = 0x00
+            if slot_in_overworld:
+                overworld_sprites_map[target_slot] = 0xFE  # placeholder piggy for required overworld NPCs
+            else:
+                overworld_sprites_map[target_slot] = 0x00
+        else:
+            axtor_map[target_slot] = CHARACTERS[character]
+            # re: Ctreasure, we still need piggies even if the characters are somewhere else.
+            slot_in_box = ((slot in ['tellah1_slot', 'edward_slot', 'palom_slot', 'porom_slot', 'tellah2_slot'] and env.options.flags.has('characters_in_treasure_free'))
+                           or (slot in ['crydia_slot', 'rosa1_slot', 'yang1_slot', 'yang2_slot', 'cid_slot', 'rosa2_slot', 
+                                        'kain2_slot', 'arydia_slot', 'edge_slot', 'fusoya_slot', 'kain3_slot'] and env.options.flags.has('characters_in_treasure_earned')))
+            if slot_in_box:
+                if slot_in_overworld:
+                    overworld_sprites_map[target_slot] = 0xFE
+                else:
+                    overworld_sprites_map[target_slot] = 0x00
+            else:
+                overworld_sprites_map[target_slot] = CHARACTERS[character]        
+            env.meta['available_characters'].add(character)
+            
+            if slot not in ['dkcecil_slot', 'kain1_slot']:
+                env.meta['available_nonstarting_characters'].add(character)
+
+    env.add_substitution('axtor map', ' '.join([f'{b:02X}' for b in axtor_map]))
+    env.add_substitution('overworld sprites map', ' '.join([f'{b:02X}' for b in overworld_sprites_map]))
+
+    # permadeath :S
+    if env.options.flags.has('characters_permadeath'):
+        env.add_file('scripts/permadeath.f4c')
+    elif env.options.flags.has('characters_permadeader'):
+        env.add_file('scripts/permadeath.f4c')
+        env.add_file('scripts/permadeader.f4c')
+    elif env.options.flags.has('characters_briefly_dead'):
+        env.add_file('scripts/swoon_to_wishes.f4c')
+        if env.options.flags.has('characters_irretrievable'):
+            env.add_toggle('check_legend_swoon')
+    elif env.options.flags.has('characters_mostly_dead'):
+        env.add_file('scripts/swoon_to_wishes.f4c')
+        env.add_toggle('check_legend_swoon')
+
+    # apply Dark Paladin tweak naming changes
+    if env.options.flags.has('darkpaladin'):
+        CHARACTER_AS_ENEMY_NAMES['cecil'] = ['D.Knight', 'DPaladin']
+        REFERENCE_ACTORS_TO_SPOILER_NAMES[0x0B] = 'Cecil (dark paladin)'
+
+    # sub in against-ally battle data
+    # TODO: need more complex logic for this so it can be obfuscated
+    for slot in ['crydia_slot']: # no yang2_slot fight anymore
+        ch = assignment[slot]
+        if ch is None or env.options.flags.has('characters_in_treasure_earned'):
+            ch = 'piggy'
+
+        monster_gfx_sprite = CHARACTER_MONSTER_GFX[ch][0]
+        monster_gfx_palette = (env.rnd.randint(0x00, 0x0D)) if (ch == 'piggy') else monster_gfx_sprite
+        monster_gfx = f'size $4{monster_gfx_sprite:1X} palette $0{monster_gfx_palette:1X}'
+        monster_name = CHARACTER_AS_ENEMY_NAMES[ch][0]
+        env.add_substitution(slot + ' monster_gfx', monster_gfx)
+        env.add_substitution(slot + ' monster_name', monster_name)
+
+        if len(CHARACTER_MONSTER_GFX[ch]) > 1:
+            env.add_substitution(slot + ' monster_gfx_alt', 'size $4{0:1X} palette $0{0:1X}'.format(CHARACTER_MONSTER_GFX[ch][1]))
+        else:
+            env.add_substitution(slot + ' monster_gfx_alt', monster_gfx)
+
+        if len(CHARACTER_AS_ENEMY_NAMES[ch]) > 1:
+            env.add_substitution(slot + ' monster_name_alt', CHARACTER_AS_ENEMY_NAMES[ch][1])
+        else:
+            env.add_substitution(slot + ' monster_name_alt', monster_name)
+
+        if ch in CHARACTER_ALT_FLAGS:
+            env.add_substitution(slot + ' monster_alt_check', '[#B #If #Flag {}]'.format(CHARACTER_ALT_FLAGS[ch]))
+        else:
+            env.add_substitution(slot + ' monster_alt_check', '[#B #If #False 0]')
+
+    # do fashion here too for convenience
+    if not env.options.flags.has('vanilla_fashion'):
+        fashion_filename = ('fashion_vintage.bin' if env.options.flags.has('vintage') else 'fashion.bin')
+        with open(os.path.join(os.path.dirname(__file__), 'assets', 'fashion', fashion_filename), 'rb') as infile:
+            env.add_binary(UnheaderedAddress(0x140000), infile.read())
+        env.add_file('scripts/fashion.f4c')
+
+        NUM_PALETTES = 13
+        available_palettes = {c : list(range(NUM_PALETTES)) for c in CHARACTERS}
+        resolve_order = list(SLOTS)
+        env.rnd.shuffle(resolve_order)
+        fashion_codes = [0] * 0x20
+
+        for slot in resolve_order:
+            character = assignment[slot]
+            if character is None:
+                continue
+
+            code = env.rnd.choice(available_palettes[character])
+            target_slot = SLOTS[slot]
+            fashion_codes[target_slot] = code
+            available_palettes[character].remove(code)
+            if not available_palettes[character]:
+                available_palettes[character] = list(range(NUM_PALETTES))
+
+        env.add_binary(BusAddress(0x21f770), fashion_codes, as_script=True)
+    else:
+        # write null fashion table
+        env.add_binary(BusAddress(0x21f770), [0x00] * 0x20, as_script=True)
+
+    # create distinguisher tag codes for naming
+    distinguisher_tiles = list(range(0x42, 0x5C)) + list(range(0x80, 0x8A)) # start with A-Z+0-9
+    distinguisher_tiles.remove(0x43) # remove B (ambiguous with 8)
+    distinguisher_tiles.remove(0x48) # remove G (ambiguous with 6)
+    distinguisher_tiles.remove(0x4A) # remove I (ambiguous with 1)
+    distinguisher_tiles.remove(0x50) # remove O (ambiguous with 0)
+
+    env.rnd.shuffle(distinguisher_tiles)
+    #env.add_binary(BusAddress(0x21f790), [0x0A] * 0x16, as_script=True)
+    env.add_substitution('name distinguishers', ' '.join([f'{b:02X}' for b in distinguisher_tiles]))
+
+    SILLY_NAME_CHAR_LISTS = {
+        'SillyNames__ConsonantsUpper': [ 0x21d810, "BCDFGHJKLMNPQRSTVWXZ" ],
+        'SillyNames__ConsonantsLower': [ 0x21d830, "bcdfgklmnprstvxz" ],
+        'SillyNames__VowelsUpper':     [ 0x21d850, "AEIOU" ],
+        'SillyNames__VowelsLower':     [ 0x21d858, "aeiouy" ],
+        'SillyNames__Digits':          [ 0x21d860, "0123456789" ],
+        'SillyNames__Punctuation':     [ 0x21d870, "!?%/:'.-_" ],
+    }
+
+    for k in SILLY_NAME_CHAR_LISTS:
+        addr, src_chars = SILLY_NAME_CHAR_LISTS[k]
+        chars = list(src_chars)
+        env.rnd.shuffle(chars)
+        chars = ''.join(chars)
+        env.add_scripts(
+            f'patch(${addr:X} bus) {{ {len(chars):02X} }}',
+            f'text(${addr+1:X} bus) {{{chars}}}'
+            )
+
+    # alter the sprites table on pregame name screen to exclude known excluded chars
+    pregame_sprites = list(PREGAME_NAMING_SPRITE_TABLE)
+    for ch_id,ch in enumerate(CHARACTERS):
+        if ch not in pregame_name_characters and not env.options.hide_flags:
+            sprite_start = ch_id * 6 * 4
+            sprite_count = 6
+            pregame_sprites[sprite_start:sprite_start + (sprite_count * 4)] = [0xFF, 0xFF, 0x00, 0x00] * sprite_count
+
+    env.add_binary(BusAddress(0x21d880), bytes(pregame_sprites))
+
+    restricted_slots = []
+    for slot in assignment:
+        if assignment[slot] in restricted_characters:
+            restricted_slots.append(slot)
+    env.update_assignments(assignment)
+    env.meta['restricted_character_slots'] = restricted_slots
+
+    # generate character assignment spoilers
+    # for x in SLOTS:
+    #     print(f'Slots are '+ x)
+    CHARACTER_SLOT_SPOILER_NAMES = {
+        s : rewards.REWARD_SLOT_SPOILER_NAMES[rewards.RewardSlot(SLOTS[s])] 
+        for s in SLOTS
+        }
+    character_spoilers = []
+    character_spoilers_public = env.options.flags.has_any('-spoil:all', '-spoil:chars')
+    for slot in SLOTS:
+        if slot in assignment and assignment[slot]:
+            char = assignment[slot]
+            char = char[0].upper() + char[1:]
+        else:
+            char = "(not present)"
+        character_spoilers.append( SpoilerRow(CHARACTER_SLOT_SPOILER_NAMES[slot], char, obscurable=True) )
+    env.spoilers.add_table("CHARACTERS", character_spoilers, public=character_spoilers_public)
+
+    # set starting gear, if needed
+    inf_arrows = env.options.flags.has('infinite_arrows')
+    altered_item_tiers = env.meta['altered_item_tiers']
+    # first, check for Cnekkie
+    if env.options.flags.has('characters_nekkie'):
+        starting_weapon_spoilers = []
+        weapons_dbview = databases.get_items_dbview().get_refined_view(lambda it: it.category == 'weapon' and it.subtype != 'arrow' and altered_item_tiers[it.code] in (1,2,3))
+        arrows_dbview = databases.get_items_dbview().get_refined_view(lambda it: it.category == 'weapon' and it.subtype == 'arrow' and altered_item_tiers[it.code] in (1,2,3))
+        for reference_actor_id in REFERENCE_ACTORS_TO_EQUIP_JOBS:
+            job = REFERENCE_ACTORS_TO_EQUIP_JOBS[reference_actor_id]
+            if env.options.flags.has('rosapaladin'):
+                # Rosa gets PCecil's weapons and vice-versa
+                if job == 'rosa':
+                    job = 'pcecil'
+                elif job == 'pcecil':
+                    job = 'rosa'
+            weapons = weapons_dbview.find_all(lambda it: job in it.equip)
+            weapon = env.rnd.choice(weapons)
+            if weapon.subtype == 'bow':
+                arrow = env.rnd.choice(arrows_dbview.find_all())
+                starting_weapon_spoilers.append(SpoilerRow(REFERENCE_ACTORS_TO_SPOILER_NAMES[reference_actor_id], databases.get_item_spoiler_name(weapon) + ' + ' + databases.get_item_spoiler_name(arrow), obscurable=True))
+                main_hand_value = arrow.const + (' 1' if 'unstackable' in env.meta.get('wacky_challenge', []) or inf_arrows else ' 20')
+                off_hand_value = weapon.const
+            else:
+                main_hand_value = weapon.const
+                off_hand_value = '$00 0'
+                weapon_name = databases.get_item_spoiler_name(weapon)
+                # make Dark Paladin change if necessary
+                if env.options.flags.has('darkpaladin') and reference_actor_id == 0x0B:
+                    weapon_name = weapon_name.replace('Light','Chaos')
+                    weapon_name = weapon_name.replace('Crystal','Hades')
+                starting_weapon_spoilers.append(SpoilerRow(REFERENCE_ACTORS_TO_SPOILER_NAMES[reference_actor_id], weapon_name, obscurable=True))
+            
+            if (job in ['kain', 'palom']):
+                main_hand = 'left hand'
+                off_hand = 'right hand'
+            else:
+                main_hand = 'right hand'
+                off_hand = 'left hand'
+
+            gear_script = (f'actor(${reference_actor_id:02X}) {{\n' +
+                f'{ main_hand } { main_hand_value }\n' +
+                f'{ off_hand } { off_hand_value }\n' +
+                f'head $00\n' +
+                f'body $00\n' +
+                f'arms $00\n' +
+                '}')
+
+            env.add_script(gear_script)
+        env.spoilers.add_table('CHARACTER STARTING WEAPONS', starting_weapon_spoilers, ditto_depth=1, public=character_spoilers_public)
+    
+    # then, check for Cthrift (which is mutually exclusive with Cnekkie)
+    thrift_tier = env.options.flags.get_suffix('Cthrift:')
+    if thrift_tier:
+        thrift_tier = int(thrift_tier)
+        starting_gear_spoilers = []
+        weapons_dbview = databases.get_items_dbview().get_refined_view(lambda it: it.category == 'weapon' and it.subtype != 'arrow' and altered_item_tiers[it.code] in range(1,thrift_tier+1))
+        arrows_dbview = databases.get_items_dbview().get_refined_view(lambda it: it.category == 'weapon' and it.subtype == 'arrow' and altered_item_tiers[it.code] in range(1,thrift_tier+1))
+        shields_dbview = databases.get_items_dbview().get_refined_view(lambda it: it.category == 'armor' and it.subtype == 'shield' and altered_item_tiers[it.code] in range(1,thrift_tier+1))
+        head_dbview = databases.get_items_dbview().get_refined_view(lambda it: it.category == 'armor' and it.subtype in ['helmet','hat'] and altered_item_tiers[it.code] in range(1,thrift_tier+1))
+        body_dbview = databases.get_items_dbview().get_refined_view(lambda it: it.category == 'armor' and it.subtype in ['armor','robe'] and altered_item_tiers[it.code] in range(1,thrift_tier+1))
+        arms_dbview = databases.get_items_dbview().get_refined_view(lambda it: it.category == 'armor' and it.subtype in ['gauntlet','ring'] and altered_item_tiers[it.code] in range(1,thrift_tier+1)
+                                                                    and it.const != '#item.Cursed') # it makes more sense to just ban Cursed Rings entirely, given their value.
+
+        for reference_actor_id in REFERENCE_ACTORS_TO_EQUIP_JOBS:
+            job = REFERENCE_ACTORS_TO_EQUIP_JOBS[reference_actor_id]
+            gear_list = [] # list of strings to be joined together to form the spoiler row
+
+            if env.options.flags.has('rosapaladin'):
+                # Rosa gets PCecil's weapons and vice-versa
+                if job == 'rosa':
+                    job = 'pcecil'
+                elif job == 'pcecil':
+                    job = 'rosa'            
+            weapons = weapons_dbview.find_all(lambda it: job in it.equip)
+            weapon = env.rnd.choice(weapons)
+            if weapon.subtype == 'bow':
+                arrow = env.rnd.choice(arrows_dbview.find_all())
+                gear_list.append(databases.get_item_spoiler_name(weapon) + ' + ' + databases.get_item_spoiler_name(arrow))
+                main_hand_value = arrow.const + (' 1' if 'unstackable' in env.meta.get('wacky_challenge',[]) or inf_arrows else ' 20')
+                off_hand_value = weapon.const
+            else:
+                main_hand_value = weapon.const
+                gear_list.append(databases.get_item_spoiler_name(weapon))
+                if (job in ['dkcecil','pcecil','kain','cid']) and (not weapon.twohanded):
+                    shields = shields_dbview.find_all(lambda it: job in it.equip)
+                    shield = env.rnd.choice(shields)
+                    gear_list.append(databases.get_item_spoiler_name(shield))
+                    off_hand_value = shield.const
+                elif (job in ['yang','edge']):
+                    weapon2 = env.rnd.choice(weapons)
+                    off_hand_value = weapon2.const
+                    gear_list.append(databases.get_item_spoiler_name(weapon2))
+                else:
+                    off_hand_value = '$00 0'
+
+            # swap Rosa and PCecil back if necessary, since they don't swap armour
+            if env.options.flags.has('rosapaladin'):
+                # Rosa gets PCecil's weapons and vice-versa
+                if job == 'rosa':
+                    job = 'pcecil'
+                elif job == 'pcecil':
+                    job = 'rosa'                 
+
+            heads = head_dbview.find_all(lambda it: job in it.equip)
+            head = env.rnd.choice(heads)
+            gear_list.append(databases.get_item_spoiler_name(head))
+
+            bodys = body_dbview.find_all(lambda it: job in it.equip)
+            body = env.rnd.choice(bodys)
+            gear_list.append(databases.get_item_spoiler_name(body))
+
+            armss = arms_dbview.find_all(lambda it: job in it.equip)
+            arms = env.rnd.choice(armss)
+            gear_list.append(databases.get_item_spoiler_name(arms))
+
+            if (job in ['kain', 'palom']):
+                main_hand = 'left hand'
+                off_hand = 'right hand'
+            else:
+                main_hand = 'right hand'
+                off_hand = 'left hand'
+
+            gear_script = (f'actor(${reference_actor_id:02X}) {{\n' +
+                f'{ main_hand } { main_hand_value }\n' +
+                f'{ off_hand } { off_hand_value }\n' +
+                f'head { head.const }\n' +
+                f'body { body.const }\n' +
+                f'arms { arms.const }\n' +
+                '}')
+
+            env.add_script(gear_script)
+            if env.options.flags.has('darkpaladin') and reference_actor_id == 0x0B:
+                for item in range(0,len(gear_list)):
+                    gear_list[item] = gear_list[item].replace('Paladin','Ancient')
+                    gear_list[item] = gear_list[item].replace('Light','Chaos')
+                    if not gear_list[item] == 'Crystal Ring':
+                        gear_list[item] = gear_list[item].replace('Crystal','Hades')
+            starting_gear_spoilers.append(SpoilerRow(REFERENCE_ACTORS_TO_SPOILER_NAMES[reference_actor_id], ", ".join(gear_list), obscurable=True))
+        env.spoilers.add_table('CHARACTER STARTING EQUIPMENT', starting_gear_spoilers, ditto_depth=1, public=character_spoilers_public)        
+
+    # note starting character in metadata
+    env.meta['starting_character'] = assignment['dkcecil_slot']
+
+    # apply extra scripts for hero challenge
+    if env.options.flags.has('hero_challenge') or env.options.flags.has('superhero_challenge'):
+        env.add_file('scripts/hero_exp.f4c')
+
+    # special case handling if Cecil is the starting character
+    if env.meta['starting_character'] == 'cecil':
+        if env.options.flags.has('characters_cecil_paladin'):
+            env.add_file('scripts/paladin_start_sprite.f4c')
+        elif env.options.flags.has('superhero_challenge'):
+            # if Cecil changes job and is the superhero, then he needs to potentially be re-superheroed.
+            env.add_substitution('cecil superhero ordeals', '    [#B #If #not_Item #item.EarthCrystal] {\n' +
+                                                            '        [#B #MakeSuperhero]\n' +
+                                                            '    }\n')
+
+    # handle Cstatscap:[] flags
+    statscap_flags = env.options.flags.get_suffix('Cstatscap:')
+    if statscap_flags:
+        cap = int(statscap_flags)
+        env.add_substitution('new stats cap', f'{cap:02X}')
+        env.add_file('scripts/different_stats_cap.f4c')
+        if cap in [127,255]:
+            env.add_toggle('three_digit_stats')
+            if cap == 255:
+                env.add_toggle('one_byte_cap')
+        elif cap == 28:
+            # Fu isn't allowed to start with 40 Wis/Wil, so directly patch
+            # his starting stats to be 28
+            env.add_binary(BusAddress(0x0FAA92), [0x1C, 0x1C])
+
+CHARACTER_AS_ENEMY_NAMES = {
+    'cecil'  : ['D.Knight', 'Paladin'],
+    'kain'   : ['Dragoon'],
+    'rydia'  : ['Girl', 'Caller'],
+    'tellah' : ['Sage'],
+    'edward' : ['Bard'],
+    'rosa'   : ['W.Wizard'],
+    'yang'   : ['Karate'],
+    'palom'  : ['B.Wizard'],
+    'porom'  : ['W.Wizard'],
+    'cid'    : ['Engineer'],
+    'edge'   : ['Ninja'],
+    'fusoya' : ['Mop'],
+    'piggy'  : ['Pig']
+}
+
+CHARACTER_MONSTER_GFX = {
+    'cecil'  : [0x00, 0x09],
+    'kain'   : [0x01],
+    'rydia'  : [0x02, 0x0B],
+    'tellah' : [0x03],
+    'edward' : [0x04],
+    'rosa'   : [0x05],
+    'yang'   : [0x06],
+    'palom'  : [0x07],
+    'porom'  : [0x08],
+    'cid'    : [0x0A],
+    'edge'   : [0x0C],
+    'fusoya' : [0x0D],
+    'piggy'  : [0x0E]
+}
+
+CHARACTER_ALT_FLAGS = {
+    'cecil' : '#flag.CecilBecamePaladin',
+    'rydia' : '#flag.RydiaRejoined'
+}
+
+REFERENCE_ACTORS_TO_EQUIP_JOBS = {
+    0x01 : 'dkcecil',
+    0x02 : 'kain',
+    0x03 : 'crydia',
+    0x04 : 'tellah',
+    0x05 : 'edward',
+    0x06 : 'rosa',
+    0x07 : 'yang',
+    0x08 : 'palom',
+    0x09 : 'porom',
+    0x0B : 'pcecil',
+    0x0E : 'cid',
+    0x11 : 'arydia',
+    0x12 : 'edge',
+    0x13 : 'fusoya',
+}
+
+REFERENCE_ACTORS_TO_SPOILER_NAMES = {
+    0x01 : 'Cecil (dark knight)',
+    0x02 : 'Kain',
+    0x03 : 'Rydia (child)',
+    0x04 : 'Tellah',
+    0x05 : 'Edward',
+    0x06 : 'Rosa',
+    0x07 : 'Yang',
+    0x08 : 'Palom',
+    0x09 : 'Porom',
+    0x0B : 'Cecil (paladin)',
+    0x0E : 'Cid',
+    0x11 : 'Rydia (adult)',
+    0x12 : 'Edge',
+    0x13 : 'FuSoYa',
+}
+
+
+
+if __name__ == '__main__':
+    import FreeEnt
+    import random
+    import argparse
+
+    _DEBUG = True
+
+    parser = argparse.ArgumentParser();
+    parser.add_argument('flags', nargs='?')
+    args = parser.parse_args();
+
+    options = FreeEnt.FreeEntOptions()
+    options.flags.load(args.flags if args.flags else 'C')
+
+    rnd = random.Random()
+    env = FreeEnt.Environment(options)
+
+    result = randomize(env)
+    subs = result['assignments']
+
+    print()
+    print('ASSIGNMENTS:')
+    width = max([len(k) for k in subs])
+    for k in SLOTS:
+        if k in subs:
+            print(f'{k:{width}} <- {subs[k]}')
+
+    print()
+    print('CHARACTER COUNTS:')
+    for ch in CHARACTERS:
+        char_count = len([k for k in subs if subs[k] == ch])
+        print(f'{ch:6} : {char_count}')

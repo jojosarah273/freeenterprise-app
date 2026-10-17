@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/mainRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#23234a"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/romStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#eee"
+            android:textSize="12sp"
+            android:text="Starting engine…" />
+
+        <Button
+            android:id="@+id/btnAddRom"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ADD ROM" />
+
+        <Button
+            android:id="@+id/btnEditor"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="EDITOR" />
+
+        <Button
+            android:id="@+id/btnSettings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚙" />
+
+        <Button
+            android:id="@+id/btnSeeds"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SEEDS" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/labelPresets"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="PRESETS"
+                android:textStyle="bold"
+                android:textColor="#303065"
+                android:textSize="14sp" />
+
+            <Spinner
+                android:id="@+id/categorySpinner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" />
+
+            <LinearLayout
+                android:id="@+id/presetList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="4dp" />
+
+            <TextView
+                android:id="@+id/labelFlags"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="FLAGS"
+                android:textStyle="bold"
+                android:textColor="#303065"
+                android:textSize="14sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="4dp">
+
+                <EditText
+                    android:id="@+id/flagsInput"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:inputType="text"
+                    android:maxLines="4"
+                    android:gravity="top"
+                    android:hint="e.g. Onone Kmain Pshop Crelaxed Twild Swild Bstandard Etoggle Gdupe/mp/warp/life/sylph/backrow/64 -spoon"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/btnCopyFlags"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⧉" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/validationText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textSize="12sp"
+                android:text="Engine starting…"
+                android:textColor="#353" />
+
+            <TextView
+                android:id="@+id/labelSeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="SEED (optional)"
+                android:textStyle="bold"
+                android:textColor="#303065"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/seedInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:inputType="textCapCharacters"
+                android:maxLength="10"
+                android:hint="up to 10 letters/numbers (blank = random)" />
+
+            <Button
+                android:id="@+id/btnGenerate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="GENERATE SEED" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textSize="11sp"
+                android:textColor="#888"
+                android:text="Fully offline. Same engine + salts as ff4fe.galeswift.com → same seeds for the same flags and seed. Your ROM never leaves the device." />
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

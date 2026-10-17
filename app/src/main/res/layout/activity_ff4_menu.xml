@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:orientation="vertical"
+    android:padding="6dp">
+
+    <com.freeenterprise.app.ff4ui.FF4Window
+        android:id="@+id/ff4StatusWindow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/ff4StatusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="3"
+            android:ellipsize="end"
+            android:textColor="#FFFFFF" />
+    </com.freeenterprise.app.ff4ui.FF4Window>
+
+    <com.freeenterprise.app.ff4ui.FF4Window
+        android:id="@+id/ff4MenuWindow"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="6dp">
+
+        <ScrollView
+            android:id="@+id/ff4Scroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scrollbars="none">
+
+            <com.freeenterprise.app.ff4ui.FF4Menu
+                android:id="@+id/ff4Menu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </ScrollView>
+    </com.freeenterprise.app.ff4ui.FF4Window>
+
+    <com.freeenterprise.app.ff4ui.FF4Window
+        android:id="@+id/ff4HintWindow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp">
+
+        <TextView
+            android:id="@+id/ff4Hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="3"
+            android:ellipsize="end"
+            android:textColor="#FFFFFF" />
+    </com.freeenterprise.app.ff4ui.FF4Window>
+
+</LinearLayout>
