@@ -101,6 +101,11 @@ interpreter-refresh wrinkle, and a two-phase plan. Summary:
 - **Play Store in-app updates** are effectively blocked by Play's restriction on
   `MANAGE_EXTERNAL_STORAGE` — "seamless updates" and "files at
   `/storage/emulated/0/FF4_FE`" are mutually exclusive.
+- **Model to copy:** `bryanthaboi/gen1recomp` publishes a static, JSON-Schema-validated
+  index of content/engine zips on GitHub Pages (checksums included) and installs them
+  in place, while the platform binary only moves for platform-level changes.
+- **Status: deferred** until the repo is public — no public manifest to maintain
+  while the code is private. Nothing here blocks on the app itself.
 
 **Goal:** get new engine versions and app releases without sideloading.
 

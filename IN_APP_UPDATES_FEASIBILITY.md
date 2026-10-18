@@ -48,21 +48,34 @@ release APK                           = 26.2 MB
 
 ## 3. Prior art — how gen1recomp does it
 
-Worth copying almost exactly, because it solves the same problem and has clearly
-been through the wars:
+Worth copying, because it solves the same problem and has clearly been through
+the wars. [`bryanthaboi/gen1recomp`](https://github.com/bryanthaboi/gen1recomp)
+(≈4k ★) is a Lua/LÖVE2D recreation of Gen 1–3. The platform binary ships per
+platform (APK / IPA / AppImage / flatpak / macOS) while **content and engine logic
+update in place** through a separate index repo,
+[`gen1recomp-mod-index`](https://github.com/bryanthaboi/gen1recomp-mod-index).
 
-- **A static index JSON**, generated on every push and served from GitHub Pages:
-  `https://bryanthaboi.github.io/gen1recomp-mod-index/data/index.json`
-- **Schema-versioned**: `schema/mod.schema.json`, `schema/cart.schema.json`
-- **Entries carry** `id`, `version` (semver), `categories`, and either a
-  `downloadURL` to an installable **`.zip`**, or a `github` object of
-  `{repo, version, sha256}` — i.e. **a pinned release plus a checksum**
-- Payloads are zips installed **in place by the app**; the platform binary
-  (APK/IPA/AppImage) only ships for platform-level changes
+The pipeline, as it actually exists:
 
-The important lessons: **a static manifest beats an API** (no auth, no rate
-limits, cacheable), **checksums are part of the index**, and the split between
-"content/engine" and "platform binary" is exactly the split we would want.
+| Piece | Detail |
+|---|---|
+| **Published index** | `data/index.json`, built by `scripts/build-index.mjs` and served from **GitHub Pages**, regenerated on every push (`.github/workflows/pages.yml`) |
+| **Schemas** | `schema/mod.schema.json` + `schema/cart.schema.json` — JSON Schema (draft 2020-12); index entries mirror the *engine's own* `manifest.json` fields |
+| **Entry shape** | `id`, `title`, `author`, `version` (semver), `categories`, `repo`, plus index-only fields so "the site and launcher" can find and update it. The payload is an installable **`.zip`**, addressed either by a direct `downloadURL` or a pinned `github: {repo, version, sha256}` |
+| **Submission + CI** | mods live as `mods/<Author>@<id>/meta.json`; `validate.yml` enforces the schema, with `check-blocklist.mjs`, `check-duplicates.mjs`, `check-links.mjs` and `gate-releases.mjs` gating the PR |
+| **Moderation** | a Docker-based `scanner/` produces scan reports; `blocklist.json` lists banned authors *with reasons*, matched case-insensitively against the author and repo owner |
+| **Rate limits** | an `oauth-worker/` (Cloudflare Worker) fronts GitHub API usage |
+| **In-app** | a mod manager (F10) installs and updates zips; the platform binary only moves for platform-level work |
+
+**Lessons we take:** a *static* manifest beats an API (no auth, no rate limits,
+cacheable); checksums belong in the index; version the schema from day one; and
+the content/engine vs platform-binary split is exactly the one we want.
+
+**A warning worth heeding:** their blocklist exists partly because an author
+"published a mod-sandbox escape" — third-party content is a real attack surface
+and drags in an entire moderation apparatus. Our engine updates should therefore
+be **first-party only and signed** (§5.5). If we ever accept community engines we
+inherit their scanner/CI/blocklist problem wholesale.
 
 ## 4. What I verified on this project
 
@@ -173,6 +186,12 @@ If an update exists it opens a window with the new version, size, notes, and
 `Update` / `Cancel`; downloading reuses the modal progress window, then reports
 success. A `Rollback engine` entry appears once a previous engine exists.
 
+The entry point is `Settings`, which lives in the app's menu stack. The player is
+a **separate activity** (`FF4PlayerActivity`) whose pause menu carries no update
+action, so an update **cannot be started while playing** — the app is already
+"not in-game" by the time you can reach the button. Only blocking during an
+in-flight *generation* matters (the engine files are being read).
+
 ## 6. Route B — full APK self-update
 
 Same manifest, but for the `app` block. Needs:
@@ -187,8 +206,9 @@ Same manifest, but for the `app` block. Needs:
 4. Hand it to `PackageInstaller` (session + `commit`), which shows Android's own
    **Update** dialog. `ACTION_INSTALL_PACKAGE` is deprecated; sessions are the
    supported path.
-5. **Before committing**: pause the emulator and flush the `.srm` (our 5-second
-   auto-flush makes this low-risk, but do it explicitly).
+5. **Before committing**: nothing is in flight — the installer is only reachable
+   from `Settings`, so by construction the player is not running and no
+   generation is underway. A `.srm` flush first is cheap belt-and-braces.
 6. The process is killed during install. On relaunch everything is intact, and
    our `versionCode`-stamped engine re-extract refreshes the bundled engine
    automatically — a neat synergy with the 1.5.3 change.
@@ -237,9 +257,14 @@ no secrets.
 | Added networking breaks an offline app | new failure modes, user distrust | manual checks only; `INTERNET` the only added permission; a setting to disable |
 | Play Protect warning on sideload | user scare | explain in release notes/FAQ |
 | 26 MB per app update | mobile data | engine-only for engine changes; optionally publish **per-ABI APKs** (arm64-only drops ~5 MB) and choose via `Build.SUPPORTED_ABIS` |
-| Update while playing | lost progress | never auto-install during play; pause + flush first |
+| Update while playing | **not reachable**: the update button lives in `Settings`, and the player is a separate activity with no update action | only becomes a concern if we later add a background/automatic update path |
 
 ## 10. Phased plan
+
+> **Deferred by decision.** We are not implementing this yet; it comes off the
+> shelf once the repository is public, so that no public manifest has to be
+> maintained while the code is still private. The plan below is what we pick up
+> then.
 
 - **Phase 1 — engine-only updates.** Static manifest, verified zip download,
   staging + smoke test + swap, interpreter refresh, rollback, `Check for updates`
@@ -252,7 +277,7 @@ no secrets.
 
 **Effort:** Phase 1 ≈ a day; Phase 2 ≈ 1–2 days including device testing.
 
-## 11. Decisions needed before implementing
+## 11. Decisions needed when we pick this up
 
 1. **Engine-only first, or both phases together?** (Phase 1 delivers most of the
    value with none of the installer friction.)
