@@ -41,6 +41,12 @@ Both art assets are **reproductions**, not files extracted from the game —
 independently recreated in the game's visual style — and both are freely
 redistributable.
 
+### App icon — `design_assets/ICON.png`
+
+- **Drawn by jojosarah273** (GIMP) for this project; built into the launcher icon
+  set at `app/src/main/res/mipmap-*` by `scripts/make_icons.py`.
+- Licence: **MIT**, the same as this project's own code (see `LICENSE`).
+
 ### Cursor sprite — `app/src/main/assets/ff4/pointer.png`
 
 - **Hand-made by jojosarah273** for this project.
