@@ -47,7 +47,7 @@ def circular(img):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--background', default='#000000',
+    ap.add_argument("--background", default="#455998",
                     help="adaptive background colour (visible only at the mask edge)")
     args = ap.parse_args()
 
