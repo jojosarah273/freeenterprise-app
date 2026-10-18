@@ -253,12 +253,10 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
 
         // Top-left: our own functions (FF4 ignores L/R, and Start opens our menu)
         val appRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val menu = button("MENU").apply { setOnClickListener { togglePause() } }
         ffButton = button("FF").apply { setOnClickListener { toggleFastForward() } }
         val save = button("SAVE").apply { setOnClickListener { quickSave() } }
         val trk = button("TRK").apply { setOnClickListener { toggleTracker() } }
-        appRow.addView(menu, LinearLayout.LayoutParams(dp(80), dp(42)))
-        appRow.addView(trk, LinearLayout.LayoutParams(dp(64), dp(42)).apply { marginStart = dp(8) })
+        appRow.addView(trk, LinearLayout.LayoutParams(dp(64), dp(42)))
         appRow.addView(ffButton, LinearLayout.LayoutParams(dp(64), dp(42)).apply { marginStart = dp(8) })
         appRow.addView(save, LinearLayout.LayoutParams(dp(72), dp(42)).apply { marginStart = dp(8) })
         holder.addView(appRow, FrameLayout.LayoutParams(
@@ -269,10 +267,11 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             marginStart = dp(16); topMargin = dp(16)
         })
 
-        // Top-right: the console's own buttons, so touch players get Select too
+        // Top-right: the console's buttons — SELECT goes to the game, START opens
+        // our menu (mirroring the physical Start button).
         val sysRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val sel = button("SELECT").apply { setOnTouchListener(holdListener(EmulatorBridge.SELECT)) }
-        val start = button("START").apply { setOnTouchListener(holdListener(EmulatorBridge.START)) }
+        val start = button("START").apply { setOnClickListener { togglePause() } }
         sysRow.addView(sel, LinearLayout.LayoutParams(dp(88), dp(42)))
         sysRow.addView(start, LinearLayout.LayoutParams(dp(88), dp(42)).apply { marginStart = dp(8) })
         holder.addView(sysRow, FrameLayout.LayoutParams(
@@ -632,6 +631,14 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
                 toggleFastForward()
                 return true
             }
+            // D-pad centre / Enter used to forward START to the game. The game's
+            // only use of Start is pausing in combat, which our menu does, so it
+            // opens our menu instead (never double-open while paused).
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                if (paused || trackerOpen) return super.onKeyDown(keyCode, event)
+                togglePause()
+                return true
+            }
             KeyEvent.KEYCODE_BACK -> {
                 confirm(
                     "Exit to sessions",
@@ -688,9 +695,10 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         KeyEvent.KEYCODE_DPAD_DOWN -> EmulatorBridge.DOWN
         KeyEvent.KEYCODE_DPAD_LEFT -> EmulatorBridge.LEFT
         KeyEvent.KEYCODE_DPAD_RIGHT -> EmulatorBridge.RIGHT
-        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> EmulatorBridge.START
         // Select belongs to the game in Free Enterprise
         KeyEvent.KEYCODE_BUTTON_SELECT -> EmulatorBridge.SELECT
+        // NOTE: Start is deliberately NOT forwarded — it opens our system menu,
+        // and the game's only use of it (pause in combat) is covered by that.
         else -> null
     }
 }

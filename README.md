@@ -106,6 +106,7 @@ project's releases. Then:
 | Button | Function |
 |---|---|
 | D-pad / stick | move |
+| D-pad centre | our system menu (same as Start) |
 | A / B / X / Y | game buttons (top button opens FF4's field menu) |
 | **Start** | our system menu — resume · save state · load state · save battery · tracker · reset · exit |
 | **Select** | **the game's** (Free Enterprise uses it) |
