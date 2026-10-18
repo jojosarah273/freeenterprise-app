@@ -238,6 +238,7 @@ The engine is verified from the host without an emulator. The useful tricks:
 | `WEB_UI_BREAKDOWN.md` | How the website's flag editor works, and how each piece maps onto ours |
 | `ROADMAP.md` | Expansion plans: tracker, doors, UI polish, updating, iOS, online racing |
 | `GOLBEZ_MODE_FEASIBILITY.md` | Feasibility of shipping the custom playable-Golbez engine as a mode |
+| `IN_APP_UPDATES_FEASIBILITY.md` | Feasibility of in-app updates: engine-only (no reinstall) vs full APK |
 | `RELEASING.md` | Version numbering, signing key, and the release checklist |
 | `THIRD_PARTY_NOTICES.md` | Licences for everything bundled, and the artwork caveat |
 

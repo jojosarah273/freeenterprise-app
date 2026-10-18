@@ -89,6 +89,19 @@ progress reporting.
 
 ## 4. In-app updating
 
+**Assessed in detail in `IN_APP_UPDATES_FEASIBILITY.md`** — including measured
+payload sizes, prior art (bryanthaboi/gen1recomp's static index + zip model), the
+interpreter-refresh wrinkle, and a two-phase plan. Summary:
+
+- **Engine-only updates** are the attractive route: the randomizer is interpreted
+  Python + data, so a **3.9 MB** zip can be swapped in place with **no install
+  prompt and no new install permission** (only `INTERNET`).
+- **Full APK updates** work via `PackageInstaller` with one system *Update* tap;
+  data is preserved. Requires `REQUEST_INSTALL_PACKAGES`.
+- **Play Store in-app updates** are effectively blocked by Play's restriction on
+  `MANAGE_EXTERNAL_STORAGE` — "seamless updates" and "files at
+  `/storage/emulated/0/FF4_FE`" are mutually exclusive.
+
 **Goal:** get new engine versions and app releases without sideloading.
 
 **Options**
