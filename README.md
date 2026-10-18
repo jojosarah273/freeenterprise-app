@@ -107,9 +107,9 @@ project's releases. Then:
 |---|---|
 | D-pad / stick | move |
 | A / B / X / Y | game buttons (top button opens FF4's field menu) |
-| **Start** | system menu — resume · save state · load state · reset · exit |
-| **Select** | checks tracker |
-| **L** | quick save (battery save to `FF4_FE`) |
+| **Start** | our system menu — resume · save state · load state · save battery · tracker · reset · exit |
+| **Select** | **the game's** (Free Enterprise uses it) |
+| **L** | checks tracker |
 | **R** | fast-forward toggle |
 
 **Session actions:** `Play Seed` · `Regenerate ROM` (same flags + seed, with a

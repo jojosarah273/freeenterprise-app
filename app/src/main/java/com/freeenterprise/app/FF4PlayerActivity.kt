@@ -251,24 +251,36 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             marginEnd = dp(16); bottomMargin = dp(16)
         })
 
-        // System row: START · MENU · FF, top-left
-        val sys = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val start = button("START").apply { setOnTouchListener(holdListener(EmulatorBridge.START)) }
+        // Top-left: our own functions (FF4 ignores L/R, and Start opens our menu)
+        val appRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val menu = button("MENU").apply { setOnClickListener { togglePause() } }
         ffButton = button("FF").apply { setOnClickListener { toggleFastForward() } }
-        sys.addView(start, LinearLayout.LayoutParams(dp(88), dp(42)))
-        sys.addView(menu, LinearLayout.LayoutParams(dp(88), dp(42)).apply { marginStart = dp(8) })
-        sys.addView(ffButton, LinearLayout.LayoutParams(dp(64), dp(42)).apply { marginStart = dp(8) })
         val save = button("SAVE").apply { setOnClickListener { quickSave() } }
-        sys.addView(save, LinearLayout.LayoutParams(dp(72), dp(42)).apply { marginStart = dp(8) })
         val trk = button("TRK").apply { setOnClickListener { toggleTracker() } }
-        sys.addView(trk, LinearLayout.LayoutParams(dp(64), dp(42)).apply { marginStart = dp(8) })
-        holder.addView(sys, FrameLayout.LayoutParams(
+        appRow.addView(menu, LinearLayout.LayoutParams(dp(80), dp(42)))
+        appRow.addView(trk, LinearLayout.LayoutParams(dp(64), dp(42)).apply { marginStart = dp(8) })
+        appRow.addView(ffButton, LinearLayout.LayoutParams(dp(64), dp(42)).apply { marginStart = dp(8) })
+        appRow.addView(save, LinearLayout.LayoutParams(dp(72), dp(42)).apply { marginStart = dp(8) })
+        holder.addView(appRow, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             marginStart = dp(16); topMargin = dp(16)
+        })
+
+        // Top-right: the console's own buttons, so touch players get Select too
+        val sysRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val sel = button("SELECT").apply { setOnTouchListener(holdListener(EmulatorBridge.SELECT)) }
+        val start = button("START").apply { setOnTouchListener(holdListener(EmulatorBridge.START)) }
+        sysRow.addView(sel, LinearLayout.LayoutParams(dp(88), dp(42)))
+        sysRow.addView(start, LinearLayout.LayoutParams(dp(88), dp(42)).apply { marginStart = dp(8) })
+        holder.addView(sysRow, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.END
+            marginEnd = dp(16); topMargin = dp(16)
         })
 
         updateFastForwardButton()
@@ -330,6 +342,8 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
                 FF4Menu.Item("Save State"),
                 FF4Menu.Item("Load State", if (state?.exists() == true) "load" else "none",
                     enabled = state?.exists() == true),
+                FF4Menu.Item("Save battery (.srm) now"),
+                FF4Menu.Item("Checks tracker", "L"),
                 FF4Menu.Item("Reset Core"),
                 FF4Menu.Item("Exit to sessions"),
             ),
@@ -340,12 +354,17 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
                 0 -> closePause()
                 1 -> saveState()
                 2 -> loadState()
-                3 -> confirm(
+                3 -> {
+                    session?.flushSave()
+                    Toast.makeText(this, "Saved to FF4_FE", Toast.LENGTH_SHORT).show()
+                }
+                4 -> { closePause(); toggleTracker() }
+                5 -> confirm(
                     "Reset core",
                     "Reset the emulator?\nUnsaved progress since the last save state is lost.",
                     "Reset"
                 ) { closePause(); restartSession() }
-                4 -> confirm(
+                6 -> confirm(
                     "Exit to sessions",
                     "Leave the game?\nYour battery save is written to FF4_FE first.",
                     "Exit"
@@ -587,29 +606,26 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         if (event.repeatCount > 0 && heldKeys.contains(keyCode)) return true
 
         if (trackerOpen) {
-            if (keyCode == KeyEvent.KEYCODE_BUTTON_B || keyCode == KeyEvent.KEYCODE_BUTTON_SELECT ||
-                keyCode == KeyEvent.KEYCODE_BACK
-            ) {
+            if (keyCode == KeyEvent.KEYCODE_BUTTON_B || keyCode == KeyEvent.KEYCODE_BACK) {
                 closeTracker()
                 return true
             }
         }
 
-        // App buttons — FF4 ignores Select/L/R on SNES, so they are ours.
+        // App buttons.
+        //   Start            = our system menu (FF4's own field menu is the top
+        //                      face button, see joypadId below)
+        //   L                = checks tracker
+        //   R                = fast-forward toggle
+        //   Select           = NOT ours — Free Enterprise uses it, so it is
+        //                      forwarded to the emulator like any game button
         when (keyCode) {
-            // Start = system menu (save / reset / exit)
             KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_MENU -> {
                 togglePause()
                 return true
             }
-            // Select = tracker
-            KeyEvent.KEYCODE_BUTTON_SELECT -> {
-                toggleTracker()
-                return true
-            }
             KeyEvent.KEYCODE_BUTTON_L1 -> {
-                session?.flushSave()
-                Toast.makeText(this, "Saved to FF4_FE", Toast.LENGTH_SHORT).show()
+                toggleTracker()
                 return true
             }
             KeyEvent.KEYCODE_BUTTON_R1 -> {     // toggle, not hold
@@ -673,6 +689,8 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         KeyEvent.KEYCODE_DPAD_LEFT -> EmulatorBridge.LEFT
         KeyEvent.KEYCODE_DPAD_RIGHT -> EmulatorBridge.RIGHT
         KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> EmulatorBridge.START
+        // Select belongs to the game in Free Enterprise
+        KeyEvent.KEYCODE_BUTTON_SELECT -> EmulatorBridge.SELECT
         else -> null
     }
 }
