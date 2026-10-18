@@ -1,3 +1,14 @@
+import java.util.Properties
+
+// Release signing. keystore.properties is git-ignored; without it the release
+// build falls back to the debug key so the project still builds for others.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+}
+val hasReleaseKeystore = keystorePropsFile.exists() &&
+    keystoreProps.getProperty("storeFile")?.let { file(it).exists() } == true
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -13,8 +24,11 @@ android {
         applicationId = "com.freeenterprise.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 29
-        versionName = "1.9.0"
+        // versionCode must only ever increase (Android uses it for upgrades).
+        // versionName is the PUBLIC number: the first public release is 0.1.0,
+        // even though internal development reached 1.9.0 (see RELEASING.md).
+        versionCode = 30
+        versionName = "0.1.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
@@ -31,9 +45,25 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
