@@ -108,10 +108,11 @@ project's releases. Then:
 | D-pad / stick | move |
 | D-pad centre | our system menu (same as Start) |
 | A / B / X / Y | game buttons (top button opens FF4's field menu) |
-| **Start** | our system menu — resume · save state · load state · save battery · tracker · reset · exit |
+| **Start** | our QoL menu — resume · save state · load state · fast-forward · tracker · reset · exit |
 | **Select** | **the game's** (Free Enterprise uses it) |
-| **L** | checks tracker |
-| **R** | fast-forward toggle |
+| **L1 / R1** (shoulders) | **the game's** — held together to run from battle |
+| **L2** (trigger) | checks tracker |
+| **R2** (trigger) | fast-forward toggle |
 
 **Session actions:** `Play Seed` · `Regenerate ROM` (same flags + seed, with a
 checksum cross-check) · `Manage Save` (import/export/delete `.srm`) · `New seed

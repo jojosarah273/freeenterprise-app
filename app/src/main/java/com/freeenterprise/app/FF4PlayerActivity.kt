@@ -270,9 +270,13 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         // Top-right: the console's buttons — SELECT goes to the game, START opens
         // our menu (mirroring the physical Start button).
         val sysRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val lb = button("L").apply { setOnTouchListener(holdListener(EmulatorBridge.L)) }
+        val rb = button("R").apply { setOnTouchListener(holdListener(EmulatorBridge.R)) }
         val sel = button("SELECT").apply { setOnTouchListener(holdListener(EmulatorBridge.SELECT)) }
         val start = button("START").apply { setOnClickListener { togglePause() } }
-        sysRow.addView(sel, LinearLayout.LayoutParams(dp(88), dp(42)))
+        sysRow.addView(lb, LinearLayout.LayoutParams(dp(48), dp(42)))
+        sysRow.addView(rb, LinearLayout.LayoutParams(dp(48), dp(42)).apply { marginStart = dp(8) })
+        sysRow.addView(sel, LinearLayout.LayoutParams(dp(88), dp(42)).apply { marginStart = dp(8) })
         sysRow.addView(start, LinearLayout.LayoutParams(dp(88), dp(42)).apply { marginStart = dp(8) })
         holder.addView(sysRow, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -314,6 +318,39 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
 
     // -------------------------------------------------------------- overlays
 
+    /**
+     * Swap the overlay content safely.
+     *
+     * The bug this fixes: previously a menu that held focus was removed from the
+     * view tree and replaced, leaving focus on a *detached* view — key events
+     * then went nowhere, so overlays became unescapable and the hidden menu
+     * could still be moved around. Always drop focus first, then hand it to the
+     * new content (or the overlay itself when the content is not focusable).
+     */
+    private fun setOverlay(window: View, focusTarget: View?) {
+        currentFocus?.clearFocus()
+        overlayLayer.removeAllViews()
+        overlayLayer.setBackgroundColor(0xCC000000.toInt())
+        overlayLayer.isClickable = true
+        overlayLayer.isFocusable = true
+        overlayLayer.isFocusableInTouchMode = true
+        overlayLayer.addView(window, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.CENTER
+        ).apply { marginStart = dp(48); marginEnd = dp(48) })
+        (focusTarget ?: overlayLayer).requestFocus()
+    }
+
+    private fun clearOverlay() {
+        currentFocus?.clearFocus()
+        overlayLayer.removeAllViews()
+        overlayLayer.setOnClickListener(null)
+        overlayLayer.setBackgroundColor(0x00000000)
+        overlayLayer.isClickable = false
+        overlayLayer.isFocusable = false
+    }
+
     private fun togglePause() {
         if (overlayLayer.childCount > 0) closePause() else openPause()
     }
@@ -341,8 +378,8 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
                 FF4Menu.Item("Save State"),
                 FF4Menu.Item("Load State", if (state?.exists() == true) "load" else "none",
                     enabled = state?.exists() == true),
-                FF4Menu.Item("Save battery (.srm) now"),
-                FF4Menu.Item("Checks tracker", "L"),
+                FF4Menu.Item("Fast-forward", if (fastForward) "on" else "off"),
+                FF4Menu.Item("Checks tracker", "L2"),
                 FF4Menu.Item("Reset Core"),
                 FF4Menu.Item("Exit to sessions"),
             ),
@@ -353,10 +390,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
                 0 -> closePause()
                 1 -> saveState()
                 2 -> loadState()
-                3 -> {
-                    session?.flushSave()
-                    Toast.makeText(this, "Saved to FF4_FE", Toast.LENGTH_SHORT).show()
-                }
+                3 -> { toggleFastForward(); openPause() }   // reopen to refresh the label
                 4 -> { closePause(); toggleTracker() }
                 5 -> confirm(
                     "Reset core",
@@ -376,16 +410,8 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             addView(menu)
         }
         val window = FF4Window(this).apply { addView(column) }
-        overlayLayer.removeAllViews()
-        overlayLayer.setBackgroundColor(0xCC000000.toInt())
-        overlayLayer.isClickable = true
-        overlayLayer.addView(window, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            Gravity.CENTER
-        ).apply { marginStart = dp(64); marginEnd = dp(64) })
+        setOverlay(window, menu)
         window.setOnClickListener { }        // don't let taps fall through
-        menu.requestFocus()
     }
 
     private fun confirm(title: String, message: String, yes: String, onYes: () -> Unit) {
@@ -397,9 +423,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
     }
 
     private fun closePause() {
-        overlayLayer.removeAllViews()
-        overlayLayer.setBackgroundColor(0x00000000)
-        overlayLayer.isClickable = false
+        clearOverlay()
         paused = false
         session?.resume()
     }
@@ -408,15 +432,13 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         val menu = FF4Menu(this)
         menu.submit(
             listOf(
-                FF4Menu.Item("Open in RetroArch instead"),
                 FF4Menu.Item("Retry"),
                 FF4Menu.Item("Exit"),
             )
         ) { index ->
             when (index) {
-                0 -> rom?.let { RetroArchLauncher.launch(this, it) }
-                1 -> { closePause(); restartSession() }
-                2 -> finish()
+                0 -> { closePause(); restartSession() }
+                1 -> finish()
             }
         }
         val text = TextView(this).apply {
@@ -433,15 +455,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         val window = FF4Window(this).apply { addView(column) }
         paused = true
         session?.pause()
-        overlayLayer.removeAllViews()
-        overlayLayer.setBackgroundColor(0xCC000000.toInt())
-        overlayLayer.isClickable = true
-        overlayLayer.addView(window, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            Gravity.CENTER
-        ).apply { marginStart = dp(64); marginEnd = dp(64) })
-        menu.requestFocus()
+        setOverlay(window, menu)
     }
 
     // ------------------------------------------------------------- tracker
@@ -501,7 +515,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             setTextColor(FF4Theme.WHITE)
         }
         val hint = TextView(this).apply {
-            this.text = "Select / B  close"
+            this.text = "L2 / B  close"
             FF4Theme.applyText(this@FF4PlayerActivity, this, FF4Theme.textSmallPx(this@FF4PlayerActivity))
             setTextColor(FF4Theme.YELLOW)
             setPadding(0, dp(8), 0, 0)
@@ -512,23 +526,13 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             addView(hint)
         }
         val window = FF4Window(this).apply { addView(column) }
-        overlayLayer.removeAllViews()
-        overlayLayer.setBackgroundColor(0xE6000000.toInt())
-        overlayLayer.isClickable = true
-        overlayLayer.addView(window, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            Gravity.CENTER
-        ).apply { marginStart = dp(40); marginEnd = dp(40) })
+        setOverlay(window, null)
         overlayLayer.setOnClickListener { closeTracker() }
     }
 
     private fun closeTracker() {
         trackerOpen = false
-        overlayLayer.removeAllViews()
-        overlayLayer.setOnClickListener(null)
-        overlayLayer.setBackgroundColor(0x00000000)
-        overlayLayer.isClickable = false
+        clearOverlay()
         paused = false
         session?.resume()
     }
@@ -612,22 +616,25 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         }
 
         // App buttons.
-        //   Start            = our system menu (FF4's own field menu is the top
-        //                      face button, see joypadId below)
-        //   L                = checks tracker
-        //   R                = fast-forward toggle
-        //   Select           = NOT ours — Free Enterprise uses it, so it is
-        //                      forwarded to the emulator like any game button
+        //   Start            = our QoL menu (FF4's own field menu is the top face
+        //                      button; the game's Start only pauses in combat,
+        //                      which our menu does anyway)
+        //   L2 trigger       = checks tracker
+        //   R2 trigger       = fast-forward toggle
+        //   L1/R1, Select    = NOT ours — forwarded to the game (FE uses L+R to
+        //                      flee, and Select for its own tracker)
         when (keyCode) {
             KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_MENU -> {
                 togglePause()
                 return true
             }
-            KeyEvent.KEYCODE_BUTTON_L1 -> {
+            // L2/R2 (the triggers) are ours; L1/R1 (the shoulder buttons) are
+            // forwarded to the game, because Free Enterprise uses L+R to flee.
+            KeyEvent.KEYCODE_BUTTON_L2 -> {
                 toggleTracker()
                 return true
             }
-            KeyEvent.KEYCODE_BUTTON_R1 -> {     // toggle, not hold
+            KeyEvent.KEYCODE_BUTTON_R2 -> {     // toggle, not hold
                 toggleFastForward()
                 return true
             }
@@ -697,6 +704,9 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         KeyEvent.KEYCODE_DPAD_RIGHT -> EmulatorBridge.RIGHT
         // Select belongs to the game in Free Enterprise
         KeyEvent.KEYCODE_BUTTON_SELECT -> EmulatorBridge.SELECT
+        // Shoulder buttons go to the game: FE uses L+R to run from battle
+        KeyEvent.KEYCODE_BUTTON_L1 -> EmulatorBridge.L
+        KeyEvent.KEYCODE_BUTTON_R1 -> EmulatorBridge.R
         // NOTE: Start is deliberately NOT forwarded — it opens our system menu,
         // and the game's only use of it (pause in combat) is covered by that.
         else -> null

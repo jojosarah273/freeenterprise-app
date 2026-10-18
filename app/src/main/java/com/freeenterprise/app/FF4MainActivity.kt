@@ -156,7 +156,7 @@ class FF4MainActivity : FF4MenuActivity() {
         setStatus(
             "Storage: ${if (RomLibrary.usingFallback(this)) "app storage (fallback)" else folder.absolutePath}\n" +
                 "Engine build: $engineVer  (app v${BuildConfig.VERSION_NAME})\n" +
-                "Tip: point RetroArch's Savefile Directory at FF4_FE so saves live with each seed.",
+                "Seeds, battery saves and save states all live in FF4_FE.",
             FF4Theme.WHITE
         )
         setHint("A  Select      B  Back")

@@ -2,13 +2,11 @@ package com.freeenterprise.app
 
 import android.app.AlertDialog
 import android.content.Intent
-import org.json.JSONObject
 import android.net.Uri
 import android.os.Bundle
 import android.widget.EditText
 import androidx.activity.result.contract.ActivityResultContracts
 import com.freeenterprise.app.ff4ui.FF4Dialog
-import com.freeenterprise.app.ff4ui.FF4ProgressOverlay
 import com.freeenterprise.app.ff4ui.FF4Menu
 import com.freeenterprise.app.ff4ui.FF4MenuActivity
 import com.freeenterprise.app.ff4ui.FF4Theme
@@ -20,36 +18,10 @@ import java.util.Locale
 /**
  * "Play Free Enterprise" — the session library. Each ROM in FF4_FE is a session:
  * name, seed, checksum, and its battery save (.srm). Sessions can be played
- * (RetroArch hand-off for now), renamed, their save imported/exported/deleted,
- * or the whole session deleted.
+ * in-app, renamed, their save imported/exported/deleted, or the whole session
+ * deleted.
  */
 class FF4PlayActivity : FF4MenuActivity() {
-
-    private lateinit var engine: SeedEngine
-    private var engineReady = false
-    private var regenerating = false
-    private var regenOverlay: FF4ProgressOverlay? = null
-    private var regenProgressFile: File? = null
-    private var regenStartedAt = 0L
-    private val regenHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val regenPoller = object : Runnable {
-        override fun run() {
-            val overlay = regenOverlay ?: return
-            val file = regenProgressFile
-            val elapsed = (System.currentTimeMillis() - regenStartedAt) / 1000
-            var pct = 0; var stage = "Working"; var detail = ""
-            try {
-                if (file != null && file.exists()) {
-                    val parts = file.readText().split("\n")
-                    parts.getOrNull(0)?.trim()?.toIntOrNull()?.let { pct = it }
-                    parts.getOrNull(1)?.let { stage = it.trim() }
-                    parts.getOrNull(2)?.let { detail = it.trim() }
-                }
-            } catch (_: Exception) { }
-            overlay.update(pct, stage, detail, elapsed)
-            regenHandler.postDelayed(this, 200)
-        }
-    }
 
     private var mode = MODE_LIST
     private var entries: List<File> = emptyList()
@@ -64,11 +36,6 @@ class FF4PlayActivity : FF4MenuActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        engine = SeedEngine(this) { }
-        engine.ensureExtracted(
-            onDone = { engineReady = true },
-            onError = { engineReady = false },
-        )
         showList()
     }
 
@@ -140,10 +107,8 @@ class FF4PlayActivity : FF4MenuActivity() {
             FF4Theme.WHITE
         )
         setHint("A  Select      B  Back")
-        val romExists = rom.exists()
         submitMenu("actions", listOf(
                 FF4Menu.Item("Play Seed"),
-                FF4Menu.Item("Regenerate ROM", if (romExists) "same flags + seed" else "ROM missing!"),
                 FF4Menu.Item("Manage Save", if (save.exists()) "present" else "none"),
                 FF4Menu.Item("New seed with these flags", "same ruleset"),
                 FF4Menu.Item("Save flags as Flagset"),
@@ -153,13 +118,12 @@ class FF4PlayActivity : FF4MenuActivity() {
             )) { i ->
             when (i) {
                 0 -> playSeed(rom)
-                1 -> regenerate(rom)
-                2 -> showSaveMenu()
-                3 -> newSeedWithSameFlags(rom)
-                4 -> saveFlagsAsFlagset(rom)
-                5 -> rename(rom)
-                6 -> confirmDelete(rom)
-                7 -> showList()
+                1 -> showSaveMenu()
+                2 -> newSeedWithSameFlags(rom)
+                3 -> saveFlagsAsFlagset(rom)
+                4 -> rename(rom)
+                5 -> confirmDelete(rom)
+                6 -> showList()
             }
         }
     }
@@ -177,7 +141,6 @@ class FF4PlayActivity : FF4MenuActivity() {
         setHint("A  Select      B  Back")
         submitMenu("play", listOf(
                 FF4Menu.Item("Play in-app", "Snes9x"),
-                FF4Menu.Item("Open in RetroArch", "external"),
                 FF4Menu.Item("Back"),
             )) { i ->
             when (i) {
@@ -185,8 +148,7 @@ class FF4PlayActivity : FF4MenuActivity() {
                     Intent(this, FF4PlayerActivity::class.java)
                         .putExtra("rom", rom.absolutePath)
                 )
-                1 -> RetroArchLauncher.launch(this, rom)
-                2 -> showActions()
+                1 -> showActions()
             }
         }
     }
@@ -199,7 +161,7 @@ class FF4PlayActivity : FF4MenuActivity() {
         val save = RomLibrary.srmFile(rom)
         setStatus(
             if (save.exists()) "Save: ${save.name}\n${save.length()} bytes  ·  ${SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(save.lastModified()))}"
-            else "No save file for this session yet.\nPlay it, then import the .srm from RetroArch.",
+            else "No save file for this session yet.\nPlay it, then import a .srm from device storage.",
             FF4Theme.WHITE
         )
         setHint("A  Select      B  Back")
@@ -265,108 +227,6 @@ class FF4PlayActivity : FF4MenuActivity() {
     // -------------------------------------------------------------- metadata
 
     /** Rolls the same ruleset into a brand new unique seed. */
-    /**
-     * Re-runs the engine with the session's own flags + seed (deterministic, so
-     * the same ROM), replacing the file in place. Shows the modal progress
-     * window, and cross-checks the checksum tiles against the stored record.
-     */
-    private fun regenerate(rom: File) {
-        if (regenerating) {
-            setStatus("Already regenerating…", FF4Theme.YELLOW)
-            return
-        }
-        val meta = RomLibrary.readMeta(rom)
-        if (meta.flags.isBlank()) {
-            setStatus("This session has no stored flags to regenerate from.", FF4Theme.PINK)
-            return
-        }
-        if (!engineReady) {
-            setStatus("Engine still starting — try again in a moment.", FF4Theme.YELLOW)
-            return
-        }
-        if (!RomStore.hasBaseRom(this)) {
-            setStatus("Base ROM missing — re-import it from the main menu.", FF4Theme.PINK)
-            return
-        }
-        regenerating = true
-        setStatus("Regenerating…", FF4Theme.YELLOW)
-        val overlay = FF4ProgressOverlay(this)
-        regenOverlay = overlay
-        regenProgressFile = File(filesDir, "regen_progress.txt").also {
-            try { it.delete() } catch (_: Exception) { }
-        }
-        addContentView(
-            overlay,
-            android.view.ViewGroup.LayoutParams(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
-        overlay.show()
-        overlay.update(0, "Regenerating ${meta.seed}", "same flags + seed", 0)
-        regenStartedAt = System.currentTimeMillis()
-        regenHandler.post(regenPoller)
-        engine.cacheDir.mkdirs()
-        engine.romsDir.mkdirs()
-        engine.generate(
-            meta.flags, meta.seed, "{}",
-            progressPath = regenProgressFile?.absolutePath,
-        ) { json ->
-            runOnUiThread {
-                regenHandler.removeCallbacks(regenPoller)
-                regenOverlay?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
-                regenOverlay = null
-                regenProgressFile?.delete()
-                regenProgressFile = null
-                regenerating = false
-                handleRegenResult(rom, meta, json)
-            }
-        }
-    }
-
-    private fun handleRegenResult(rom: File, old: SeedMeta, json: String) {
-        try {
-            val o = JSONObject(json)
-            if (o.optString("status") != "ok") {
-                setStatus("Regeneration failed: ${o.optString("error")}", FF4Theme.PINK)
-                showActions()
-                return
-            }
-            val path = o.optString("path")
-            val fresh = File(path)
-            if (!fresh.exists()) {
-                setStatus("Engine finished but the ROM is missing:\n$path", FF4Theme.PINK)
-                showActions()
-                return
-            }
-            val verification = mutableListOf<String>()
-            val v = o.optJSONArray("verification")
-            if (v != null) for (i in 0 until v.length()) verification.add(v.getString(i))
-            val same = verification == old.verification
-
-            // Replace in place, keeping the session's name and its .srm.
-            fresh.copyTo(rom, overwrite = true)
-            RomLibrary.writeMeta(
-                rom,
-                old.copy(
-                    flags = o.optString("flags"),
-                    binaryFlags = o.optString("binary_flags"),
-                    verification = verification,
-                    version = o.optString("version"),
-                    seconds = o.optDouble("seconds", 0.0),
-                )
-            )
-            setStatus(
-                if (same) "Re-saved ${old.seed} — ROM matches the stored check (${verification.joinToString("/")})"
-                else "Re-saved ${old.seed} — ⚠ check changed: ${verification.joinToString("/")} vs ${old.verification.joinToString("/")}",
-                if (same) FF4Theme.GREEN else FF4Theme.YELLOW
-            )
-        } catch (e: Exception) {
-            setStatus("Regeneration error: ${e.message}", FF4Theme.PINK)
-        }
-        showActions()
-    }
-
     private fun newSeedWithSameFlags(rom: File) {
         val m = RomLibrary.readMeta(rom)
         if (m.flags.isBlank()) {
