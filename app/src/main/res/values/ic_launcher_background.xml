@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive-icon background. Only visible at the masked edge and in
+     any transparent corners, so it barely shows on API 26+. -->
+<resources>
+    <color name="ic_launcher_background">#000000</color>
+</resources>

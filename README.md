@@ -222,6 +222,12 @@ The engine is verified from the host without an emulator. The useful tricks:
 - **Checks mapping:** the 512 treasure switches live at WRAM `$12A0`, LSB-first —
   the same array Free Enterprise's own `stats.f4c` counts.
 
+## Helper scripts
+
+| Script | Purpose |
+|---|---|
+| `scripts/make_icons.py` | Regenerates the launcher icon set from `design_assets/ICON.png` (`python3 scripts/make_icons.py [--background '#000000']`) |
+
 ## Documentation
 
 | File | Contents |
