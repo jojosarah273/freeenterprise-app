@@ -187,11 +187,39 @@ class FF4MainActivity : FF4MenuActivity() {
         val installed = BuildConfig.VERSION_NAME
 
         result.onFailure { error ->
-            setStatus("Could not check for updates:\n${error.message}", FF4Theme.PINK)
+            // No connection and DNS failures are the common case for an app that
+            // is normally used offline, so say what actually happened and give a
+            // way out rather than just echoing the exception.
+            val message = error.message ?: "unknown error"
+            val offline = message.contains("resolve", ignoreCase = true) ||
+                message.contains("UnknownHost", ignoreCase = true) ||
+                message.contains("Unable to resolve", ignoreCase = true) ||
+                error is java.net.UnknownHostException
+            setStatus(
+                if (offline) {
+                    "No connection to the update server.\n\n" +
+                        "Android could not look up api.github.com, so nothing was sent.\n" +
+                        "Check that this device is online (and not on a VPN or a DNS\n" +
+                        "filter that blocks github.com), then try again.\n\n" +
+                        "Everything else in the app works offline."
+                } else {
+                    "Could not check for updates:\n$message"
+                },
+                FF4Theme.PINK
+            )
+            android.util.Log.w("FEUpdate", networkDiagnosis())
+            setHint(networkDiagnosis())
             submitMenu("update", listOf(
                 FF4Menu.Item("Try again"),
+                FF4Menu.Item("Open release page", "in a browser"),
                 FF4Menu.Item("Back"),
-            )) { i -> if (i == 0) checkForUpdates() else showMainMenu() }
+            )) { i ->
+                when (i) {
+                    0 -> checkForUpdates()
+                    1 -> openReleasePage()
+                    2 -> showMainMenu()
+                }
+            }
         }
 
         result.onSuccess { release ->
@@ -477,6 +505,36 @@ class FF4MainActivity : FF4MenuActivity() {
             connection.disconnect()
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Facts, not guesses, when a check fails: whether INTERNET is declared *and*
+     * granted to this installed package, and whether Android thinks there is a
+     * network. A missing grant is the one failure that affects only this app —
+     * browsers keep working — and it looks exactly like a DNS error.
+     */
+    private fun networkDiagnosis(): String {
+        val declared = try {
+            packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_PERMISSIONS)
+                .requestedPermissions?.contains(android.Manifest.permission.INTERNET) == true
+        } catch (_: Exception) {
+            false
+        }
+        val granted = checkSelfPermission(android.Manifest.permission.INTERNET) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        val state = try {
+            val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
+                as android.net.ConnectivityManager
+            val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
+            when {
+                caps == null -> "no active network"
+                caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) -> "connected"
+                else -> "connected, no internet"
+            }
+        } catch (_: Exception) {
+            "unknown"
+        }
+        return "Diagnosis — INTERNET declared: $declared, granted: $granted · network: $state"
     }
 
     private fun openReleasePage() {
