@@ -105,18 +105,60 @@ class FF4GenerateActivity : FF4MenuActivity() {
         }
     }
 
+    /** Set by the sanitiser so the status line can explain any translation. */
+    private var flagNote: String? = null
+
     private fun checkFlags() {
-        val flags = currentFlags()
-        if (flags.isBlank()) {
+        val raw = currentFlags()
+        if (raw.isBlank()) {
             lastValid = true
             lastError = null
             setStatus("Flags: none yet — choose a preset or open the flag editor.", FF4Theme.YELLOW)
             return
         }
         if (!engineReady) {
-            setStatus("Flags: $flags\n(engine starting…)", FF4Theme.WHITE)
+            setStatus("Flags: $raw\n(engine starting…)", FF4Theme.WHITE)
             return
         }
+        val token = ++syncToken
+
+        // Presets and saved flagsets are often written against an older flag spec,
+        // so translate/drop before validating rather than showing an error.
+        engine.sanitizeFlags(raw) { sanitised ->
+            runOnUiThread {
+                if (token != syncToken) return@runOnUiThread
+                try {
+                    val o = JSONObject(sanitised)
+                    if (o.optString("status") == "ok") {
+                        val canonical = o.optString("flags")
+                        if (canonical != raw) FlagSession.setFlags(canonical)
+                        val renamed = o.optJSONArray("renamed")
+                        val dropped = o.optJSONArray("dropped")
+                        flagNote = when {
+                            (renamed != null && renamed.length() > 0) || (dropped != null && dropped.length() > 0) -> {
+                                val from = buildList { if (renamed != null) for (i in 0 until renamed.length()) add(renamed.getJSONObject(i).optString("from")) }
+                                val gone = buildList { if (dropped != null) for (i in 0 until dropped.length()) add(dropped.getString(i)) }
+                                buildString {
+                                    if (from.isNotEmpty()) append("updated flags for this version: ").append(from.joinToString(", "))
+                                    if (gone.isNotEmpty()) {
+                                        if (from.isNotEmpty()) append("  ·  ")
+                                        append("dropped (no longer exist): ").append(gone.joinToString(", "))
+                                    }
+                                }
+                            }
+                            else -> null
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+                validateSanitised()
+            }
+        }
+    }
+
+    private fun validateSanitised() {
+        val flags = currentFlags()
+        if (flags.isBlank()) return
         val token = ++syncToken
         engine.checkFlags(flags) { json ->
             runOnUiThread {
@@ -136,10 +178,11 @@ class FF4GenerateActivity : FF4MenuActivity() {
                     val firstMsg = if (log != null && log.length() > 0) {
                         log.getJSONObject(0).optString("message")
                     } else null
+                    val note = flagNote?.let { "\n$it" } ?: ""
                     if (lastValid == true) {
-                        setStatus("Flags: $canonical", FF4Theme.WHITE)
+                        setStatus("Flags: $canonical$note", FF4Theme.WHITE)
                     } else {
-                        setStatus("Flags: $canonical\n✗ $firstMsg", FF4Theme.PINK)
+                        setStatus("Flags: $canonical$note\n✗ $firstMsg", FF4Theme.PINK)
                     }
                     showMenu()
                 } catch (e: Exception) {

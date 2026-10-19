@@ -149,6 +149,24 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
         }.start()
     }
 
+    /** Translate/drop flags that no longer exist, so old presets and flagsets work. */
+    fun sanitizeFlags(flags: String, onResult: (String) -> Unit) {
+        Thread {
+            try {
+                val result = synchronized(engineLock) {
+                    val py = python()
+                    val bridge = py.getModule("fe_bridge")
+                    bridge.callAttr("set_ext_path", extDir.absolutePath)
+                    bridge.callAttr("sanitize_flags", flags).toString()
+                }
+                onMain { onResult(result) }
+            } catch (e: Exception) {
+                val msg = e.message?.replace("\"", "'") ?: "unknown error"
+                onMain { onResult("""{"status":"error","error":"$msg"}""") }
+            }
+        }.start()
+    }
+
     /** Expand a flag string into its flag-name list (editor initialization). */
     fun flagList(flags: String, onValidation: (String) -> Unit) {
         Thread {

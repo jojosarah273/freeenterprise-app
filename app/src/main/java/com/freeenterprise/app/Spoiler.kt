@@ -18,6 +18,7 @@ object Spoiler {
         val line = Regex("^(.+?)\\s*\\.{3,}\\s*(.+)$")
         try {
             var inSection = false
+            var started = false
             file.bufferedReader().useLines { lines ->
                 for (raw in lines) {
                     val text = raw.trimEnd('\r', ' ')
@@ -25,9 +26,16 @@ object Spoiler {
                         if (text.trimStart().startsWith(KEY_ITEM_HEADER)) inSection = true
                         continue
                     }
-                    if (text.isBlank()) break          // the section ends at a blank line
-                    val m = line.find(text) ?: continue
+                    if (text.isBlank()) {
+                        // The header is followed by a blank line — that is not the
+                        // end of the section. A blank line only ends it once we
+                        // have actually read entries.
+                        if (started) break else continue
+                    }
+                    val m = line.find(text)
+                    if (m == null) break               // a non-entry ends the section
                     out.add(m.groupValues[1].trim() to m.groupValues[2].trim())
+                    started = true
                 }
             }
         } catch (_: Exception) {

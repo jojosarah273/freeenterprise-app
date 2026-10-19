@@ -199,6 +199,143 @@ def _err(exc):
     return str(exc) + " :: " + tb.strip().splitlines()[-1] if tb.strip() else str(exc)
 
 
+# ---------------------------------------------------------------------------
+# Flag-string compatibility
+#
+# The presets upstream still ships (and the live site still serves) are written
+# against the 4.6 flag spec, and so are many flag strings people share. Rather
+# than refuse them, translate what we can and drop what no longer exists —
+# reporting everything, so nothing changes silently.
+#
+# Rules are applied at *piece* level (the comma-separated parts of a token) and
+# may be scoped to a superflag, because the same word can be valid elsewhere:
+# "fusoya" is dead as "-vanilla:fusoya" but perfectly valid in "Cno:fusoya".
+# ---------------------------------------------------------------------------
+
+# (superflag or None for any, piece) -> replacement flag
+PIECE_REWRITES = {
+    ('-vanilla', 'growup'):  '-call:vanillagrowup',
+    ('-vanilla', 'hobs'):    '-call:vanillahobs',
+    ('-vanilla', 'agility'): 'Avanilla',
+    ('-vanilla', 'fusoya'):  'Fvanilla',
+    ('-exp', 'noboost'):     'Xnoboost',
+    # subflags that became flags of their own in 4.7
+    (None, 'j:abilities'):   'Cabilities:j',
+    (None, 'j:spells'):      'Cspells:j',
+    (None, 'abilities'):     'Cabilities:j',
+    (None, 'spells'):        'Cspells:j',
+    (None, 'miab'):          'Kmiab:standard',
+}
+
+# whole tokens that were renamed outright
+TOKEN_REWRITES = {
+    'Cj:abilities': 'Cabilities:j',
+    'Cj:spells':    'Cspells:j',
+    'Kmiab':        'Kmiab:standard',
+}
+
+# flags with no 4.7 equivalent at all
+KNOWN_DEAD = {'-vanilla:agility'}
+
+
+def _superflag_of(flag):
+    """The superflag part of a flag name ('-vanilla:x' -> '-vanilla')."""
+    return flag.split(':')[0] if ':' in flag else flag
+
+
+def _rewrite_pieces(text):
+    """Translate and lift out subflags; returns (text, renamed, dropped)."""
+    renamed, dropped = [], []
+    out_tokens = []
+
+    for token in text.split():
+        if token in TOKEN_REWRITES:
+            target = TOKEN_REWRITES[token]
+            renamed.append({'from': token, 'to': target})
+            out_tokens.append(target)
+            continue
+
+        segments = token.split('/')
+        # the superflag lives on the first segment ('-vanilla:giant'); later
+        # segments inherit it
+        head = segments[0]
+        superflag = _superflag_of(head) if ':' in head else None
+        rebuilt = []
+
+        for index, segment in enumerate(segments):
+            if ':' in segment and index == 0:
+                prefix, pieces = segment.split(':', 1)
+            else:
+                prefix, pieces = None, segment
+
+            kept = []
+            for piece in pieces.split(','):
+                target = PIECE_REWRITES.get((superflag, piece)) or PIECE_REWRITES.get((None, piece))
+                if target is None:
+                    kept.append(piece)
+                    continue
+                if target in KNOWN_DEAD:
+                    dropped.append(piece)
+                    continue
+                if _superflag_of(target) != (superflag or prefix):
+                    # promoted to a flag of its own: emit it separately
+                    out_tokens.append(target)
+                else:
+                    kept.append(target.split(':', 1)[1] if ':' in target else target)
+                renamed.append({'from': piece, 'to': target})
+
+            if kept:
+                rebuilt.append((prefix + ':' if prefix else '') + ','.join(kept))
+
+        if rebuilt:
+            out_tokens.append('/'.join(rebuilt))
+
+    return ' '.join(out_tokens), renamed, dropped
+
+
+def sanitize_flags(flag_string):
+    """Make a flag string loadable: translate renamed flags, drop dead ones, and
+    report exactly what changed."""
+    import re as _re
+    try:
+        _ensure_env()
+        from FreeEnt import flags as flagmod
+
+        text, renamed, dropped = _rewrite_pieces(flag_string or '')
+
+        # Anything still unrecognised is removed by name — the engine tells us
+        # which names it rejected, which also covers composite forms we do not
+        # know about.
+        for _ in range(50):
+            try:
+                flagset = flagmod.FlagSet(text)
+                break
+            except Exception as exc:  # noqa: BLE001
+                match = _re.match(r'Invalid flags:\s*(.+)$', str(exc))
+                if not match:
+                    return json.dumps({'status': 'error', 'error': str(exc)})
+                removed = False
+                for name in [n.strip() for n in match.group(1).split(',') if n.strip()]:
+                    pattern = r'(?<!\S)' + _re.escape(name) + r'(?!\S)'
+                    if _re.search(pattern, text):
+                        text = _re.sub(pattern, '', text)
+                        dropped.append(name)
+                        removed = True
+                if not removed:
+                    return json.dumps({'status': 'error', 'error': str(exc)})
+        else:
+            return json.dumps({'status': 'error', 'error': 'could not sanitise flag string'})
+
+        return json.dumps({
+            'status': 'ok',
+            'flags': flagset.to_string(),
+            'dropped': dropped,
+            'renamed': renamed,
+        })
+    except Exception as exc:  # noqa: BLE001
+        return json.dumps({'status': 'error', 'error': _err(exc)})
+
+
 def check_flags(flag_string):
     """Canonicalize a flag string AND run the logic checks in one call — used by
     the Generate screen to show the current flagset and its validity."""

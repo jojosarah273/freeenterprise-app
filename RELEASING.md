@@ -76,8 +76,9 @@ git push origin main --follow-tags
 
 ## Update payloads
 
-Every release should carry **both** payloads; the app offers one "Update" and
-picks whichever it needs.
+Carry the **APK always**, and an **engine bundle when the engine changed** — the
+app offers one "Update" and picks whichever payload it needs (no engine bundle
+simply means the APK path is used).
 
 | Asset | Built by | Installs |
 |---|---|---|

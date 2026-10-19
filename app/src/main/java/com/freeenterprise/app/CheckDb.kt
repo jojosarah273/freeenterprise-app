@@ -19,8 +19,7 @@ object CheckDb {
         cached?.let { return it }
         val list = mutableListOf<Check>()
         try {
-            val raw = context.assets.open("spec/checks.json")
-                .use { it.readBytes().toString(Charsets.UTF_8) }
+            val raw = AppContent.read(context, "spec/checks.json")
             val arr = JSONArray(raw)
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)

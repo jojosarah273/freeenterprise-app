@@ -109,7 +109,7 @@ class FlagEditorActivity : AppCompatActivity() {
         if (RomStore.hasBaseRom(this)) "Base ROM loaded." else "Tap ADD ROM (in main screen)."
     private fun startEditor() {
         try {
-            val raw = assets.open("spec/ui_spec.json").use { it.readBytes().toString(Charsets.UTF_8) }
+            val raw = AppContent.read(this, "spec/ui_spec.json")
             sections = UiSpec.parse(raw)
         } catch (e: Exception) {
             romStatus.text = "Spec load failed: ${e.message}"

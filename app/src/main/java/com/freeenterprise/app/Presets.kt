@@ -14,8 +14,7 @@ object Presets {
         cached?.let { return it }
         val result = mutableListOf<Category>()
         try {
-            val raw = context.assets.open("presets/presets.json")
-                .use { it.readBytes().toString(Charsets.UTF_8) }
+            val raw = AppContent.read(context, "presets/presets.json")
             val arr = JSONArray(raw)
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)

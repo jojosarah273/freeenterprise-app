@@ -52,7 +52,11 @@ same ROM.
 - Item-quality controls: `Tmintier` (improve) and `Tmaxtier` (restrict), plus the
   `Tstandardish` / `Tvanillaish` / `Tsemipro` chest modes
 - **Flagsets** — save a ruleset by name and roll it into fresh seeds later
-- The website's preset library (race presets, introductory sets…)
+- The website's preset library (race presets, introductory sets…) **plus your own
+  saved flagsets**, which appear under Presets ▸ *My flagsets* and can be deleted
+  there. Presets and flagsets written for older flag versions are translated
+  automatically, and anything that no longer exists is reported rather than
+  silently dropped.
 - A modal progress window with **real** engine progress (compile phases and
   per-block-type detail), which locks the menus while it runs
 - A post-generation sanity check that catches a malformed treasure table before

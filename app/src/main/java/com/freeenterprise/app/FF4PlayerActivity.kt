@@ -540,13 +540,20 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
     private fun keyItemPage(wram: ByteArray): String {
         val sb = StringBuilder()
         val held = Ff4Save.keyItems(wram, 0).map { normalise(it) }.toSet()
-        val locations = rom?.let { Spoiler.keyItemLocations(RomLibrary.spoilerFile(it)) }.orEmpty()
+        val spoilerFile = rom?.let { RomLibrary.spoilerFile(it) }
+        val locations = spoilerFile?.let { Spoiler.keyItemLocations(it) }.orEmpty()
 
         sb.append("PAGE 1 / $TRACKER_PAGES   KEY ITEM LOCATIONS\n\n")
         if (locations.isEmpty()) {
-            sb.append("No location data for this seed.\n")
-            sb.append("(Seeds generated before 0.1.7 did not save a spoiler.\n")
-            sb.append(" Regenerate, or play on.)\n\n")
+            // Distinguish the two causes: no spoiler saved at all, versus a spoiler
+            // that simply has no key-item section.
+            if (spoilerFile != null && spoilerFile.exists()) {
+                sb.append("This seed's spoiler has no key-item section.\n\n")
+            } else {
+                sb.append("No spoiler saved for this seed.\n")
+                sb.append("(Seeds made before 0.1.7 did not save one — regenerate\n")
+                sb.append(" to get locations, or play on with the list below.)\n\n")
+            }
         } else {
             for ((name, place) in locations) {
                 val mark = if (held.contains(normalise(name))) "\u2713" else " "
