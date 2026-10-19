@@ -39,3 +39,7 @@ Thumbs.db
 keystore.properties
 *.jks
 *.keystore
+
+# Built engine bundles (release assets, not source)
+freeenterprise-engine-*.zip
+freeenterprise-engine-*.zip.sha256
