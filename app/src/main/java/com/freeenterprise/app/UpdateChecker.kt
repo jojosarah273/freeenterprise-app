@@ -20,16 +20,24 @@ data class ReleaseInfo(
 ) {
     val version: String get() = tag.trimStart('v')
 
-    /** The engine bundle, if this release carries one. */
+    /** The installable APK attached to this release. */
+    val apkAsset: ReleaseAsset?
+        get() = assets.firstOrNull { it.name.endsWith(".apk") }
+
+    /**
+     * The engine bundle, if this release carries one. Internal plumbing: it is
+     * what makes a dialog-free update possible, and users never see it — the app
+     * offers one "Update" either way.
+     */
     val engineAsset: ReleaseAsset?
         get() = assets.firstOrNull { it.name.startsWith(ENGINE_PREFIX) && it.name.endsWith(".zip") }
 
-    /** Engine version, read straight from the asset name. */
+    /** Engine version carried by the bundle, parsed from the asset name. */
     val engineVersion: String?
         get() = engineAsset?.name?.removePrefix(ENGINE_PREFIX)?.removeSuffix(".zip")
 
     companion object {
-        /** Release assets must be named `freeenterprise-engine-<version>.zip`. */
+        /** Engine bundles must be named `freeenterprise-engine-<version>.zip`. */
         const val ENGINE_PREFIX = "freeenterprise-engine-"
     }
 }

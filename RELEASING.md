@@ -74,27 +74,27 @@ git push origin main --follow-tags
 # 6. Publish a GitHub Release, attaching the APK and its SHA-256
 ```
 
-## Engine bundles (in-place updates)
+## Update payloads
 
-A release can also carry an **engine bundle**, which the app installs without any
-APK or installer:
+Every release should carry **both** payloads; the app offers one "Update" and
+picks whichever it needs.
 
-```bash
-scripts/make_engine_bundle.sh .          # freeenterprise-engine-<version>.zip + .sha256
-```
+| Asset | Built by | Installs |
+|---|---|---|
+| `freeenterprise-app-<version>.apk` (+ `.sha256`) | `./gradlew :app:assembleRelease` | the whole app — one system confirmation tap |
+| `freeenterprise-engine-<engine>.zip` (+ `.sha256`) | `scripts/make_engine_bundle.sh .` | engine + spec + presets, **silently, in place, no dialog** |
 
-Attach both files to the release. Requirements:
+Engine-bundle requirements:
 
 - the asset **must** be named `freeenterprise-engine-<version>.zip`, where
-  `<version>` matches `VERSION_STR` in the bundled `FreeEnt/version.py`
-  (`freeenterprise-engine-4.7.1.Gale.zip`) — the app parses the version from the
-  filename and checks the bundle agrees
+  `<version>` matches the engine version (`freeenterprise-engine-4.7.1.Gale.zip`) —
+  the app parses it from the filename and checks the bundle agrees
 - the zip must contain `python_ext/`, `spec/` and `presets/` at its root
-- the app verifies the download against the sha256 the GitHub API reports for the
-  asset, so the `.sha256` file is for humans
+- the app verifies downloads against the sha256 the GitHub API reports for the
+  asset; the `.sha256` files are for humans
 
-Bumping only the engine does **not** require a new APK, and does not need a new
-`versionCode`.
+**If only the engine changed, do not bump the app version or `versionCode`** —
+the engine bundle alone is a complete release, and it needs no APK.
 
 ## Release notes template
 

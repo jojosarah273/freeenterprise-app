@@ -10,6 +10,61 @@ because our randomizer is interpreted Python and data, not compiled code.
 
 ---
 
+## 0. Answer: can *everything* update in place with no dialog?
+
+**No — one thing cannot, and it is a hard Android rule, not a limitation of our
+code.** An app is never allowed to replace its own APK silently. The only ways
+around it are outside a normal app's reach:
+
+| Route to a silent APK install | Cost |
+|---|---|
+| Device-owner / managed device (`DevicePolicyManager`) | Requires provisioning the device as managed — not viable for a public hobby app |
+| Preinstalled as a **system app** | Requires the platform signing key |
+| **Root** | Requires a rooted device |
+| **Shizuku** (an app that talks to `adb` shell) | User must install Shizuku once and grant it; then `pm install` can run as shell. Genuinely silent, but it is a second app and a setup step |
+| Google Play in-app updates | The only first-class silent path — **blocked for us**, because Play effectively bans `MANAGE_EXTERNAL_STORAGE` and our seeds live at `/storage/emulated/0/FF4_FE` |
+
+**But everything that is not compiled can update silently and in place** — which
+for this project is most of the moving parts:
+
+| Payload | Silent? | Carries |
+|---|---|---|
+| **Engine bundle** (`freeenterprise-engine-<v>.zip`, ~4 MB) | **yes**, no dialog | the randomizer, `f4c` compiler, flag spec, presets, checks database |
+| **APK** (~27 MB) | one confirmation tap | Kotlin UI, native libs, Snes9x, new permissions |
+
+### How gen1recomp does it
+
+The same split, and it is worth being precise about it: gen1recomp is a
+**Lua/LÖVE2D** application, so its game logic and all of its mods are
+*interpreted scripts*. Its in-app updates pull **content zips** through a mod
+index (`schema/*.json`, `sha256`, `downloadURL`) — that is the dialog-free part.
+Its **platform binaries** (APK / IPA / AppImage / flatpak / macOS) still ship as
+release downloads and are installed the normal way; there is no silent APK
+replacement there either, because Android and iOS both forbid it.
+
+So "gen1recomp updates everything in place" really means "its *content and engine*
+update in place" — which is exactly the split we have.
+
+### What we do
+
+**One user-visible "Update" action, two payloads behind it:**
+
+```
+Check for updates
+  engine newer?  -> install the engine bundle: silent, in place, no dialog
+  else APK newer? -> download the APK: one system confirmation tap
+```
+
+Users never choose, and never see the engine bundle as a separate thing — it is
+internal plumbing. Nothing extra is "shipped separately" in any sense they can
+perceive. A release can carry both assets, and the app takes whichever it needs.
+
+**Consequence worth accepting:** UI, native or permission changes always take one
+tap. If a truly dialog-free APK install is ever wanted, the only sane route is
+optional **Shizuku** support (detect it, and use it when present; fall back to the
+installer otherwise), and that can be added later without changing any of the
+above.
+
 ## 1. The hard constraint, stated plainly
 
 Android forbids an app from replacing its own APK in place. No permission,
@@ -266,12 +321,15 @@ no secrets.
 > maintained while the code is still private. The plan below is what we pick up
 > then.
 
-- **Phase 1 — engine-only updates.** Static manifest, verified zip download,
-  staging + smoke test + swap, interpreter refresh, rollback, `Check for updates`
-  and `Rollback engine` in Settings. Adds only `INTERNET`.
-- **Phase 2 — full APK self-update.** `PackageInstaller` path, unknown-sources
-  guidance, signature check, pre-install save.
-- **Phase 3 — niceties.** Optional per-ABI APKs, automatic check *opt-in*,
+- **Phase 1 — engine-only updates** *(implemented in 0.1.9/0.1.10)*. GitHub
+  release assets, verified zip download, staging + smoke test + swap, interpreter
+  refresh, rollback, `Check for updates` on the main menu. Adds only `INTERNET`.
+- **Phase 2 — full APK self-update** *(implemented in 0.1.11)*. `PackageInstaller`
+  session path, unknown-sources guidance, SHA-256 + signer + versionCode checks,
+  one confirmation tap. The app now picks the engine path when only the engine
+  changed, and the APK path when the app itself did.
+- **Phase 3 — optional silence.** Shizuku support so an APK can also install with
+  no dialog for users who have it; otherwise unchanged. Optional per-ABI APKs, automatic check *opt-in*,
   release-notes viewer, and the same engine model reused for a future iOS build
   (content/engine updatable in place; the binary via the App Store).
 

@@ -161,10 +161,14 @@ class FF4MainActivity : FF4MenuActivity() {
     // ------------------------------------------------------------------ updates
 
     /**
-     * Manual only: fetches the project's latest release and offers an
-     * **engine-only** update, which installs in place (no APK, no installer).
-     * A newer *app* version is reported, but installing an APK needs the
-     * installer permission, which we have not taken yet.
+     * Manual only. Reads the project's latest release and, if it is newer, offers
+     * to **install the app itself** — the engine ships inside the APK, so this
+     * updates everything: UI, engine, assets.
+     *
+     * Android will not let an app replace itself silently, so the download is
+     * verified and then handed to the system installer, which shows its own
+     * Update dialog. It is an update, not a reinstall: seeds, saves and settings
+     * are all kept.
      */
     private fun checkForUpdates() {
         if (busy) return
@@ -178,9 +182,7 @@ class FF4MainActivity : FF4MenuActivity() {
     }
 
     private fun onUpdateCheckFinished(result: Result<ReleaseInfo>) {
-        val installedApp = BuildConfig.VERSION_NAME
-        val installedEngine = EngineUpdater.installedVersion(this)
-        val rollbackAvailable = EngineUpdater.canRollBack(this)
+        val installed = BuildConfig.VERSION_NAME
 
         result.onFailure { error ->
             setStatus("Could not check for updates:\n${error.message}", FF4Theme.PINK)
@@ -191,49 +193,84 @@ class FF4MainActivity : FF4MenuActivity() {
         }
 
         result.onSuccess { release ->
+            val apk = release.apkAsset
             val engineAsset = release.engineAsset
             val engineVersion = release.engineVersion
-            val appNewer = UpdateChecker.isNewer(release.version, installedApp)
+            val installedEngine = EngineUpdater.installedVersion(this)
+            val appNewer = UpdateChecker.isNewer(release.version, installed)
             val engineNewer = engineAsset != null && engineVersion != null &&
                 (installedEngine == null || UpdateChecker.isNewer(engineVersion, installedEngine))
 
-            setStatus(
-                "Installed   app v$installedApp  ·  engine ${installedEngine ?: "?"}\n" +
-                    "Latest      app v${release.version}" +
-                    (if (engineVersion != null) "  ·  engine $engineVersion" else "  ·  no engine bundle") +
-                    (if (engineNewer) "\n\nAn engine update is ready to install in place." else ""),
-                if (engineNewer) FF4Theme.GREEN else FF4Theme.WHITE
-            )
-            setHint("A  Select      B  Back")
-
-            val items = mutableListOf<FF4Menu.Item>()
-            val actions = mutableListOf<() -> Unit>()
-
+            // Engine-first: an engine change installs silently and in place, with
+            // no system dialog. Only a genuinely new APK needs the one-tap
+            // installer. Users see a single "Update" either way.
             if (engineNewer && engineAsset != null && engineVersion != null) {
-                items.add(FF4Menu.Item("Update engine to $engineVersion", "in place"))
-                actions.add { installEngineUpdate(release, engineAsset, engineVersion) }
-            } else if (installedEngine != null) {
-                items.add(FF4Menu.Item("Engine is up to date", "none", enabled = false))
-                actions.add { }
+                setStatus(
+                    "Installed   app v$installed  ·  engine ${installedEngine ?: "?"}\n" +
+                        "Available   engine $engineVersion" +
+                        (if (appNewer) "  ·  app v${release.version}" else "") + "\n\n" +
+                        "This is an engine change, so it installs in place — no reinstall,\n" +
+                        "no confirmation dialog. Seeds, saves and settings are untouched.",
+                    FF4Theme.GREEN
+                )
+                setHint("A  Select      B  Back")
+                submitMenu("update", listOf(
+                    FF4Menu.Item("Update to $engineVersion", "in place, silent"),
+                    FF4Menu.Item("Roll back the engine", "restore previous"),
+                    FF4Menu.Item("Check again"),
+                    FF4Menu.Item("Back"),
+                )) { i ->
+                    when (i) {
+                        0 -> installEngineUpdate(release, engineAsset, engineVersion)
+                        1 -> doRollback()
+                        2 -> checkForUpdates()
+                        3 -> showMainMenu()
+                    }
+                }
+                return@onSuccess
             }
 
-            if (appNewer) {
-                items.add(FF4Menu.Item("App v${release.version} available", "see release"))
-                actions.add { openReleasePage() }
-            }
-
-            if (rollbackAvailable) {
-                items.add(FF4Menu.Item("Roll back the engine", "restore previous"))
-                actions.add { doRollback() }
-            }
-
-            items.add(FF4Menu.Item("Check again"))
-            actions.add { checkForUpdates() }
-            items.add(FF4Menu.Item("Back"))
-            actions.add { showMainMenu() }
-
-            submitMenu("update", items) { index ->
-                actions.getOrNull(index)?.invoke()
+            if (appNewer && apk != null) {
+                setStatus(
+                    "Installed   v$installed\n" +
+                        "Available   v${release.version}  ·  ${apk.sizeBytes / 1024 / 1024} MB\n\n" +
+                        "This release changes the app itself (UI or native code), which Android\n" +
+                        "only installs with one confirmation tap. It is an update, not a\n" +
+                        "reinstall — seeds, saves and settings are kept.",
+                    FF4Theme.GREEN
+                )
+                setHint("A  Select      B  Back")
+                submitMenu("update", listOf(
+                    FF4Menu.Item("Download & install v${release.version}", "in place"),
+                    FF4Menu.Item("Open release page", "what's new"),
+                    FF4Menu.Item("Check again"),
+                    FF4Menu.Item("Back"),
+                )) { i ->
+                    when (i) {
+                        0 -> downloadAndInstall(release, apk)
+                        1 -> openReleasePage()
+                        2 -> checkForUpdates()
+                        3 -> showMainMenu()
+                    }
+                }
+            } else {
+                setStatus(
+                    "You are up to date.\n\nInstalled v$installed  ·  latest v${release.version}" +
+                        if (apk == null) "\n(This release has no APK attached.)" else "",
+                    FF4Theme.WHITE
+                )
+                setHint("A  Select      B  Back")
+                submitMenu("update", listOf(
+                    FF4Menu.Item("Check again"),
+                    FF4Menu.Item("Open release page", "what's new"),
+                    FF4Menu.Item("Back"),
+                )) { i ->
+                    when (i) {
+                        0 -> checkForUpdates()
+                        1 -> openReleasePage()
+                        2 -> showMainMenu()
+                    }
+                }
             }
         }
     }
@@ -241,50 +278,42 @@ class FF4MainActivity : FF4MenuActivity() {
     private fun installEngineUpdate(release: ReleaseInfo, asset: ReleaseAsset, version: String) {
         if (busy) return
         busy = true
-        val overlay = com.freeenterprise.app.ff4ui.FF4ProgressOverlay(this)
+        val overlay = com.freeenterprise.app.ff4ui.FF4ProgressOverlay(this).apply {
+            addContentView(this, android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            ))
+            show()
+            update(0, "Updating engine", version, 0)
+        }
         progressOverlay = overlay
-        addContentView(overlay, android.view.ViewGroup.LayoutParams(
-            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-            android.view.ViewGroup.LayoutParams.MATCH_PARENT
-        ))
-        overlay.show()
-        overlay.update(0, "Updating engine", version, 0)
         val started = System.currentTimeMillis()
 
         Thread {
             val result = EngineUpdater.update(this, engine, asset) { percent, stage, detail ->
                 ioHandler.post {
-                    overlay.update(
-                        percent, stage, detail,
-                        (System.currentTimeMillis() - started) / 1000
-                    )
+                    overlay.update(percent, stage, detail, (System.currentTimeMillis() - started) / 1000)
                 }
             }
             ioHandler.post {
                 busy = false
                 progressOverlay?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
                 progressOverlay = null
-                onEngineUpdateFinished(result)
+                result.onSuccess { v ->
+                    setStatus(
+                        "Engine updated to $v — installed in place, no dialog, no reinstall.\n" +
+                            "Existing seeds are untouched; new ones use the new engine.",
+                        FF4Theme.GREEN
+                    )
+                }.onFailure { e ->
+                    setStatus("Engine update failed:\n${e.message}", FF4Theme.PINK)
+                }
+                submitMenu("update", listOf(
+                    FF4Menu.Item("Back to menu"),
+                    FF4Menu.Item("Check for updates"),
+                )) { i -> if (i == 0) showMainMenu() else checkForUpdates() }
             }
         }.start()
-    }
-
-    private fun onEngineUpdateFinished(result: Result<String>) {
-        result.onSuccess { version ->
-            setStatus(
-                "Engine updated to $version — installed in place, no reinstall needed.\n" +
-                    "Seeds you already made are untouched; new seeds use the new engine.",
-                FF4Theme.GREEN
-            )
-        }
-        result.onFailure { error ->
-            setStatus("Engine update failed:\n${error.message}", FF4Theme.PINK)
-        }
-        setHint("A  Select      B  Back")
-        submitMenu("update", listOf(
-            FF4Menu.Item("Back to menu"),
-            FF4Menu.Item("Check for updates"),
-        )) { i -> if (i == 0) showMainMenu() else checkForUpdates() }
     }
 
     private fun doRollback() {
@@ -295,14 +324,157 @@ class FF4MainActivity : FF4MenuActivity() {
             val result = EngineUpdater.rollback(this, engine)
             ioHandler.post {
                 busy = false
-                result.onSuccess { v ->
-                    setStatus("Rolled back to engine $v.", FF4Theme.GREEN)
-                }.onFailure { e ->
-                    setStatus("Rollback failed: ${e.message}", FF4Theme.PINK)
-                }
+                result.onSuccess { v -> setStatus("Rolled back to engine $v.", FF4Theme.GREEN) }
+                    .onFailure { e -> setStatus("Rollback failed: ${e.message}", FF4Theme.PINK) }
                 submitMenu("update", listOf(FF4Menu.Item("Back to menu"))) { showMainMenu() }
             }
         }.start()
+    }
+
+    private fun downloadAndInstall(release: ReleaseInfo, asset: ReleaseAsset) {
+        if (busy) return
+        busy = true
+        val overlay = com.freeenterprise.app.ff4ui.FF4ProgressOverlay(this).apply {
+            addContentView(this, android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            ))
+            show()
+            update(0, "Downloading v${release.version}", "", 0)
+        }
+        progressOverlay = overlay
+        val started = System.currentTimeMillis()
+
+        Thread {
+            val outcome = runCatching {
+                val apkFile = java.io.File(cacheDir, "update.apk")
+                apkFile.delete()
+                val sha = download(asset, apkFile) { percent, copied, total ->
+                    ioHandler.post {
+                        overlay.update(
+                            percent, "Downloading v${release.version}",
+                            "${copied / 1024 / 1024} / ${total / 1024 / 1024} MB",
+                            (System.currentTimeMillis() - started) / 1000
+                        )
+                    }
+                }
+
+                asset.sha256?.let { expected ->
+                    check(sha.equals(expected, ignoreCase = true)) {
+                        "Checksum mismatch — refusing to install"
+                    }
+                }
+                val apkVersion = AppInstaller.apkVersionCode(this, apkFile.absolutePath)
+                check(apkVersion > BuildConfig.VERSION_CODE.toLong()) {
+                    "The download is not newer than the installed version"
+                }
+                val apkSigner = AppInstaller.apkSignerSha256(this, apkFile.absolutePath)
+                val ourSigner = AppInstaller.installedSignerSha256(this)
+                check(apkSigner != null && ourSigner != null && apkSigner == ourSigner) {
+                    "The download is signed by a different key — refusing to install"
+                }
+                apkFile
+            }
+            ioHandler.post {
+                busy = false
+                progressOverlay?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+                progressOverlay = null
+                outcome.onSuccess { apkFile -> beginInstall(apkFile) }
+                outcome.onFailure { error ->
+                    setStatus("Update failed:\n${error.message}", FF4Theme.PINK)
+                    submitMenu("update", listOf(
+                        FF4Menu.Item("Try again"),
+                        FF4Menu.Item("Back"),
+                    )) { i -> if (i == 0) downloadAndInstall(release, asset) else showMainMenu() }
+                }
+            }
+        }.start()
+    }
+
+    private fun beginInstall(apkFile: java.io.File) {
+        if (!AppInstaller.canInstall(this)) {
+            setStatus(
+                "Android needs your permission before it will install an update.\n\n" +
+                    "Allow \"Install unknown apps\" for Free Enterprise, then come back and\n" +
+                    "install again — the download is already done.",
+                FF4Theme.YELLOW
+            )
+            setHint("A  Select      B  Back")
+            submitMenu("update", listOf(
+                FF4Menu.Item("Allow installs (opens Android settings)"),
+                FF4Menu.Item("Install now"),
+                FF4Menu.Item("Back"),
+            )) { i ->
+                when (i) {
+                    0 -> try {
+                        startActivity(AppInstaller.unknownSourcesIntent(this))
+                    } catch (_: Exception) {
+                        setStatus("Could not open the setting on this device.", FF4Theme.PINK)
+                    }
+                    1 -> beginInstall(apkFile)
+                    2 -> showMainMenu()
+                }
+            }
+            return
+        }
+
+        InstallResultReceiver.remember(this)
+        InstallResultReceiver.onResult = { message ->
+            if (message != null) {
+                setStatus("Update failed:\n$message", FF4Theme.PINK)
+                submitMenu("update", listOf(FF4Menu.Item("Back to menu"))) { showMainMenu() }
+            } else {
+                // The install was accepted; Android replaces us and restarts the app.
+                setStatus("Installing… the app will restart on the new version.", FF4Theme.GREEN)
+            }
+        }
+        try {
+            AppInstaller.install(this, apkFile)
+        } catch (e: Exception) {
+            setStatus("Could not start the installer:\n${e.message}", FF4Theme.PINK)
+        }
+    }
+
+    /** Streams the APK to cache, returning its SHA-256 and reporting progress. */
+    private fun download(
+        asset: ReleaseAsset,
+        target: java.io.File,
+        onProgress: (Int, Long, Long) -> Unit,
+    ): String {
+        val connection = (java.net.URL(asset.url).openConnection() as java.net.HttpURLConnection).apply {
+            connectTimeout = 20_000
+            readTimeout = 60_000
+            instanceFollowRedirects = true
+            setRequestProperty("User-Agent", "freeenterprise-app")
+        }
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        try {
+            val total = if (asset.sizeBytes > 0) asset.sizeBytes else connection.contentLengthLong
+            java.io.BufferedInputStream(connection.inputStream).use { input ->
+                java.io.FileOutputStream(target).use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var copied = 0L
+                    var last = -1
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n <= 0) break
+                        output.write(buffer, 0, n)
+                        digest.update(buffer, 0, n)
+                        copied += n
+                        if (total > 0) {
+                            val percent = (copied * 100 / total).toInt()
+                            if (percent != last) {
+                                last = percent
+                                onProgress(percent, copied, total)
+                            }
+                        }
+                    }
+                }
+            }
+        } finally {
+            connection.disconnect()
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun openReleasePage() {
