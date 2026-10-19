@@ -25,17 +25,8 @@ object EngineUpdater {
     private val TREES = listOf("python_ext", "spec", "presets")
 
     /** The engine version currently on disk, read from the engine itself. */
-    fun installedVersion(context: Context): String? {
-        val versionFile = File(context.filesDir, "python_ext/FreeEnt/version.py")
-        if (!versionFile.exists()) return null
-        return try {
-            Regex("VERSION_STR\\s*=\\s*f?\"([^\"]+)\"")
-                .find(versionFile.readText())?.groupValues?.get(1)
-                ?.trim()
-        } catch (_: Exception) {
-            null
-        }
-    }
+    fun installedVersion(context: Context): String? =
+        versionIn(File(context.filesDir, "python_ext/FreeEnt/version.py"))
 
     fun canRollBack(context: Context): Boolean =
         TREES.any { File(context.filesDir, "$it.prev").exists() }
@@ -143,10 +134,33 @@ object EngineUpdater {
         }
     }
 
+    /**
+     * Compose the engine version from its component assignments.
+     *
+     * `version.py` defines `VERSION_STR = f"{MAJOR}.{MINOR}.{PATCH}.{FORK}"`, so
+     * reading that line yields the *template*, not the version — the parts have to
+     * be read and joined.
+     */
     private fun versionIn(versionFile: File): String? {
         if (!versionFile.exists()) return null
-        return Regex("VERSION_STR\\s*=\\s*f?\"([^\"]+)\"")
-            .find(versionFile.readText())?.groupValues?.get(1)?.trim()
+        val text = try {
+            versionFile.readText()
+        } catch (_: Exception) {
+            return null
+        }
+        // MAJOR/MINOR/PATCH are bare ints; FORK is a quoted string, so take
+        // whatever follows '=' and strip quotes rather than requiring them.
+        fun part(key: String): String? {
+            val raw = Regex("(?m)^\\s*$key\\s*=\\s*(.+?)\\s*$")
+                .find(text)?.groupValues?.get(1) ?: return null
+            return raw.trim().trim('"').trim('\'')
+        }
+
+        val major = part("MAJOR") ?: return null
+        val minor = part("MINOR") ?: return null
+        val patch = part("PATCH") ?: return null
+        val fork = part("FORK") ?: return null
+        return "$major.$minor.$patch.$fork"
     }
 
     private fun download(
