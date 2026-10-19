@@ -140,7 +140,11 @@ class FF4MainActivity : FF4MenuActivity() {
         inSettings = false
         val noticeText = notice
         notice = null
-        setStatus(noticeText, FF4Theme.GREEN)
+        // We have seen an update-over-an-older-install leave INTERNET declared
+        // but ungranted, which silently breaks update checking (and looks like a
+        // DNS error). Say so rather than letting it fail mysteriously.
+        val statusText = noticeText ?: internetGrantWarning()
+        setStatus(statusText, if (noticeText != null) FF4Theme.GREEN else FF4Theme.WHITE)
         setHint("A  Select      B  Exit")
         val seedCount = RomLibrary.listRoms(this).size
         submitMenu("main", listOf(
@@ -535,6 +539,23 @@ class FF4MainActivity : FF4MenuActivity() {
             "unknown"
         }
         return "Diagnosis — INTERNET declared: $declared, granted: $granted · network: $state"
+    }
+
+    /** Non-null when the packaged permission is present but Android has not granted it. */
+    private fun internetGrantWarning(): String? {
+        val declared = try {
+            packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_PERMISSIONS)
+                .requestedPermissions?.contains(android.Manifest.permission.INTERNET) == true
+        } catch (_: Exception) {
+            false
+        }
+        if (!declared) return null
+        val granted = checkSelfPermission(android.Manifest.permission.INTERNET) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        return if (granted) null else
+            "Note: this install was not granted internet access, so \"Check for updates\"\n" +
+                "will fail. Android does not always grant a permission added in an update —\n" +
+                "reinstalling the app once clears it. Everything else works offline."
     }
 
     private fun openReleasePage() {

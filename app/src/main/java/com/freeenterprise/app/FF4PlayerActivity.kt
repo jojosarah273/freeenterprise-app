@@ -536,36 +536,39 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         return if (trackerPage == 0) keyItemPage(wram) else checksPage(wram)
     }
 
-    /** Page 1 — key item locations, with a mark for the ones already held. */
+    /**
+     * Page 1 — key item checks.
+     *
+     * Lists the *locations* only, with a mark for the ones already checked; it
+     * deliberately does not say which item sits where, so the page can be used
+     * without spoiling the seed.
+     */
     private fun keyItemPage(wram: ByteArray): String {
         val sb = StringBuilder()
         val held = Ff4Save.keyItems(wram, 0).map { normalise(it) }.toSet()
         val spoilerFile = rom?.let { RomLibrary.spoilerFile(it) }
         val locations = spoilerFile?.let { Spoiler.keyItemLocations(it) }.orEmpty()
 
-        sb.append("PAGE 1 / $TRACKER_PAGES   KEY ITEM LOCATIONS\n\n")
+        sb.append("PAGE 1 / $TRACKER_PAGES   KEY ITEM CHECKS\n\n")
         if (locations.isEmpty()) {
-            // Distinguish the two causes: no spoiler saved at all, versus a spoiler
-            // that simply has no key-item section.
             if (spoilerFile != null && spoilerFile.exists()) {
                 sb.append("This seed's spoiler has no key-item section.\n\n")
             } else {
                 sb.append("No spoiler saved for this seed.\n")
                 sb.append("(Seeds made before 0.1.7 did not save one — regenerate\n")
-                sb.append(" to get locations, or play on with the list below.)\n\n")
+                sb.append(" to get the list.)\n\n")
             }
         } else {
+            var checked = 0
             for ((name, place) in locations) {
-                val mark = if (held.contains(normalise(name))) "\u2713" else " "
-                sb.append(" %s %-18s %s\n".format(mark, name.take(18), place.take(30)))
+                val isChecked = held.contains(normalise(name))
+                if (isChecked) checked++
+                sb.append(" %s %s\n".format(if (isChecked) "\u2713" else "\u00b7", place.take(38)))
             }
-            sb.append("\n \u2713 = already in the party.\n")
+            sb.append("\n %d / %d checked\n".format(checked, locations.size))
+            sb.append(" \u2713 = you already have that key item.\n")
+            sb.append(" Where each item is stays in the spoiler.\n")
         }
-        val heldNow = Ff4Save.keyItems(wram, 0)
-        sb.append("\nHELD (%d): %s".format(
-            heldNow.size,
-            if (heldNow.isEmpty()) "(none)" else heldNow.joinToString(", ")
-        ))
         return sb.toString()
     }
 

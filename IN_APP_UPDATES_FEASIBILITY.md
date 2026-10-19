@@ -307,6 +307,7 @@ no secrets.
 | Unknown-sources not granted (Route B) | install does nothing | detect and deep-link; explain once |
 | OEM installer quirks (Xiaomi/Samsung/Huawei) | prompt differs or is blocked | test on the real device early; fall back to "open the APK yourself" via FileProvider |
 | Signing key lost/changed | updates refuse to install | already documented in `RELEASING.md` |
+| **A newly-added permission is not granted** | An APK installed *over an older build* can leave a permission declared but ungranted — observed with `INTERNET`, which silently breaks the next update check and presents as a DNS failure while browsers keep working | The app now detects it and says so on the main menu; a single reinstall clears it. Worth checking after any in-app APK update that adds a permission |
 | `versionCode` not increased | update refused | already enforced by the release checklist |
 | Engine update changes seeds | a "same seed" regenerates differently | `SeedMeta.version` records the engine; label sessions and warn on Regenerate |
 | Added networking breaks an offline app | new failure modes, user distrust | manual checks only; `INTERNET` the only added permission; a setting to disable |
