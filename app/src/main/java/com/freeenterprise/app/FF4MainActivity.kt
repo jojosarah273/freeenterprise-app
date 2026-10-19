@@ -146,14 +146,16 @@ class FF4MainActivity : FF4MenuActivity() {
         submitMenu("main", listOf(
                 FF4Menu.Item("Play Free Enterprise", "$seedCount seed(s)"),
                 FF4Menu.Item("Generate Seed", ""),
+                FF4Menu.Item("Check for updates", "v${BuildConfig.VERSION_NAME}"),
                 FF4Menu.Item("Settings", ""),
                 FF4Menu.Item("Exit", ""),
             )) { i ->
             when (i) {
                 0 -> startActivity(Intent(this, FF4PlayActivity::class.java))
                 1 -> startActivity(Intent(this, FF4GenerateActivity::class.java))
-                2 -> showSettings()
-                3 -> finish()
+                2 -> checkForUpdates()
+                3 -> showSettings()
+                4 -> finish()
             }
         }
     }
