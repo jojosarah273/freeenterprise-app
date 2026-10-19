@@ -31,7 +31,12 @@ object Spoiler {
     /** Parses the key-item section out of spoiler text. */
     fun keyItemLocations(text: String): List<Pair<String, String>> {
         val out = mutableListOf<Pair<String, String>>()
-        val entry = Regex("^(.+?)\\s*\\.{3,}\\s*(.+)$")
+        // The spoiler pads as: name + ' ..' + '.' * (field_width - name.length),
+        // so the dot run SHRINKS as names get longer and bottoms out at two dots
+        // ("Darkness Crystal .. Sealed Cave item"). Requiring three or more dots
+        // silently truncated the section — 9 of 18 entries. At least one dot, with
+        // whitespace either side, is the correct rule.
+        val entry = Regex("^(.+?)\\s+\\.+\\s+(.+)$")
         try {
             var inSection = false
             var started = false

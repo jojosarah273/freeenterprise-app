@@ -549,9 +549,12 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         // Seed metadata is the normal source; a spoiler file beside the ROM is
         // honoured too, so one downloaded from the website also works.
         val meta = rom?.let { RomLibrary.readMeta(it) }
-        val locations = meta?.keyItems.orEmpty().ifEmpty {
+        // Drop placeholders like "Pink Tail ... (not available)" — they are not
+        // checks. Whether one appears depends on the flags (Pass only exists with
+        // Pkey, for instance), which is why the usable count is 16 or 17.
+        val locations = (meta?.keyItems.orEmpty().ifEmpty {
             rom?.let { Spoiler.keyItemLocations(RomLibrary.spoilerFile(it)) }.orEmpty()
-        }
+        }).filterNot { (_, place) -> place.contains("not available", ignoreCase = true) }
 
         sb.append("PAGE 1 / $TRACKER_PAGES   KEY ITEM CHECKS\n\n")
         if (locations.isEmpty()) {
