@@ -166,8 +166,8 @@ Android app.
 | **Spectating** | Optional: stream derived state (not video) to watchers |
 
 **Privacy/consistency note:** keep it **opt-in and offline-by-default**. The app
-currently has no internet permission at all, so racing would need a deliberate,
-separate capability — ideally only in the racing mode.
+currently has one narrow network use (the manual update check), so racing would be
+a second, deliberately separate capability — ideally only active in racing mode.
 
 **Sequencing:** needs the tracker's progress reporting first; the server is the
 easy part.

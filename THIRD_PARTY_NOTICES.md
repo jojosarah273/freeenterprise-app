@@ -47,6 +47,16 @@ redistributable.
   set at `app/src/main/res/mipmap-*` by `scripts/make_icons.py`.
 - Licence: **MIT**, the same as this project's own code (see `LICENSE`).
 
+### Checksum tile icons — `app/src/main/assets/checksum/checksum-*.png`
+
+- The 16 tile images the Free Enterprise website serves, taken from the upstream
+  repository (`FreeEnt/server/static/`) so the app's seed-checksum display matches
+  the site exactly.
+- Distributed by upstream Free Enterprise (MIT repository), but they are icons of
+  the game's own items, so the same caveat as the font applies: they are
+  game-derived art rather than original work. They match the engine's 16
+  `CHECKSUM_TILES` names one-for-one.
+
 ### Cursor sprite — `app/src/main/assets/ff4/pointer.png`
 
 - **Hand-made by jojosarah273** for this project.
@@ -77,4 +87,6 @@ independent reproductions and do not imply any affiliation.
 
 The app ships **no ROM**. It requires the user's own Final Fantasy II (US)
 cartridge dump, validates it by MD5, and stores it privately on-device.
-Generation happens entirely on-device with no network access.
+Generation and playback happen entirely on-device. The app's only network access
+is the manual "Check for updates", which reads this project's public GitHub
+releases; no data is uploaded.

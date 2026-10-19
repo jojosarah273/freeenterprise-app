@@ -36,6 +36,46 @@ def _ensure_env():
     _ENV_SET = True
 
 
+def engine_version():
+    """The engine version string currently on disk (e.g. '4.7.0.Gale')."""
+    try:
+        _ensure_env()
+        import FreeEnt.version as v
+        return json.dumps({'status': 'ok', 'version': v.VERSION_STR})
+    except Exception as exc:  # noqa: BLE001
+        return json.dumps({'status': 'error', 'error': _err(exc)})
+
+
+def reload_engine():
+    """Make a swapped-in engine take effect in the running interpreter.
+
+    Chaquopy starts CPython once per process and caches imported modules, so new
+    files on disk stay invisible until we drop the cached modules AND purge the
+    __pycache__ directories Python wrote at runtime. Called after an in-app
+    engine update; harmless when nothing changed.
+    """
+    import sys
+    import os
+    import shutil
+    try:
+        dropped = 0
+        for name in list(sys.modules):
+            if name.split('.')[0] in ('FreeEnt', 'f4c'):
+                sys.modules.pop(name, None)
+                dropped += 1
+        purged = 0
+        for base in [p for p in sys.path if 'python_ext' in p]:
+            for root, dirs, _files in os.walk(base):
+                for d in list(dirs):
+                    if d == '__pycache__':
+                        shutil.rmtree(os.path.join(root, d), ignore_errors=True)
+                        dirs.remove(d)
+                        purged += 1
+        return json.dumps({'status': 'ok', 'dropped': dropped, 'purged': purged})
+    except Exception as exc:  # noqa: BLE001
+        return json.dumps({'status': 'error', 'error': _err(exc)})
+
+
 def set_ext_path(path):
     """Ensure the extracted repo directory is importable. Kept as a tiny Python
     function so Kotlin never has to chain callAttr through sys.path (a PyList),

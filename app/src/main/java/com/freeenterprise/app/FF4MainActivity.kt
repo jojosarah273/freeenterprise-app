@@ -28,9 +28,22 @@ class FF4MainActivity : FF4MenuActivity() {
         refresh()
     }
 
+    private lateinit var engine: SeedEngine
+    private val ioHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var progressOverlay: com.freeenterprise.app.ff4ui.FF4ProgressOverlay? = null
+    private var busy = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        engine = SeedEngine(this) { }
+        engine.ensureExtracted(onDone = { }, onError = { })
         refresh()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        progressOverlay?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+        progressOverlay = null
     }
 
     override fun onResume() {
@@ -142,6 +155,162 @@ class FF4MainActivity : FF4MenuActivity() {
                 2 -> showSettings()
                 3 -> finish()
             }
+        }
+    }
+
+    // ------------------------------------------------------------------ updates
+
+    /**
+     * Manual only: fetches the project's latest release and offers an
+     * **engine-only** update, which installs in place (no APK, no installer).
+     * A newer *app* version is reported, but installing an APK needs the
+     * installer permission, which we have not taken yet.
+     */
+    private fun checkForUpdates() {
+        if (busy) return
+        busy = true
+        setStatus("Checking for updates…", FF4Theme.YELLOW)
+        setHint("Please wait…")
+        Thread {
+            val result = runCatching { UpdateChecker.fetchLatest() }
+            ioHandler.post { busy = false; onUpdateCheckFinished(result) }
+        }.start()
+    }
+
+    private fun onUpdateCheckFinished(result: Result<ReleaseInfo>) {
+        val installedApp = BuildConfig.VERSION_NAME
+        val installedEngine = EngineUpdater.installedVersion(this)
+        val rollbackAvailable = EngineUpdater.canRollBack(this)
+
+        result.onFailure { error ->
+            setStatus("Could not check for updates:\n${error.message}", FF4Theme.PINK)
+            submitMenu("update", listOf(
+                FF4Menu.Item("Try again"),
+                FF4Menu.Item("Back"),
+            )) { i -> if (i == 0) checkForUpdates() else showMainMenu() }
+        }
+
+        result.onSuccess { release ->
+            val engineAsset = release.engineAsset
+            val engineVersion = release.engineVersion
+            val appNewer = UpdateChecker.isNewer(release.version, installedApp)
+            val engineNewer = engineAsset != null && engineVersion != null &&
+                (installedEngine == null || UpdateChecker.isNewer(engineVersion, installedEngine))
+
+            setStatus(
+                "Installed   app v$installedApp  ·  engine ${installedEngine ?: "?"}\n" +
+                    "Latest      app v${release.version}" +
+                    (if (engineVersion != null) "  ·  engine $engineVersion" else "  ·  no engine bundle") +
+                    (if (engineNewer) "\n\nAn engine update is ready to install in place." else ""),
+                if (engineNewer) FF4Theme.GREEN else FF4Theme.WHITE
+            )
+            setHint("A  Select      B  Back")
+
+            val items = mutableListOf<FF4Menu.Item>()
+            val actions = mutableListOf<() -> Unit>()
+
+            if (engineNewer && engineAsset != null && engineVersion != null) {
+                items.add(FF4Menu.Item("Update engine to $engineVersion", "in place"))
+                actions.add { installEngineUpdate(release, engineAsset, engineVersion) }
+            } else if (installedEngine != null) {
+                items.add(FF4Menu.Item("Engine is up to date", "none", enabled = false))
+                actions.add { }
+            }
+
+            if (appNewer) {
+                items.add(FF4Menu.Item("App v${release.version} available", "see release"))
+                actions.add { openReleasePage() }
+            }
+
+            if (rollbackAvailable) {
+                items.add(FF4Menu.Item("Roll back the engine", "restore previous"))
+                actions.add { doRollback() }
+            }
+
+            items.add(FF4Menu.Item("Check again"))
+            actions.add { checkForUpdates() }
+            items.add(FF4Menu.Item("Back"))
+            actions.add { showMainMenu() }
+
+            submitMenu("update", items) { index ->
+                actions.getOrNull(index)?.invoke()
+            }
+        }
+    }
+
+    private fun installEngineUpdate(release: ReleaseInfo, asset: ReleaseAsset, version: String) {
+        if (busy) return
+        busy = true
+        val overlay = com.freeenterprise.app.ff4ui.FF4ProgressOverlay(this)
+        progressOverlay = overlay
+        addContentView(overlay, android.view.ViewGroup.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        overlay.show()
+        overlay.update(0, "Updating engine", version, 0)
+        val started = System.currentTimeMillis()
+
+        Thread {
+            val result = EngineUpdater.update(this, engine, asset) { percent, stage, detail ->
+                ioHandler.post {
+                    overlay.update(
+                        percent, stage, detail,
+                        (System.currentTimeMillis() - started) / 1000
+                    )
+                }
+            }
+            ioHandler.post {
+                busy = false
+                progressOverlay?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+                progressOverlay = null
+                onEngineUpdateFinished(result)
+            }
+        }.start()
+    }
+
+    private fun onEngineUpdateFinished(result: Result<String>) {
+        result.onSuccess { version ->
+            setStatus(
+                "Engine updated to $version — installed in place, no reinstall needed.\n" +
+                    "Seeds you already made are untouched; new seeds use the new engine.",
+                FF4Theme.GREEN
+            )
+        }
+        result.onFailure { error ->
+            setStatus("Engine update failed:\n${error.message}", FF4Theme.PINK)
+        }
+        setHint("A  Select      B  Back")
+        submitMenu("update", listOf(
+            FF4Menu.Item("Back to menu"),
+            FF4Menu.Item("Check for updates"),
+        )) { i -> if (i == 0) showMainMenu() else checkForUpdates() }
+    }
+
+    private fun doRollback() {
+        if (busy) return
+        busy = true
+        setStatus("Rolling back…", FF4Theme.YELLOW)
+        Thread {
+            val result = EngineUpdater.rollback(this, engine)
+            ioHandler.post {
+                busy = false
+                result.onSuccess { v ->
+                    setStatus("Rolled back to engine $v.", FF4Theme.GREEN)
+                }.onFailure { e ->
+                    setStatus("Rollback failed: ${e.message}", FF4Theme.PINK)
+                }
+                submitMenu("update", listOf(FF4Menu.Item("Back to menu"))) { showMainMenu() }
+            }
+        }.start()
+    }
+
+    private fun openReleasePage() {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW,
+                android.net.Uri.parse("https://github.com/${UpdateChecker.REPO}/releases/latest")))
+        } catch (_: Exception) {
+            setStatus("No browser available to open the release page.", FF4Theme.PINK)
         }
     }
 

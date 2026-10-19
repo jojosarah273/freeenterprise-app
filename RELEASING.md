@@ -74,6 +74,28 @@ git push origin main --follow-tags
 # 6. Publish a GitHub Release, attaching the APK and its SHA-256
 ```
 
+## Engine bundles (in-place updates)
+
+A release can also carry an **engine bundle**, which the app installs without any
+APK or installer:
+
+```bash
+scripts/make_engine_bundle.sh .          # freeenterprise-engine-<version>.zip + .sha256
+```
+
+Attach both files to the release. Requirements:
+
+- the asset **must** be named `freeenterprise-engine-<version>.zip`, where
+  `<version>` matches `VERSION_STR` in the bundled `FreeEnt/version.py`
+  (`freeenterprise-engine-4.7.1.Gale.zip`) — the app parses the version from the
+  filename and checks the bundle agrees
+- the zip must contain `python_ext/`, `spec/` and `presets/` at its root
+- the app verifies the download against the sha256 the GitHub API reports for the
+  asset, so the `.sha256` file is for humans
+
+Bumping only the engine does **not** require a new APK, and does not need a new
+`versionCode`.
+
 ## Release notes template
 
 ```markdown

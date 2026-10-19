@@ -100,6 +100,37 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
         }.start()
     }
 
+    /**
+     * Drop the interpreter's cached engine modules so a swapped-in engine takes
+     * effect. Blocking — call from a worker thread (the updater does).
+     */
+    fun reloadEngineBlocking(): Boolean = try {
+        synchronized(engineLock) {
+            val py = python()
+            val bridge = py.getModule("fe_bridge")
+            bridge.callAttr("set_ext_path", extDir.absolutePath)
+            org.json.JSONObject(bridge.callAttr("reload_engine").toString())
+                .optString("status") == "ok"
+        }
+    } catch (e: Exception) {
+        false
+    }
+
+    /** Null when the engine answers correctly, otherwise a short reason. */
+    fun smokeTestBlocking(): String? = try {
+        synchronized(engineLock) {
+            val py = python()
+            val bridge = py.getModule("fe_bridge")
+            bridge.callAttr("set_ext_path", extDir.absolutePath)
+            val json = org.json.JSONObject(
+                bridge.callAttr("validate_flags", "Onone Kmain Pshop").toString()
+            )
+            if (json.optString("status") == "ok") null else json.optString("error")
+        }
+    } catch (e: Exception) {
+        e.message ?: "unknown"
+    }
+
     /** Canonicalize + logic check a flag string in one round trip. */
     fun checkFlags(flags: String, onResult: (String) -> Unit) {
         Thread {

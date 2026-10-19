@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.widget.EditText
 import androidx.activity.result.contract.ActivityResultContracts
 import com.freeenterprise.app.ff4ui.FF4Dialog
+import com.freeenterprise.app.ff4ui.GameIcons
 import com.freeenterprise.app.ff4ui.FF4Menu
 import com.freeenterprise.app.ff4ui.FF4MenuActivity
 import com.freeenterprise.app.ff4ui.FF4Theme
@@ -78,11 +79,18 @@ class FF4PlayActivity : FF4MenuActivity() {
             val saveText = if (save.exists()) "save ${save.length() / 1024}K" else "no save"
             val played = if (m.lastPlayed > 0) m.lastPlayed else m.created
             val playedText = if (played > 0) fmt.format(Date(played)) else "—"
-            val check = if (m.verification.isEmpty()) "no check" else m.verification.joinToString("/")
+            val subtitle = android.text.SpannableStringBuilder()
+            subtitle.append("seed ${m.seed.ifBlank { "?" }}  ·  ")
+            if (m.verification.isEmpty()) {
+                subtitle.append("no check")
+            } else {
+                subtitle.append(GameIcons.verification(this, m.verification, FF4Theme.textSmallPx(this)))
+            }
+            subtitle.append("  ·  $saveText  ·  last played $playedText")
             FF4Menu.Item(
                 label = m.name.ifBlank { rom.nameWithoutExtension },
                 value = "${rom.length() / 1024}K",
-                subtitle = "seed ${m.seed.ifBlank { "?" }}  ·  $check  ·  $saveText  ·  last played $playedText",
+                subtitle = subtitle,
             )
         }
         submitMenu("list", items) { i ->
@@ -133,11 +141,15 @@ class FF4PlayActivity : FF4MenuActivity() {
         RomLibrary.touchLastPlayed(rom)   // record the session
         val m = RomLibrary.readMeta(rom)
         val save = RomLibrary.srmFile(rom)
-        setStatus(
-            "Play \"${m.name}\"\nseed ${m.seed}  ·  ${m.verification.joinToString("/")}\n" +
-                (if (save.exists()) "Save: ${save.name} (${save.length()} bytes)" else "No save yet — a new one is created on play."),
-            FF4Theme.WHITE
+        val playStatus = android.text.SpannableStringBuilder()
+        playStatus.append("Play \"${m.name}\"\nseed ${m.seed}  ·  ")
+        if (m.verification.isEmpty()) playStatus.append("no check") else
+            playStatus.append(GameIcons.verification(this, m.verification, FF4Theme.textSmallPx(this)))
+        playStatus.append(
+            "\n" + (if (save.exists()) "Save: ${save.name} (${save.length()} bytes)"
+                     else "No save yet — a new one is created on play.")
         )
+        setStatus(playStatus, FF4Theme.WHITE)
         setHint("A  Select      B  Back")
         submitMenu("play", listOf(
                 FF4Menu.Item("Play in-app", "Snes9x"),

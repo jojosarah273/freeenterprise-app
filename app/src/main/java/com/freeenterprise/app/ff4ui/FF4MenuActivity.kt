@@ -35,7 +35,7 @@ abstract class FF4MenuActivity : FF4Activity() {
         menu.requestFocus()
     }
 
-    protected fun setStatus(text: String?, color: Int = FF4Theme.WHITE) {
+    protected fun setStatus(text: CharSequence?, color: Int = FF4Theme.WHITE) {
         if (text.isNullOrBlank()) {
             statusWindow.visibility = View.GONE
             return

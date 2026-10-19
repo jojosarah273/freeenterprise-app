@@ -23,11 +23,11 @@ class FF4Menu @JvmOverloads constructor(
 ) : LinearLayout(context, attrs) {
 
     data class Item(
-        val label: String,
-        val value: String? = null,
+        val label: CharSequence,          // CharSequence so icons can be embedded
+        val value: CharSequence? = null,
         val enabled: Boolean = true,
         val indent: Int = 0,
-        val subtitle: String? = null,
+        val subtitle: CharSequence? = null,
     )
 
     private class RowViews(

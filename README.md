@@ -6,9 +6,13 @@ in-app, and keep every seed, save and save state in one library — presented as
 if it were part of the game itself.
 
 The real Free Enterprise randomizer runs **on the device** (CPython via
-Chaquopy), and playback uses a bundled **Snes9x** core. No network, no server,
-no account, and **no game ROM in the app** — you supply your own Final Fantasy II
-(US) cartridge dump.
+Chaquopy), playback uses a bundled **Snes9x** core, and updates install in place
+without reinstalling. No server, no account, and **no game ROM in the app** — you
+supply your own Final Fantasy II (US) cartridge dump.
+
+The app's only network use is the **manual "Check for updates"**, which reads the
+project's public GitHub releases; nothing else is sent or fetched, and no
+telemetry of any kind.
 
 ---
 
@@ -82,8 +86,7 @@ on-screen pad is enabled, so nothing responds to a stray tap.
 | Optional | A game controller for the intended experience |
 
 The ROM is validated by MD5 against the two known-good revisions and is stored
-in app-private storage. It is never uploaded, and the app holds **no internet
-permission**.
+in app-private storage. It is never uploaded.
 
 ## Install
 
@@ -247,8 +250,9 @@ The engine is verified from the host without an emulator. The useful tricks:
 
 ## Legal
 
-The app contains **no game ROM**, downloads nothing and requests no internet
-permission. It bundles Free Enterprise (MIT), the Snes9x core, and two art
+The app contains **no game ROM** and uploads nothing. Its only network use is the
+manual "Check for updates" (a read of the public GitHub releases API); generation,
+playback and the ROM never touch the network. It bundles Free Enterprise (MIT), the Snes9x core, and two art
 assets that are **reproductions rather than game rips**: the app icon and cursor
 sprite are drawn here by hand (MIT) and the font is a FontStruct reproduction by
 **`gameboyf9`** released under **CC0** (public domain). Both are freely redistributable, so
