@@ -91,7 +91,10 @@ class FF4ProgressOverlay(context: Context) : FrameLayout(context) {
         bar.progress = pct
         dots = (dots + 1) % 4
         val ellipsis = ".".repeat(dots)
-        stageText.text = "GENERATING SEED"
+        // Must use the caller's title. A literal here silently clobbers it on every
+        // tick, so the window said "GENERATING SEED" while downloading an update no
+        // matter what the caller set.
+        stageText.text = title
         val line = buildString {
             append(stage.ifBlank { "Working" })
             if (detail.isNotBlank()) {

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Guards against changes that look applied but are not.
+#
+# Three separate bugs shipped because a patch "applied" (the property, call site
+# or file was there) while the behaviour was still wrong or the code had silently
+# vanished:
+#   1. the "Check for updates" menu entry was lost in a bulk rewrite
+#   2. the spoiler file was never written — the write existed in no commit
+#   3. the progress heading was hardcoded in update(), clobbering the caller's title
+#   4. the key-item parser required three dots, truncating an 18-entry section to 9
+# Each assertion below fails loudly if one of those regresses. Run before releasing.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+J=app/src/main/java/com/freeenterprise/app
+fails=0
+ok()   { printf '  \033[32mok\033[0m   %s\n' "$1"; }
+bad()  { printf '  \033[31mFAIL\033[0m %s\n' "$1"; fails=$((fails+1)); }
+has()    { grep -q -- "$2" "$1" && ok "$3" || bad "$3"; }
+hasnot() { grep -q -- "$2" "$1" && bad "$3" || ok "$3"; }
+
+echo "Progress overlay"
+has    "$J/ff4ui/FF4ProgressOverlay.kt" 'stageText.text = title' \
+       "update() uses the caller's title"
+hasnot "$J/ff4ui/FF4ProgressOverlay.kt" 'stageText.text = "' \
+       "no hardcoded heading in the overlay"
+has    "$J/FF4MainActivity.kt" 'title = "DOWNLOADING UPDATE"' "APK download labels its window"
+has    "$J/FF4MainActivity.kt" 'title = "UPDATING ENGINE"'    "engine update labels its window"
+
+echo "Update path"
+has    "$J/FF4MainActivity.kt" 'Check for updates'        "the update menu entry exists"
+has    "$J/UpdateChecker.kt"   'api.github.com'           "release feed is queried"
+has    app/src/main/AndroidManifest.xml 'android.permission.INTERNET'              "INTERNET declared"
+has    app/src/main/AndroidManifest.xml 'REQUEST_INSTALL_PACKAGES'                 "install permission declared"
+
+echo "Key-item tracking"
+has    "$J/FF4GenerateActivity.kt" 'keyItems = Spoiler.keyItemLocations' "generation records key items"
+has    "$J/FF4GenerateActivity.kt" 'RomLibrary.save('                    "generation saves the seed"
+has    "$J/RomLibrary.kt"          '"key_items"'                         "metadata serialises key items"
+has    "$J/FF4PlayerActivity.kt"   'meta?.keyItems'                      "tracker reads them from metadata"
+has    "$J/FF4PlayerActivity.kt"   'not available'                       "placeholders are filtered"
+hasnot "$J/Spoiler.kt"             '\\\\\\.{3,}'                          "parser accepts short dot runs"
+
+echo "Versioning"
+name=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+code=$(grep -oP 'versionCode = \K[0-9]+' app/build.gradle.kts)
+printf '  info versionName %s (versionCode %s)\n' "$name" "$code"
+if [ "${1:-}" != "" ]; then
+  [ "$name" = "$1" ] && ok "matches tag $1" || bad "build.gradle.kts says $name, tag says $1"
+fi
+
+echo
+[ "$fails" -eq 0 ] && { echo "all invariant checks passed"; exit 0; }
+echo "$fails invariant check(s) FAILED"; exit 1
