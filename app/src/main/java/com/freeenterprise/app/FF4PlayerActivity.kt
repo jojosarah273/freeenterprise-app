@@ -48,6 +48,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
     private lateinit var padLayer: FrameLayout
     private lateinit var overlayLayer: FrameLayout
     private var padControls: View? = null
+    private var padToggle: View? = null
 
     private var session: EmulatorSession? = null
     private var rom: File? = null
@@ -190,9 +191,13 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.END
-            topMargin = dp(10); marginEnd = dp(10)
+            // Top-centre: the pad's own rows occupy the top-left (app functions)
+            // and top-right (L · R · SELECT · START), so this corner is the only
+            // place the toggle can never be covered by the controls it toggles.
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            topMargin = dp(10)
         })
+        padToggle = toggle
     }
 
     private fun toggleControls() {
@@ -208,6 +213,32 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         if (EditorPrefs.onscreenControls(this)) {
             padControls = buildPad().also { padLayer.addView(it, matchParent()) }
         }
+        // belt and braces: the toggle must always be the topmost thing in the layer
+        padToggle?.bringToFront()
+    }
+
+    /**
+     * A real controller was used, so the on-screen pad is not wanted. Hides it and
+     * remembers the choice as off — the PAD button (top-centre, always visible)
+     * brings it back.
+     */
+    private fun hideTouchControlsForController() {
+        if (!EditorPrefs.onscreenControls(this)) return
+        EditorPrefs.setOnscreenControls(this, false)
+        applyControlsVisibility()
+        Toast.makeText(
+            this,
+            "Controller detected — on-screen controls hidden. Tap PAD to show them again.",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    /** Physical gamepad keys: d-pad, BUTTON_A..BUTTON_MODE, and BUTTON_1..BUTTON_16. */
+    private fun isGamepadKey(keyCode: Int): Boolean = when (keyCode) {
+        in KeyEvent.KEYCODE_DPAD_UP..KeyEvent.KEYCODE_DPAD_CENTER -> true
+        in KeyEvent.KEYCODE_BUTTON_A..KeyEvent.KEYCODE_BUTTON_MODE -> true
+        in KeyEvent.KEYCODE_BUTTON_1..KeyEvent.KEYCODE_BUTTON_16 -> true
+        else -> false
     }
 
     private fun buildPad(): View {
@@ -608,6 +639,9 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (event.repeatCount > 0 && heldKeys.contains(keyCode)) return true
 
+        // A physical controller is in play — drop the on-screen pad (no-op once off)
+        if (isGamepadKey(keyCode)) hideTouchControlsForController()
+
         if (trackerOpen) {
             if (keyCode == KeyEvent.KEYCODE_BUTTON_B || keyCode == KeyEvent.KEYCODE_BACK) {
                 closeTracker()
@@ -672,6 +706,11 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
     }
 
     override fun onGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+        val fromController = event.source and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK ||
+            event.source and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD ||
+            event.source and InputDevice.SOURCE_DPAD == InputDevice.SOURCE_DPAD
+        if (fromController) hideTouchControlsForController()
+
         if (paused) return super.onGenericMotionEvent(event)
         val x = event.getAxisValue(android.view.MotionEvent.AXIS_X)
         val y = event.getAxisValue(android.view.MotionEvent.AXIS_Y)

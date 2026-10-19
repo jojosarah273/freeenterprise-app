@@ -250,6 +250,7 @@ New package `com.freeenterprise.app.ff4ui`:
 | 0.1.2 | Input fix: **Free Enterprise uses Select**, so it is forwarded to the emulator again; the checks tracker moved to **L**, and the ex-L quick save became a Start-menu entry ("Save battery (.srm) now") plus the on-screen SAVE. On-screen pad gained SELECT for touch players (console buttons top-right, app functions top-left). |
 | 0.1.3 | Input tidy-up: Start is no longer forwarded to the game (its only use is pausing in combat, which our menu does); d-pad centre / Enter now opens our menu instead of sending Start; on-screen pad drops the duplicate MENU button — START on the pad now opens our menu, matching the physical button. |
 | 0.1.4 | Triggers: **L1/R1 returned to the game** (FE uses L+R to run from battle); tracker moved to the **L2 trigger**, fast-forward to the **R2 trigger**. QoL menu reworked: dropped the battery-save entry (`.srm` is saved automatically), added **Fast-forward on/off** and a working **Checks tracker** entry. Fixed the overlay focus bug that made the tracker unescapable (focus left on a detached menu). Removed "Regenerate ROM" from the session menu and "Open in RetroArch" from the FF4 UI. |
+| 0.1.5 | Fixed the on-screen pad being impossible to turn off: the PAD toggle sat in the top-right corner *underneath* the pad's own L · R · SELECT · START row, so it was covered. The toggle moved to top-centre (with `bringToFront()` after each rebuild), and using a **physical controller now hides the touch pad immediately** and records the choice as off. |
 | 2.x+ | Phase 3 — in-app emulator (direct Snes9x integration; source + libretro port already local), live trackers, online racing. **Deferred — future feature.** |
 
 ---
@@ -279,11 +280,18 @@ to the game untouched: D-pad/stick, A/B/X/Y, Select, L1/R1.
 | Back | — | exit to sessions (save is flushed) |
 | tap picture | — | also opens the overlay menu (no-controller fallback) |
 
-On-screen pad is **off by default**; the low-opacity **PAD** button in the top
-corner toggles it (remembered). When on: D-pad + A/B/X/Y bottom; top-left carries
-our functions (TRK · FF · SAVE) and top-right the console's buttons (L · R ·
-SELECT · START), where on-screen L/R/SELECT go to the game and on-screen START
-mirrors the physical Start button by opening our menu. Save states are a single slot per session: `<name>.state` beside
+On-screen pad is **off by default**; the low-opacity **PAD** button toggles it
+(remembered). The button sits **top-centre**, because the pad's own rows occupy
+the top-left (our functions) and top-right (console buttons) — in the corner it
+was *covered by the controls it toggles*, which made the pad impossible to turn
+off. For the same reason any **physical controller press hides the pad
+immediately** (d-pad, face/shoulder/trigger buttons, or stick/trigger motion) and
+records the choice as off; the PAD button brings it back.
+
+When on: D-pad + A/B/X/Y bottom; top-left carries our functions (TRK · FF · SAVE)
+and top-right the console's buttons (L · R · SELECT · START), where on-screen
+L/R/SELECT go to the game and on-screen START mirrors the physical Start button by
+opening our menu. Save states are a single slot per session: `<name>.state` beside
 the ROM in FF4_FE, moved along by rename and removed with the session. The battery
 save needs no manual action — it is flushed every ~5 s and on pause/exit, so a
 crash costs seconds at most (which is why the old "save battery" entry is gone).

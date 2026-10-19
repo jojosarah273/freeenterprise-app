@@ -58,7 +58,8 @@ same ROM.
 no RetroArch required (though it is still offered as a fallback).
 
 - Battery saves and save states stored with the seed, written back on pause/exit
-- Fast-forward toggle, quick-save, on-screen pad (off by default)
+- Fast-forward toggle, quick-save, on-screen pad (off by default; hides itself
+  when a physical controller is used)
 - Confirmations before reset or exit
 
 **Library and sessions.** Every generated ROM is a *session*: metadata, battery
