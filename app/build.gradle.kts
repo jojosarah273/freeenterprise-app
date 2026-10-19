@@ -27,8 +27,8 @@ android {
         // versionCode must only ever increase (Android uses it for upgrades).
         // versionName is the PUBLIC number: the first public release is 0.1.0,
         // even though internal development reached 1.9.0 (see RELEASING.md).
-        versionCode = 35
-        versionName = "0.1.5"
+        versionCode = 36
+        versionName = "0.1.6"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")

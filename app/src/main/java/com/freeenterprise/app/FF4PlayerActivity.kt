@@ -191,11 +191,11 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            // Top-centre: the pad's own rows occupy the top-left (app functions)
-            // and top-right (L · R · SELECT · START), so this corner is the only
-            // place the toggle can never be covered by the controls it toggles.
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            topMargin = dp(10)
+            // Top-right corner. The pad's console row (L · R · SELECT · START) is
+            // anchored below this so it cannot cover the toggle — that was the bug
+            // in 0.1.4, where the row painted over the button that hides the pad.
+            gravity = Gravity.TOP or Gravity.END
+            topMargin = dp(10); marginEnd = dp(10)
         })
         padToggle = toggle
     }
@@ -226,11 +226,6 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         if (!EditorPrefs.onscreenControls(this)) return
         EditorPrefs.setOnscreenControls(this, false)
         applyControlsVisibility()
-        Toast.makeText(
-            this,
-            "Controller detected — on-screen controls hidden. Tap PAD to show them again.",
-            Toast.LENGTH_SHORT
-        ).show()
     }
 
     /** Physical gamepad keys: d-pad, BUTTON_A..BUTTON_MODE, and BUTTON_1..BUTTON_16. */
@@ -295,11 +290,12 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            marginStart = dp(16); topMargin = dp(16)
+            marginStart = dp(16); topMargin = dp(10)
         })
 
-        // Top-right: the console's buttons — SELECT goes to the game, START opens
-        // our menu (mirroring the physical Start button).
+        // Top-right, *below the PAD toggle* so the two never overlap: the console's
+        // buttons — SELECT goes to the game, START opens our menu (mirroring the
+        // physical Start button).
         val sysRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val lb = button("L").apply { setOnTouchListener(holdListener(EmulatorBridge.L)) }
         val rb = button("R").apply { setOnTouchListener(holdListener(EmulatorBridge.R)) }
@@ -314,7 +310,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.TOP or Gravity.END
-            marginEnd = dp(16); topMargin = dp(16)
+            marginEnd = dp(16); topMargin = dp(48)
         })
 
         updateFastForwardButton()
@@ -611,8 +607,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
     private fun toggleFastForward() {
         fastForward = !fastForward
         session?.setFastForward(fastForward)
-        updateFastForwardButton()
-        Toast.makeText(this, "Fast-forward ${if (fastForward) "ON" else "OFF"}", Toast.LENGTH_SHORT).show()
+        updateFastForwardButton()   // the FF button turns yellow while active
     }
 
     private fun updateFastForwardButton() {

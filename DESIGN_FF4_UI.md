@@ -251,6 +251,7 @@ New package `com.freeenterprise.app.ff4ui`:
 | 0.1.3 | Input tidy-up: Start is no longer forwarded to the game (its only use is pausing in combat, which our menu does); d-pad centre / Enter now opens our menu instead of sending Start; on-screen pad drops the duplicate MENU button — START on the pad now opens our menu, matching the physical button. |
 | 0.1.4 | Triggers: **L1/R1 returned to the game** (FE uses L+R to run from battle); tracker moved to the **L2 trigger**, fast-forward to the **R2 trigger**. QoL menu reworked: dropped the battery-save entry (`.srm` is saved automatically), added **Fast-forward on/off** and a working **Checks tracker** entry. Fixed the overlay focus bug that made the tracker unescapable (focus left on a detached menu). Removed "Regenerate ROM" from the session menu and "Open in RetroArch" from the FF4 UI. |
 | 0.1.5 | Fixed the on-screen pad being impossible to turn off: the PAD toggle sat in the top-right corner *underneath* the pad's own L · R · SELECT · START row, so it was covered. The toggle moved to top-centre (with `bringToFront()` after each rebuild), and using a **physical controller now hides the touch pad immediately** and records the choice as off. |
+| 0.1.6 | PAD toggle returned to the top-right corner, with the pad's console row (L · R · SELECT · START) anchored *below* it so it can never cover the button again (the 0.1.4/0.1.5 collision). Removed the fast-forward toast (the FF button already turns yellow) and the controller-detected toast (the pad vanishing is the feedback). |
 | 2.x+ | Phase 3 — in-app emulator (direct Snes9x integration; source + libretro port already local), live trackers, online racing. **Deferred — future feature.** |
 
 ---
@@ -280,13 +281,17 @@ to the game untouched: D-pad/stick, A/B/X/Y, Select, L1/R1.
 | Back | — | exit to sessions (save is flushed) |
 | tap picture | — | also opens the overlay menu (no-controller fallback) |
 
-On-screen pad is **off by default**; the low-opacity **PAD** button toggles it
-(remembered). The button sits **top-centre**, because the pad's own rows occupy
-the top-left (our functions) and top-right (console buttons) — in the corner it
-was *covered by the controls it toggles*, which made the pad impossible to turn
-off. For the same reason any **physical controller press hides the pad
-immediately** (d-pad, face/shoulder/trigger buttons, or stick/trigger motion) and
-records the choice as off; the PAD button brings it back.
+On-screen pad is **off by default**; the low-opacity **PAD** button in the
+**top-right corner** toggles it (remembered). The pad's console row
+(L · R · SELECT · START) is deliberately anchored *below* that button, and the
+app-functions row (TRK · FF · SAVE) is top-left at the same height — because in
+0.1.4 the console row was drawn over the corner and made the pad impossible to
+turn off.
+
+Any **physical controller press hides the pad immediately**
+(d-pad, face/shoulder/trigger buttons, or stick/trigger motion) and records the
+choice as off; the PAD button brings it back. It does this silently — the pad
+disappearing is the feedback.
 
 When on: D-pad + A/B/X/Y bottom; top-left carries our functions (TRK · FF · SAVE)
 and top-right the console's buttons (L · R · SELECT · START), where on-screen
