@@ -65,9 +65,11 @@ no RetroArch required (though it is still offered as a fallback).
 **Library and sessions.** Every generated ROM is a *session*: metadata, battery
 save and save state travel together, and renaming moves all three.
 
-**Checks tracker.** Read from live WRAM while playing — opened checks against all
-**403** checks from Free Enterprise's own treasure database, broken down per
-world and per area, plus key items held.
+**Tracker.** Read from live WRAM while playing, two pages paged with ◀ ▶:
+**key-item locations** (from the seed's saved spoiler, ✓ for the ones already
+held) and **checks** — opened against all **403** checks from Free Enterprise's
+own treasure database, per world and per area. Touch input only exists while the
+on-screen pad is enabled, so nothing responds to a stray tap.
 
 ## Requirements
 

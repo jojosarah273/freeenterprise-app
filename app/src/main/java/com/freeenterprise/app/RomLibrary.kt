@@ -152,6 +152,7 @@ object RomLibrary {
         metaFile(rom).delete()
         srmFile(rom).delete()
         stateFile(rom).delete()
+        spoilerFile(rom).delete()
     }
 
     // ------------------------------------------------------------- save files
@@ -176,6 +177,9 @@ object RomLibrary {
 
     /** Save state for this session, kept beside the ROM (single slot). */
     fun stateFile(rom: File): File = File(rom.parentFile, rom.nameWithoutExtension + ".state")
+
+    /** The seed's private spoiler, kept beside the ROM (the tracker reads it). */
+    fun spoilerFile(rom: File): File = File(rom.parentFile, rom.nameWithoutExtension + ".spoiler.txt")
 
     fun deleteSave(rom: File) {
         srmFile(rom).delete()
@@ -223,9 +227,11 @@ object RomLibrary {
         }
 
         val oldState = stateFile(rom)
+        val oldSpoiler = spoilerFile(rom)
         if (!rom.renameTo(target)) return rom
         if (oldSrm.exists()) oldSrm.renameTo(File(parent, "$newBase.srm"))
         if (oldState.exists()) oldState.renameTo(File(parent, "$newBase.state"))
+        if (oldSpoiler.exists()) oldSpoiler.renameTo(File(parent, "$newBase.spoiler.txt"))
         oldMetaFile.delete()
         writeMeta(target, oldMeta.copy(name = newBase))
         return target

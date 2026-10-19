@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
 import android.widget.TextView
+import com.freeenterprise.app.BuildConfig
 import com.freeenterprise.app.R
 
 /** Base for FF4 screens with a status window, a scrolling menu and a hint bar. */
@@ -25,6 +26,12 @@ abstract class FF4MenuActivity : FF4Activity() {
 
         FF4Theme.applyText(this, hint, FF4Theme.textSmallPx(this))
         FF4Theme.applyText(this, statusText, FF4Theme.textSmallPx(this))
+
+        // Small version indicator at the far right of the hint box.
+        findViewById<TextView>(R.id.ff4Version)?.let { v ->
+            v.text = "v" + BuildConfig.VERSION_NAME
+            FF4Theme.applyText(this, v, FF4Theme.textSmallPx(this))
+        }
         menu.requestFocus()
     }
 

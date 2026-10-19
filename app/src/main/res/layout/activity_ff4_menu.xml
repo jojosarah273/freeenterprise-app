@@ -47,13 +47,29 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp">
 
-        <TextView
-            android:id="@+id/ff4Hint"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:maxLines="3"
-            android:ellipsize="end"
-            android:textColor="#FFFFFF" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/ff4Hint"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:maxLines="3"
+                android:ellipsize="end"
+                android:textColor="#FFFFFF" />
+
+            <!-- small version indicator, far right of the hint box -->
+            <TextView
+                android:id="@+id/ff4Version"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:textColor="#9AA4B2" />
+        </LinearLayout>
     </com.freeenterprise.app.ff4ui.FF4Window>
 
 </LinearLayout>

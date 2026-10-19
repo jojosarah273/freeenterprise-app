@@ -40,6 +40,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
 
     companion object {
         private const val REGION_WRAM = 1
+        private const val TRACKER_PAGES = 2
     }
 
 
@@ -56,6 +57,8 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
     private var paused = false
     private var pauseIndex = 0
     private var trackerOpen = false
+    private var trackerPage = 0
+    private var lastWram: ByteArray? = null
     private var firstFrameSeen = false
     private var fastForward = false
 
@@ -76,12 +79,18 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
 
         surfaceView = SurfaceView(this).apply {
             holder.addCallback(this@FF4PlayerActivity)
-            setOnClickListener { togglePause() }
+            // Touch does nothing unless the on-screen pad is enabled (see below)
+            isFocusable = false
+            isFocusableInTouchMode = false
         }
 
         root = FrameLayout(this)
         root.addView(surfaceView, matchParent())
-        padLayer = FrameLayout(this).apply { isClickable = false }
+        padLayer = FrameLayout(this).apply {
+            isClickable = false
+            // never let a d-pad press walk focus onto the on-screen buttons
+            descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        }
         root.addView(padLayer, matchParent())
         overlayLayer = FrameLayout(this).apply { isClickable = false }
         root.addView(overlayLayer, matchParent())
@@ -378,6 +387,9 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         overlayLayer.isFocusable = false
     }
 
+    /** Touch affordances exist only while the on-screen pad is enabled. */
+    private fun touchControlsEnabled(): Boolean = EditorPrefs.onscreenControls(this)
+
     private fun togglePause() {
         if (overlayLayer.childCount > 0) closePause() else openPause()
     }
@@ -415,7 +427,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             pauseIndex = index
             when (index) {
                 0 -> closePause()
-                1 -> saveState()
+                1 -> { saveState(); closePause() }   // save, then close (as Load does)
                 2 -> loadState()
                 3 -> { toggleFastForward(); openPause() }   // reopen to refresh the label
                 4 -> { closePause(); toggleTracker() }
@@ -498,38 +510,82 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             closeTracker()
             return
         }
+        trackerPage = 0                       // always open on the key-item page
+        readAndShowTracker()
+    }
+
+    private fun readAndShowTracker() {
         val session = session ?: return
         // Bank $7E, field game state $1000-$17FF.
         session.readMemory(REGION_WRAM, 0x1000, 0x800) { data ->
+            lastWram = data
             showTracker(buildTrackerText(data))
         }
+    }
+
+    private fun turnTrackerPage(delta: Int) {
+        trackerPage = (trackerPage + delta + TRACKER_PAGES) % TRACKER_PAGES
+        val data = lastWram ?: run { readAndShowTracker(); return }
+        showTracker(buildTrackerText(data))
     }
 
     private fun buildTrackerText(wram: ByteArray?): String {
         if (wram == null || wram.isEmpty()) {
             return "No game state available yet.\nStart or load a game first."
         }
-        val sb = StringBuilder()
+        return if (trackerPage == 0) keyItemPage(wram) else checksPage(wram)
+    }
 
-        // ---- checks (treasure switches at $12A0 -> offset 0x2A0)
+    /** Page 1 — key item locations, with a mark for the ones already held. */
+    private fun keyItemPage(wram: ByteArray): String {
+        val sb = StringBuilder()
+        val held = Ff4Save.keyItems(wram, 0).map { normalise(it) }.toSet()
+        val locations = rom?.let { Spoiler.keyItemLocations(RomLibrary.spoilerFile(it)) }.orEmpty()
+
+        sb.append("PAGE 1 / $TRACKER_PAGES   KEY ITEM LOCATIONS\n\n")
+        if (locations.isEmpty()) {
+            sb.append("No location data for this seed.\n")
+            sb.append("(Seeds generated before 0.1.7 did not save a spoiler.\n")
+            sb.append(" Regenerate, or play on.)\n\n")
+        } else {
+            for ((name, place) in locations) {
+                val mark = if (held.contains(normalise(name))) "\u2713" else " "
+                sb.append(" %s %-18s %s\n".format(mark, name.take(18), place.take(30)))
+            }
+            sb.append("\n \u2713 = already in the party.\n")
+        }
+        val heldNow = Ff4Save.keyItems(wram, 0)
+        sb.append("\nHELD (%d): %s".format(
+            heldNow.size,
+            if (heldNow.isEmpty()) "(none)" else heldNow.joinToString(", ")
+        ))
+        return sb.toString()
+    }
+
+    /** Page 2 — the checks summary. */
+    private fun checksPage(wram: ByteArray): String {
+        val sb = StringBuilder()
         val progress = CheckDb.progress(this, wram, 0x2A0)
-        sb.append("CHECKS   %d / %d\n".format(progress.opened, progress.total))
+        sb.append("PAGE 2 / $TRACKER_PAGES   CHECKS\n\n")
+        sb.append("TOTAL   %d / %d\n".format(progress.opened, progress.total))
         for (world in listOf("Overworld", "Underworld", "Moon")) {
             val (o, t) = progress.byWorld[world] ?: continue
             sb.append("  %-11s %3d / %3d\n".format(world, o, t))
         }
-
         sb.append("\nBY AREA  (most remaining first)\n")
         for ((area, o, t) in progress.byArea.take(14)) {
-            val bar = if (t > 0) "%3d / %3d" else ""
-            sb.append("  %-22s %s\n".format(area.take(22), bar.format(o, t)))
+            sb.append("  %-22s %3d / %3d\n".format(area.take(22), o, t))
         }
-
-        // ---- key items
-        val items = Ff4Save.keyItems(wram, 0)
-        sb.append("\nKEY ITEMS (%d)\n".format(items.size))
-        sb.append(if (items.isEmpty()) "(none)" else items.joinToString("  \u00b7  "))
         return sb.toString()
+    }
+
+    /** Loose name match between the spoiler and the inventory item names. */
+    private fun normalise(name: String): String {
+        val n = name.lowercase().replace(" ", "").replace("_", "")
+        return when (n) {
+            "darknesscrystal" -> "darkcrystal"
+            else -> n
+        }
     }
 
     private fun showTracker(text: String) {
@@ -542,7 +598,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             setTextColor(FF4Theme.WHITE)
         }
         val hint = TextView(this).apply {
-            this.text = "L2 / B  close"
+            this.text = "\u25c0 \u25b6  page      L2 / B  close"
             FF4Theme.applyText(this@FF4PlayerActivity, this, FF4Theme.textSmallPx(this@FF4PlayerActivity))
             setTextColor(FF4Theme.YELLOW)
             setPadding(0, dp(8), 0, 0)
@@ -554,7 +610,8 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         }
         val window = FF4Window(this).apply { addView(column) }
         setOverlay(window, null)
-        overlayLayer.setOnClickListener { closeTracker() }
+        // tapping the backdrop closes it, but only when touch controls are on
+        if (touchControlsEnabled()) overlayLayer.setOnClickListener { closeTracker() }
     }
 
     private fun closeTracker() {
@@ -575,7 +632,6 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
                 if (ok) "Saved state to ${state.name}" else "Save state failed: ${EmulatorBridge.nativeLastError()}",
                 Toast.LENGTH_SHORT
             ).show()
-            if (overlayLayer.childCount > 0 && paused) { closePause(); openPause() } // refresh label
         }
     }
 
@@ -638,9 +694,10 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         if (isGamepadKey(keyCode)) hideTouchControlsForController()
 
         if (trackerOpen) {
-            if (keyCode == KeyEvent.KEYCODE_BUTTON_B || keyCode == KeyEvent.KEYCODE_BACK) {
-                closeTracker()
-                return true
+            when (keyCode) {
+                KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BACK -> { closeTracker(); return true }
+                KeyEvent.KEYCODE_DPAD_LEFT -> { turnTrackerPage(-1); return true }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> { turnTrackerPage(1); return true }
             }
         }
 
@@ -685,7 +742,11 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             }
         }
 
-        if (paused) return super.onKeyDown(keyCode, event)
+        // While an overlay is up, swallow everything the overlay did not use.
+        // Otherwise unhandled keys (notably LEFT/RIGHT, which FF4Menu ignores)
+        // fall through to Android's focus navigation and move focus off the menu
+        // onto a background view — the "lose focus in the in-game menu" bug.
+        if (paused || trackerOpen) return true
 
         val id = joypadId(keyCode) ?: return super.onKeyDown(keyCode, event)
         heldKeys.add(keyCode)

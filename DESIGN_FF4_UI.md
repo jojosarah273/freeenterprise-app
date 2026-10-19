@@ -252,6 +252,7 @@ New package `com.freeenterprise.app.ff4ui`:
 | 0.1.4 | Triggers: **L1/R1 returned to the game** (FE uses L+R to run from battle); tracker moved to the **L2 trigger**, fast-forward to the **R2 trigger**. QoL menu reworked: dropped the battery-save entry (`.srm` is saved automatically), added **Fast-forward on/off** and a working **Checks tracker** entry. Fixed the overlay focus bug that made the tracker unescapable (focus left on a detached menu). Removed "Regenerate ROM" from the session menu and "Open in RetroArch" from the FF4 UI. |
 | 0.1.5 | Fixed the on-screen pad being impossible to turn off: the PAD toggle sat in the top-right corner *underneath* the pad's own L · R · SELECT · START row, so it was covered. The toggle moved to top-centre (with `bringToFront()` after each rebuild), and using a **physical controller now hides the touch pad immediately** and records the choice as off. |
 | 0.1.6 | PAD toggle returned to the top-right corner, with the pad's console row (L · R · SELECT · START) anchored *below* it so it can never cover the button again (the 0.1.4/0.1.5 collision). Removed the fast-forward toast (the FF button already turns yellow) and the controller-detected toast (the pad vanishing is the feedback). |
+| 0.1.7 | Menu focus can no longer be lost (unhandled keys are swallowed while an overlay is up, and the game/pad layers are `FOCUS_BLOCK_DESCENDANTS`, so LEFT/RIGHT can no longer walk focus onto a background button). Touch does nothing unless the on-screen pad is enabled — no more tap-the-screen-to-open-the-menu. "Save State" now saves and closes the menu, like "Load State". Tracker split into two pages (key-item locations / checks) paged with ◀ ▶, fed by the seed's private spoiler, which is now saved beside the ROM as `<name>.spoiler.txt` and travels with rename/delete. Small version indicator added at the right of the hint box. |
 | 2.x+ | Phase 3 — in-app emulator (direct Snes9x integration; source + libretro port already local), live trackers, online racing. **Deferred — future feature.** |
 
 ---
@@ -274,7 +275,7 @@ to the game untouched: D-pad/stick, A/B/X/Y, Select, L1/R1.
 | **Start** | pause in combat | **our QoL menu**: Resume / Save State / Load State / **Fast-forward (on·off)** / **Checks tracker** / Reset Core / Exit (destructive actions confirm) |
 | **Select** | **used by Free Enterprise** | *forwarded to the game* — not ours |
 | **L1 / R1** (shoulders) | **SNES L / R — held together to run from battle** | *forwarded to the game* — not ours |
-| **L2** (trigger) | *unused* | **checks tracker** (live WRAM: checks opened per world/area, key items) |
+| **L2** (trigger) | *unused* | **tracker**: page 1 = key-item locations (✓ = already held), page 2 = checks. D-pad ◀ ▶ pages it |
 | **R2** (trigger) | *unused* | **fast-forward toggle** (3× frames, audio at 1×) |
 | **top face button** | field menu (SNES X) | (positional X/Y swap: pad-top = FF4 menu) |
 | **d-pad centre / Enter** | — | our system menu (same as Start; no longer forwarded) |
