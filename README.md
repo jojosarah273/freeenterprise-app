@@ -74,8 +74,9 @@ no RetroArch required (though it is still offered as a fallback).
 save and save state travel together, and renaming moves all three.
 
 **Tracker.** Read from live WRAM while playing, two pages paged with ◀ ▶:
-**key-item checks** (the locations, with ✓ for the ones already collected — it
-does not say which item is where, so the page never spoils the seed) and
+**key-item checks** (the seed's key-item locations recorded at generation, with ✓
+for the ones already collected — it does not say which item is where, so the page
+never spoils the seed) and
 **checks** — opened against all **403** checks from Free Enterprise's own
 treasure database, per world and per area. Touch input only exists while the
 on-screen pad is enabled, so nothing responds to a stray tap.

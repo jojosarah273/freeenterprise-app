@@ -273,6 +273,7 @@ class FF4GenerateActivity : FF4MenuActivity() {
         // Modal progress window: nothing is usable during generation, so we
         // block the menus and show real engine progress instead.
         val overlay = FF4ProgressOverlay(this)
+        overlay.title = "GENERATING SEED"
         progressOverlay = overlay
         progressFile = java.io.File(filesDir, "generation_progress.txt").also {
             try { it.delete() } catch (_: Exception) {}
@@ -343,6 +344,10 @@ class FF4GenerateActivity : FF4MenuActivity() {
                         version = o.optString("version"),
                         seconds = o.optDouble("seconds", 0.0),
                         created = System.currentTimeMillis(),
+                        // Which checks hold key items, parsed from the spoiler we
+                        // already receive. Only the location is ever shown; no
+                        // separate spoiler file is required for the tracker.
+                        keyItems = Spoiler.keyItemLocations(o.optString("private_spoiler")),
                     )
                 )
             } catch (e: Exception) {

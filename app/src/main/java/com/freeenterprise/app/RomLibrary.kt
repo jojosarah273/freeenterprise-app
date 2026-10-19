@@ -26,6 +26,14 @@ data class SeedMeta(
     val lastPlayed: Long = 0L,
     /** File name of this session's battery save, kept in FF4_FE beside the ROM. */
     val saveName: String? = null,
+    /**
+     * Where this seed's key-item checks are, as (item, location) pairs.
+     *
+     * The tracker needs this because key-item placement is randomized per seed
+     * and live memory only says which chests are *open*, not which hold key items.
+     * Only the location is ever displayed.
+     */
+    val keyItems: List<Pair<String, String>> = emptyList(),
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("name", name)
@@ -38,6 +46,13 @@ data class SeedMeta(
         put("created", created)
         put("last_played", lastPlayed)
         if (saveName != null) put("save_name", saveName)
+        if (keyItems.isNotEmpty()) {
+            put("key_items", JSONArray().apply {
+                for ((name, location) in keyItems) {
+                    put(JSONObject().apply { put("name", name); put("location", location) })
+                }
+            })
+        }
     }
 
     companion object {
@@ -56,6 +71,13 @@ data class SeedMeta(
                 created = o.optLong("created"),
                 lastPlayed = o.optLong("last_played"),
                 saveName = if (o.has("save_name")) o.optString("save_name") else null,
+                keyItems = buildList {
+                    val arr = o.optJSONArray("key_items") ?: return@buildList
+                    for (i in 0 until arr.length()) {
+                        val e = arr.getJSONObject(i)
+                        add(e.optString("name") to e.optString("location"))
+                    }
+                },
             )
         }
 

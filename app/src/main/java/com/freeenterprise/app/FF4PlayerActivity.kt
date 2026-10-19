@@ -546,18 +546,18 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
     private fun keyItemPage(wram: ByteArray): String {
         val sb = StringBuilder()
         val held = Ff4Save.keyItems(wram, 0).map { normalise(it) }.toSet()
-        val spoilerFile = rom?.let { RomLibrary.spoilerFile(it) }
-        val locations = spoilerFile?.let { Spoiler.keyItemLocations(it) }.orEmpty()
+        // Seed metadata is the normal source; a spoiler file beside the ROM is
+        // honoured too, so one downloaded from the website also works.
+        val meta = rom?.let { RomLibrary.readMeta(it) }
+        val locations = meta?.keyItems.orEmpty().ifEmpty {
+            rom?.let { Spoiler.keyItemLocations(RomLibrary.spoilerFile(it)) }.orEmpty()
+        }
 
         sb.append("PAGE 1 / $TRACKER_PAGES   KEY ITEM CHECKS\n\n")
         if (locations.isEmpty()) {
-            if (spoilerFile != null && spoilerFile.exists()) {
-                sb.append("This seed's spoiler has no key-item section.\n\n")
-            } else {
-                sb.append("No spoiler saved for this seed.\n")
-                sb.append("(Seeds made before 0.1.7 did not save one — regenerate\n")
-                sb.append(" to get the list.)\n\n")
-            }
+            sb.append("This seed has no key-item data saved.\n")
+            sb.append("(Seeds generated before 0.1.18 did not record it — regenerate\n")
+            sb.append(" the seed, or drop a .spoiler.txt beside the ROM.)\n\n")
         } else {
             var checked = 0
             for ((name, place) in locations) {

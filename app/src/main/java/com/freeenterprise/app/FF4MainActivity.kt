@@ -313,6 +313,7 @@ class FF4MainActivity : FF4MenuActivity() {
         if (busy) return
         busy = true
         val overlay = com.freeenterprise.app.ff4ui.FF4ProgressOverlay(this).apply {
+            title = "UPDATING ENGINE"
             addContentView(this, android.view.ViewGroup.LayoutParams(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -369,6 +370,7 @@ class FF4MainActivity : FF4MenuActivity() {
         if (busy) return
         busy = true
         val overlay = com.freeenterprise.app.ff4ui.FF4ProgressOverlay(this).apply {
+            title = "DOWNLOADING UPDATE"
             addContentView(this, android.view.ViewGroup.LayoutParams(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT

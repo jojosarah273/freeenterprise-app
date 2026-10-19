@@ -25,6 +25,17 @@ class FF4ProgressOverlay(context: Context) : FrameLayout(context) {
 
     private var dots = 0
 
+    /**
+     * Heading shown above the bar. Callers set this for what they are actually
+     * doing — it was hardcoded to "GENERATING SEED", so update downloads claimed
+     * to be generating a seed.
+     */
+    var title: String = "GENERATING SEED"
+        set(value) {
+            field = value
+            stageText.text = value
+        }
+
     init {
         setBackgroundColor(0xE6000000.toInt())
         isClickable = true
@@ -32,7 +43,7 @@ class FF4ProgressOverlay(context: Context) : FrameLayout(context) {
         isFocusableInTouchMode = true
 
         stageText = TextView(context).apply {
-            text = "GENERATING SEED"
+            text = title
             FF4Theme.applyText(context, this)
             setTextColor(FF4Theme.WHITE)
         }
