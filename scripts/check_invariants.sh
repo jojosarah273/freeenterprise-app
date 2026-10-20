@@ -36,7 +36,9 @@ has    app/src/main/res/values/themes.xml 'windowAnimationStyle' "menu switches 
 has    "$J/FF4MainActivity.kt"       'defaultStatus'          "the main menu fills its status box"
 
 echo "Screen edges and icon"
-has    "$J/ff4ui/FF4Activity.kt"     'applyEdgeBuffer'          "menus keep clear of rounded corners"
+has    "$J/ff4ui/FF4Activity.kt"     'settleEdgeBuffer'         "menus keep clear of rounded corners"
+has    "$J/ff4ui/FF4MenuActivity.kt" 'settleEdgeBuffer'         "and settle it before the first frame"
+hasnot "$J/ff4ui/FF4Activity.kt"     'if (keepsScreenEdgeBuffer) applyEdgeBuffer()' "never after the first frame"
 hasnot "$J/FF4PlayerActivity.kt"     'keepsScreenEdgeBuffer'    "the emulator play screen is NOT insetted"
 has    "$J/ff4ui/FF4MenuActivity.kt" 'keepsScreenEdgeBuffer'    "the menus opt in"
 has    "$J/FF4FlagEditorActivity.kt" 'keepsScreenEdgeBuffer'    "the flag editor opts in"

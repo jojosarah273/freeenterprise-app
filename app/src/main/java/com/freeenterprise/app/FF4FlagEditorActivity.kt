@@ -76,6 +76,7 @@ class FF4FlagEditorActivity : FF4Activity() {
             findViewById(R.id.ff4EditorStatusWindow),
             findViewById(R.id.ff4EditorHintWindow),
         )
+        settleEdgeBuffer()
 
         menu.onSelectionChanged = { i -> updateHintForSelection(i) }
 

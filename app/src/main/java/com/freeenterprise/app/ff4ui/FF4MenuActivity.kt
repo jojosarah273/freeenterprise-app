@@ -39,6 +39,8 @@ abstract class FF4MenuActivity : FF4Activity() {
         // Identical geometry on every screen that uses this layout, decided before
         // the first layout pass, so nothing reshapes once the screen is visible.
         pinBoxHeights(statusWindow, findViewById(R.id.ff4HintWindow))
+        // Before the first frame, so the menu box cannot be seen resizing.
+        settleEdgeBuffer()
 
         // Small version indicator at the far right of the hint box.
         findViewById<TextView>(R.id.ff4Version)?.let { v ->

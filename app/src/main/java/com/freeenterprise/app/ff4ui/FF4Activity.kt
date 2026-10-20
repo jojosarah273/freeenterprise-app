@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.view.RoundedCorner
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -52,7 +53,6 @@ abstract class FF4Activity : AppCompatActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus) return
         applyImmersive()
-        if (keepsScreenEdgeBuffer) applyEdgeBuffer()
     }
 
     private fun dp(value: Int): Int = TypedValue.applyDimension(
@@ -79,6 +79,34 @@ abstract class FF4Activity : AppCompatActivity() {
         val pad = FF4Theme.contentPadding(this) * 2
         status?.layoutParams?.let { it.height = line * statusLines + pad }
         hint?.layoutParams?.let { it.height = line * hintLines + pad }
+    }
+
+    /**
+     * Settle the screen-edge inset before the first frame is drawn.
+     *
+     * This used to run on window focus, which happens after the first layout *and*
+     * draw: a menu appeared at the layout's own 6dp inset, then re-laid out at the
+     * device's corner radius, so the window visibly appeared at one size and then
+     * resized. The inset is now applied as soon as insets are dispatched, which is
+     * before the first measure pass, and the content is left undrawn until then —
+     * so the first frame a player sees is already the final size.
+     *
+     * Screens that keep the buffer call this from onCreate, after setContentView.
+     */
+    protected fun settleEdgeBuffer() {
+        if (!keepsScreenEdgeBuffer) return
+        val root = findViewById<ViewGroup>(android.R.id.content)?.getChildAt(0) as? View ?: return
+        applyEdgeBuffer()          // the floor, in case insets never arrive at all
+        root.alpha = 0f            // never draw the window at the wrong size
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            applyEdgeBuffer()
+            view.alpha = 1f
+            insets
+        }
+        root.postDelayed({
+            applyEdgeBuffer()
+            root.alpha = 1f
+        }, 150)
     }
 
     /**
