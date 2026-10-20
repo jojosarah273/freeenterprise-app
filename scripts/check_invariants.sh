@@ -35,6 +35,17 @@ hasnot app/src/main/res/layout/activity_ff4_menu.xml 'visibility="gone"' "the st
 has    app/src/main/res/values/themes.xml 'windowAnimationStyle' "menu switches are not animated"
 has    "$J/FF4MainActivity.kt"       'defaultStatus'          "the main menu fills its status box"
 
+echo "Portable core"
+has    "$J/ff4ui/FF4Window.kt" 'Ff4WindowChrome.of'            "window chrome comes from the core"
+has    core/src/main/kotlin/com/freeenterprise/ff4/Ff4WindowChrome.kt 'Ff4WindowChrome' "the core owns the chrome model"
+has    core/src/main/kotlin/com/freeenterprise/ff4/Ff4Scale.kt       'SNES_SHORT_EDGE_PX' "the core owns the layout unit"
+has    core/src/main/kotlin/com/freeenterprise/ff4/Ff4Palette.kt     'BLUE_SELECTED'      "the core owns the palette"
+if grep -rq 'android\.' core/src/main/kotlin 2>/dev/null; then
+  bad "the core must not depend on Android"
+else
+  ok "the core has no Android dependency"
+fi
+
 echo "Screen edges and icon"
 has    "$J/ff4ui/FF4Activity.kt"     'settleEdgeBuffer'         "menus keep clear of rounded corners"
 has    "$J/ff4ui/FF4MenuActivity.kt" 'settleEdgeBuffer'         "and settle it before the first frame"

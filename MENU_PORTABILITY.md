@@ -227,6 +227,34 @@ contract. Both are viable; KMP avoids two copies of the menu logic.
 - Do not make in-place updating load-bearing: the app must be fully usable with
   the engine it ships with, so every platform — including iOS — stays viable.
 
+## Progress
+
+**Step 2 has begun (dev channel).** A `:core` module now exists with no Android
+dependency at all, enforced by an invariant check, and holds the first pieces of
+the interface:
+
+| In the core | What it is |
+| --- | --- |
+| `Ff4Palette` | the ten colours, values matching the shipped theme exactly |
+| `Ff4Scale` | the layout unit (short edge / 224, min 2px) and everything derived from it |
+| `Ff4Geometry` | rects and strokes, with the stroke-band arithmetic the border depends on |
+| `Ff4TextMetrics` | the platform seam for measuring text, the one thing that keeps geometry identical |
+| `Ff4WindowChrome` | the window body, border and bevel, as numbers instead of draw calls |
+
+The chrome calculation was moved out of `FF4Window` with a test that re-derives the
+arithmetic the view used to perform inline, across 25 combinations of screen size
+and window size, so the refactor cannot have moved a coordinate. `FF4Window` now
+performs the same three Canvas calls as before, driven by those numbers, and
+`FF4Theme` delegates its measurements to the core and keeps only the font.
+
+`./scripts/selftest.sh` is the gate for this work: the structural invariants plus
+the core's unit tests (15 so far).
+
+Still to do for step 2: the menu row model and list navigation (the selection
+logic is already pure and easy), the dialog and progress overlays, and the glyph
+atlas, which is the change that actually makes text identical rather than merely
+proportioned the same.
+
 ## 9. Open decisions
 
 1. Desktop host: JVM shell first, or native shell from the start.

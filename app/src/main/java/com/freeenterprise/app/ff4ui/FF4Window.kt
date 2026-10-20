@@ -5,11 +5,18 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.util.AttributeSet
 import android.widget.FrameLayout
+import com.freeenterprise.ff4.Ff4WindowChrome
 
 /**
  * A Final Fantasy IV menu window: solid #000083 body, 1px white border, and a
  * 1px black inner line (the game's bevel), square corners. Unfocused/dimmed
  * windows use the game's grey variants.
+ *
+ * The geometry is calculated in the portable core ([Ff4WindowChrome]); this class
+ * only performs the three fills and strokes it describes. Keeping the calculation
+ * out of the view is what lets other platforms draw the identical window, and the
+ * core has a test asserting the numbers are unchanged from when this arithmetic
+ * lived here.
  *
  * Chrome is drawn behind the children, so you can add any content view.
  */
@@ -55,25 +62,43 @@ class FF4Window @JvmOverloads constructor(
     }
 
     private fun drawChrome(canvas: Canvas) {
-        val w = width.toFloat()
-        val h = height.toFloat()
-        if (w <= 0f || h <= 0f) return
-
-        val border = FF4Theme.borderWidth(context)
-        val inner = FF4Theme.innerWidth(context)
-
-        bodyPaint.color = if (dimmed) FF4Theme.GREY_DARK else FF4Theme.BLUE
-        borderPaint.strokeWidth = border
-        borderPaint.color = if (dimmed) FF4Theme.GREY else FF4Theme.WHITE
-        innerPaint.strokeWidth = inner
-        innerPaint.color = if (dimmed) FF4Theme.BLACK else FF4Theme.BLACK
+        val chrome = Ff4WindowChrome.of(
+            width.toFloat(),
+            height.toFloat(),
+            FF4Theme.scale(context),
+            dimmed = dimmed,
+        ) ?: return
 
         // body
-        canvas.drawRect(border, border, w - border, h - border, bodyPaint)
-        // outer white border (centered on the edge)
-        canvas.drawRect(border / 2f, border / 2f, w - border / 2f, h - border / 2f, borderPaint)
+        bodyPaint.color = chrome.bodyColor
+        canvas.drawRect(
+            chrome.body.left,
+            chrome.body.top,
+            chrome.body.right,
+            chrome.body.bottom,
+            bodyPaint,
+        )
+
+        // outer white border (centred on the edge, so it covers the outer pixel row)
+        borderPaint.strokeWidth = chrome.border.widthPx
+        borderPaint.color = chrome.border.color
+        canvas.drawRect(
+            chrome.border.rect.left,
+            chrome.border.rect.top,
+            chrome.border.rect.right,
+            chrome.border.rect.bottom,
+            borderPaint,
+        )
+
         // inner black bevel line
-        val off = border + inner / 2f
-        canvas.drawRect(off, off, w - off, h - off, innerPaint)
+        innerPaint.strokeWidth = chrome.bevel.widthPx
+        innerPaint.color = chrome.bevel.color
+        canvas.drawRect(
+            chrome.bevel.rect.left,
+            chrome.bevel.rect.top,
+            chrome.bevel.rect.right,
+            chrome.bevel.rect.bottom,
+            innerPaint,
+        )
     }
 }

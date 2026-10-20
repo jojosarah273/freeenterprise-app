@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "FreeEnterprise"
 include(":app")
+include(":core")
