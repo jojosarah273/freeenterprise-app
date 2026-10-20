@@ -46,6 +46,12 @@ echo "Dev build identity"
 has    app/build.gradle.kts 'applicationIdSuffix = ".dev"' "a test build installs beside the public app"
 has    app/build.gradle.kts 'versionNameSuffix = "-dev"'  "and says so in the version string"
 
+echo "Desktop build"
+has    desktop/native/Makefile        'Makefile.common'                  "the Linux core shares the Android source list"
+has    desktop/native/Makefile        'ff4emu.cpp'                       "and reuses the Android bridge file"
+has    desktop/native/shim/android/log.h '__android_log_print'           "with only a log shim for Linux"
+has    desktop/src/main/kotlin/com/freeenterprise/app/emulator/EmulatorBridge.kt 'package com.freeenterprise.app.emulator' "the desktop bridge matches the JNI symbol names"
+
 echo "ff4dump harness"
 has    tools/ff4dump/Makefile 'Makefile.common'   "the harness shares the Android source list"
 has    tools/ff4dump/main.cpp 'Tracker__KeyItemFoundFlags' "and decodes the engine's flags"

@@ -297,6 +297,26 @@ measurement and drawing share that substitution so the layout cannot drift. Maki
 the two platforms agree properly is a deliberate change to the Android appearance
 (a core-level mapping, or fallback glyphs in the atlas) and has not been made.
 
+**Step 4 now runs a seed.** `:desktop` loads a ROM through the *same* emulator
+bridge the Android build compiles — `app/src/main/cpp/ff4emu.cpp`, compiled for
+Linux behind a stand-in for `<android/log.h>`, with the core built from
+`libretro/Makefile.common`, the same list the Android build uses. Nothing is
+duplicated: one bridge, one source list, one portable core, and the interface drawn
+by the shared `:core`.
+
+Verified end to end without a screen: the emulator boots a Free Enterprise ROM
+(core loaded, ROM accepted, RGB565 frames decoded), the tracker window is drawn over
+the live picture reading WRAM through the bridge, and the whole thing also runs as a
+real window on a virtual display. The headless PNG export renders at a realistic
+screen size with the game scaled into it, because exporting at the game's own
+256x224 had made the interface's windows overflow — a property of the test, not of
+the app.
+
+Known gaps, in the order they matter: no controller backend (keyboard only, though
+the button ids are the libretro ones the Android build already uses), audio needs a
+32 kHz stereo line from the host's sound system, no seed library or generation, and
+no packaging.
+
 Still to do for step 2: the menu row geometry (it belongs with the glyph atlas,
 since exact row heights depend on exact text metrics), the dialog and progress
 overlays, and the glyph atlas itself, which is the change that actually makes text

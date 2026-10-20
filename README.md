@@ -233,8 +233,23 @@ build. That is how a change is checked on a device before it reaches `main`.
 
 The desktop build draws the interface from the same portable core as the app, and
 the PNG export comes from the same canvas the window uses — so the images are an
-honest check on what the window shows. It does **not** run the game yet: the
-emulator, audio, controllers and the seed library are the next steps.
+honest check on what the window shows.
+
+It also runs the game, reusing the *same* emulator bridge file the Android build
+compiles (`app/src/main/cpp/ff4emu.cpp`), with a stand-in for `<android/log.h>`:
+
+```bash
+make -C desktop/native                            # once: builds libretro.so and libff4emu.so
+./gradlew :desktop:run --args="--rom game.smc"    # play fullscreen
+./gradlew :desktop:run --args="--rom game.smc --frames 600 --export DIR"
+                                                  # headless: write game, pause and tracker PNGs
+```
+
+Keyboard for now: arrows are the d-pad, X/Z are A/B, S/D are Y/X, Enter is Start,
+Q/W are L/R, Tab opens the tracker, Esc opens the pause menu.
+
+Known gaps: no controller backend yet (keyboard only), audio needs a 32 kHz stereo
+line from the sound system, and there is no seed library, generation or packaging.
 
 Requirements: **JDK 17+**, Android SDK with **NDK 21.4.7075529** (pinned in
 `app/build.gradle.kts`), and internet on the first build for Gradle/Chaquopy

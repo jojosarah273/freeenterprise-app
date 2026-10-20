@@ -44,3 +44,13 @@ val ff4Assets = tasks.register<Copy>("copyFf4Assets") {
 }
 sourceSets["main"].resources.srcDir(layout.buildDirectory.dir("generated/ff4resources"))
 tasks.named("processResources") { dependsOn(ff4Assets) }
+
+// The emulator libraries, built by `make -C desktop/native`. Copied next to the
+// application so a distribution can carry them; Main looks here first.
+val copyNativeLibs = tasks.register<Copy>("copyNativeLibs") {
+    from(layout.projectDirectory.dir("native/build")) {
+        include("libretro.so", "libff4emu.so")
+    }
+    into(layout.buildDirectory.dir("native"))
+}
+tasks.named("classes") { dependsOn(copyNativeLibs) }

@@ -43,6 +43,21 @@ class SoftwareCanvas(
         g.fillRect(0, 0, width, height)
     }
 
+    /**
+     * Draws the emulator's picture into [rect]. Nearest-neighbour and integer
+     * destination pixels keep SNES pixels square, which is the whole look.
+     */
+    fun drawGameFrame(frame: java.awt.image.BufferedImage, rect: Ff4Rect) {
+        g.drawImage(
+            frame,
+            rect.left.roundToInt(),
+            rect.top.roundToInt(),
+            rect.width.roundToInt(),
+            rect.height.roundToInt(),
+            null,
+        )
+    }
+
     fun draw(list: Ff4DrawList) {
         for (op in list.ops()) {
             when (op) {
