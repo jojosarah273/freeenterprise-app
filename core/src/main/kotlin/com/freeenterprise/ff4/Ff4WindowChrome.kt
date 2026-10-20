@@ -19,7 +19,21 @@ data class Ff4WindowChrome(
     /** Stroked third: the one-pixel black bevel just inside the border. */
     val bevel: Ff4Stroke,
 ) {
+    /** The same chrome moved by ([dx], [dy]). */
+    fun translated(dx: Float, dy: Float): Ff4WindowChrome = Ff4WindowChrome(
+        body = body.translated(dx, dy),
+        bodyColor = bodyColor,
+        border = Ff4Stroke(border.rect.translated(dx, dy), border.widthPx, border.color),
+        bevel = Ff4Stroke(bevel.rect.translated(dx, dy), bevel.widthPx, bevel.color),
+    )
+
     companion object {
+        /** Chrome for a window placed at [bounds]; null when it has no area. */
+        fun of(bounds: Ff4Rect, scale: Ff4Scale, dimmed: Boolean): Ff4WindowChrome? {
+            val chrome = of(bounds.width, bounds.height, scale, dimmed) ?: return null
+            return chrome.translated(bounds.left, bounds.top)
+        }
+
         /**
          * Chrome for a window of [widthPx] by [heightPx], or null when the window
          * has no area to draw into (which happens on the first layout pass).

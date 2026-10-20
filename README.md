@@ -221,8 +221,20 @@ build. That is how a change is checked on a device before it reaches `main`.
 ```bash
 ./gradlew :app:assembleDebug     # → app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :core:test             # the portable core's unit tests
-./scripts/selftest.sh            # invariants + core tests, the dev gate
+./scripts/selftest.sh            # invariants + tests, the dev gate
 ```
+
+### Linux dev build
+
+```bash
+./gradlew :desktop:run                        # fullscreen, keyboard driven
+./gradlew :desktop:run --args="--export DIR"  # write PNGs of every screen
+```
+
+The desktop build draws the interface from the same portable core as the app, and
+the PNG export comes from the same canvas the window uses — so the images are an
+honest check on what the window shows. It does **not** run the game yet: the
+emulator, audio, controllers and the seed library are the next steps.
 
 Requirements: **JDK 17+**, Android SDK with **NDK 21.4.7075529** (pinned in
 `app/build.gradle.kts`), and internet on the first build for Gradle/Chaquopy

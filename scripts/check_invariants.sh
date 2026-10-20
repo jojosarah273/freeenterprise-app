@@ -59,10 +59,10 @@ has    core/src/main/kotlin/com/freeenterprise/ff4/Ff4Menu.kt        'Ff4MenuMod
 has    "$J/ff4ui/FF4Menu.kt"       'Ff4MenuModel'                "and the menu uses it"
 has    core/src/main/kotlin/com/freeenterprise/ff4/Ff4ProgressBarChrome.kt 'Ff4ProgressBarChrome' "the core owns the progress bar"
 has    "$J/ff4ui/FF4ProgressBar.kt" 'Ff4ProgressBarChrome.of'     "and the bar uses it"
-if grep -rq 'android\.' core/src/main/kotlin 2>/dev/null; then
-  bad "the core must not depend on Android"
+if grep -rq 'android\.\|java\.awt\|javax\.swing\|java\.io\|java\.nio' core/src/main/kotlin 2>/dev/null; then
+  bad "the core must not depend on Android, AWT, Swing or file IO"
 else
-  ok "the core has no Android dependency"
+  ok "the core is pure: no Android, AWT, Swing or file IO"
 fi
 
 echo "Screen edges and icon"

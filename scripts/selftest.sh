@@ -10,9 +10,9 @@ echo "== invariants =="
 ./scripts/check_invariants.sh "${1:-}" || exit 1
 
 echo
-echo "== portable core tests =="
-./gradlew --quiet :core:test || exit 1
-echo "  core tests passed"
+echo "== portable core and desktop tests =="
+./gradlew --quiet :core:test :desktop:test || exit 1
+echo "  core and desktop tests passed"
 
 echo
 echo "all self-tests passed"

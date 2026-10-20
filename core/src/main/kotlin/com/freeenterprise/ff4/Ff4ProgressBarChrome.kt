@@ -17,6 +17,15 @@ data class Ff4ProgressBarChrome(
     /** The white border, stroked centred on the outer edge. */
     val border: Ff4Stroke,
 ) {
+    /** The same bar moved by ([dx], [dy]). */
+    fun translated(dx: Float, dy: Float): Ff4ProgressBarChrome = Ff4ProgressBarChrome(
+        trough = trough.translated(dx, dy),
+        troughColor = troughColor,
+        fill = fill?.translated(dx, dy),
+        fillColor = fillColor,
+        border = Ff4Stroke(border.rect.translated(dx, dy), border.widthPx, border.color),
+    )
+
     companion object {
         /** The trough colour the bar has always used. */
         const val TROUGH_COLOR = 0xFF000050.toInt()

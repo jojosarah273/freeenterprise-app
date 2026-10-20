@@ -272,6 +272,31 @@ device. Note that the base ROM lives in app-private storage, so a dev build need
 its own import; the seed library, flagsets and saves live in `FF4_FE` on shared
 storage and are shared.
 
+**Step 4 has begun: there is a runnable Linux window.** `:desktop` draws the
+interface through a software canvas built from the same core, with a headless PNG
+export from that same canvas, so what the window shows can be inspected and
+measured rather than described. Verified by running it on a virtual display and
+measuring the rendered pixels: the selected menu row comes out at 53 px, exactly
+`padding(6) + cursor(41) + padding(6)`.
+
+Two bugs it caught, both mine: the Gradle asset copy applied one `into` to every
+source, so the font landed at `/ff4/ff4.ttf` and the app could not find it; and the
+progress overlay computed its height with different arithmetic than it placed its
+content with, so the elapsed line was drawn over the bottom border. The second is
+now impossible by construction, and both were found by measuring pixels rather than
+looking at them — my eye misread two other things as defects that measurement
+showed were correct (a right-aligned value 22 px clear of the border, and status
+text 12 px clear).
+
+**Portability finding: the game font has 99 code points.** It contains ASCII and
+little else — no middle dot, no tick, no arrows, no em dash. Android hides this by
+silently substituting glyphs from a system font, so a system-typeface tick appears
+mid-sentence in FF4 text. A single-font renderer has no fallback and draws a
+missing-glyph box, so the desktop substitutes characters the font does have, and
+measurement and drawing share that substitution so the layout cannot drift. Making
+the two platforms agree properly is a deliberate change to the Android appearance
+(a core-level mapping, or fallback glyphs in the atlas) and has not been made.
+
 Still to do for step 2: the menu row geometry (it belongs with the glyph atlas,
 since exact row heights depend on exact text metrics), the dialog and progress
 overlays, and the glyph atlas itself, which is the change that actually makes text
