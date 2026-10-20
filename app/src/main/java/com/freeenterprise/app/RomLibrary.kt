@@ -34,6 +34,16 @@ data class SeedMeta(
      * Only the location is ever displayed.
      */
     val keyItems: List<Pair<String, String>> = emptyList(),
+    /**
+     * Key items this seed has been *seen* to hold, so the tracker keeps them
+     * ticked after they leave the inventory.
+     *
+     * Several key items are consumed by design: the Package is delivered in Mist,
+     * the Rat Tail is traded for the Adamant, the Pan for the Spoon. Reading the
+     * live bag alone would un-tick those checks mid-playthrough, which is why
+     * "obtained" is remembered rather than "held right now".
+     */
+    val seenKeyItems: List<String> = emptyList(),
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("name", name)
@@ -46,6 +56,9 @@ data class SeedMeta(
         put("created", created)
         put("last_played", lastPlayed)
         if (saveName != null) put("save_name", saveName)
+        if (seenKeyItems.isNotEmpty()) {
+            put("seen_key_items", JSONArray().apply { seenKeyItems.forEach { put(it) } })
+        }
         if (keyItems.isNotEmpty()) {
             put("key_items", JSONArray().apply {
                 for ((name, location) in keyItems) {
@@ -77,6 +90,10 @@ data class SeedMeta(
                         val e = arr.getJSONObject(i)
                         add(e.optString("name") to e.optString("location"))
                     }
+                },
+                seenKeyItems = buildList {
+                    val arr = o.optJSONArray("seen_key_items") ?: return@buildList
+                    for (i in 0 until arr.length()) add(arr.optString(i))
                 },
             )
         }

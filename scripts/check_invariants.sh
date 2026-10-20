@@ -38,6 +38,10 @@ has    "$J/FF4GenerateActivity.kt" 'RomLibrary.save('                    "genera
 has    "$J/RomLibrary.kt"          '"key_items"'                         "metadata serialises key items"
 has    "$J/FF4PlayerActivity.kt"   'meta?.keyItems'                      "tracker reads them from metadata"
 has    "$J/FF4PlayerActivity.kt"   'not available'                       "placeholders are filtered"
+has    "$J/FF4PlayerActivity.kt"   'isFreeStartingItem'                 "free starting item is always ticked"
+has    "$J/FF4PlayerActivity.kt"   'seenKeyItems'                       "obtained items are remembered"
+hasnot "$J/FF4PlayerActivity.kt"   'held.contains(normalise(name))'     "no inventory-only check (un-ticks traded items)"
+has    "$J/RomLibrary.kt"          '"seen_key_items"'                   "metadata stores what was obtained"
 hasnot "$J/Spoiler.kt"             '\\\\\\.{3,}'                          "parser accepts short dot runs"
 
 echo "Versioning"

@@ -545,10 +545,21 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
      */
     private fun keyItemPage(wram: ByteArray): String {
         val sb = StringBuilder()
-        val held = Ff4Save.keyItems(wram, 0).map { normalise(it) }.toSet()
+        val held = Ff4Save.keyItems(wram, 0)
+        val heldSet = held.map { normalise(it) }.toSet()
         // Seed metadata is the normal source; a spoiler file beside the ROM is
         // honoured too, so one downloaded from the website also works.
-        val meta = rom?.let { RomLibrary.readMeta(it) }
+        val romFile = rom
+        val meta = romFile?.let { RomLibrary.readMeta(it) }
+        val seenStored = meta?.seenKeyItems.orEmpty()
+        val seenSet = seenStored.map { normalise(it) }.toSet()
+        // Items seen at any point stay ticked: the bag drops the Package when it
+        // is delivered in Mist, and the Rat Tail and Pan when they are traded.
+        val obtained = heldSet + seenSet
+        val newlySeen = held.filterNot { normalise(it) in seenSet }
+        if (newlySeen.isNotEmpty() && romFile != null && meta != null) {
+            RomLibrary.writeMeta(romFile, meta.copy(seenKeyItems = seenStored + newlySeen))
+        }
         // Drop placeholders like "Pink Tail ... (not available)" — they are not
         // checks. Whether one appears depends on the flags (Pass only exists with
         // Pkey, for instance), which is why the usable count is 16 or 17.
@@ -564,12 +575,12 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         } else {
             var checked = 0
             for ((name, place) in locations) {
-                val isChecked = held.contains(normalise(name))
+                val isChecked = isFreeStartingItem(place) || normalise(name) in obtained
                 if (isChecked) checked++
                 sb.append(" %s %s\n".format(if (isChecked) "\u2713" else "\u00b7", place.take(38)))
             }
             sb.append("\n %d / %d checked\n".format(checked, locations.size))
-            sb.append(" \u2713 = you already have that key item.\n")
+            sb.append(" \u2713 = key item obtained.\n")
             sb.append(" Where each item is stays in the spoiler.\n")
         }
         return sb.toString()
@@ -591,6 +602,21 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         }
         return sb.toString()
     }
+
+    /**
+     * True for the seed's starting item, which is free the moment gameplay begins.
+     *
+     * The engine only lists a key item at "Starting item" when it is handed to you
+     * at the start — that is exactly what the slot means (`Kstart:rat` moves the
+     * Rat Tail there, and `Kstart:zonk` leaves the slot holding a junk item such as
+     * Cure1, so no row is printed at all). The wiki's "flags that turn off free
+     * starting items" therefore need no special handling: their absence *is* the
+     * missing row.
+     *
+     * This cannot be answered from the bag, because the bag no longer holds it once
+     * the Package is delivered in Mist. Hence: ticked unconditionally.
+     */
+    private fun isFreeStartingItem(place: String): Boolean = normalise(place) == "startingitem"
 
     /** Loose name match between the spoiler and the inventory item names. */
     private fun normalise(name: String): String {
