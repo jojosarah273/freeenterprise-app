@@ -35,6 +35,13 @@ hasnot app/src/main/res/layout/activity_ff4_menu.xml 'visibility="gone"' "the st
 has    app/src/main/res/values/themes.xml 'windowAnimationStyle' "menu switches are not animated"
 has    "$J/FF4MainActivity.kt"       'defaultStatus'          "the main menu fills its status box"
 
+echo "Install-safe manifest"
+# A hardcoded authority collides with the installed public app, and Android then
+# reports only "App not installed". Every build must own its own names.
+has    app/src/main/AndroidManifest.xml '${applicationId}.fileprovider' "the FileProvider authority follows the application id"
+hasnot app/src/main/AndroidManifest.xml 'authorities="com.freeenterprise.app.fileprovider"' "no hardcoded authority"
+has    "$J/RetroArchLauncher.kt" 'packageName}.fileprovider' "and the runtime lookup follows the package"
+
 echo "Dev build identity"
 has    app/build.gradle.kts 'applicationIdSuffix = ".dev"' "a test build installs beside the public app"
 has    app/build.gradle.kts 'versionNameSuffix = "-dev"'  "and says so in the version string"
