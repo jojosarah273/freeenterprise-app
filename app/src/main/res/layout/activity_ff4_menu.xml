@@ -6,17 +6,22 @@
     android:orientation="vertical"
     android:padding="6dp">
 
+    <!-- The status slot is ALWAYS present and always the same height (pinned in
+         FF4MenuActivity), even when a screen has nothing to say. If it collapsed
+         instead, the flexible menu box below would grow, and entering a screen
+         showed it reshaping from the previous screen's size as the text arrived.
+         INVISIBLE (not GONE) reserves the space without drawing an empty box. -->
     <com.freeenterprise.app.ff4ui.FF4Window
         android:id="@+id/ff4StatusWindow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:visibility="gone">
+        android:visibility="invisible">
 
         <TextView
             android:id="@+id/ff4StatusText"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxLines="3"
+            android:layout_height="match_parent"
+            android:maxLines="2"
             android:ellipsize="end"
             android:textColor="#FFFFFF" />
     </com.freeenterprise.app.ff4ui.FF4Window>
@@ -58,7 +63,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:maxLines="3"
+                android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFF" />
 

@@ -20,7 +20,7 @@
                 android:id="@+id/ff4EditorFlags"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:maxLines="2"
+                android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="#FFFFFF" />
 
@@ -62,7 +62,7 @@
             android:id="@+id/ff4EditorHint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:maxLines="3"
+            android:maxLines="1"
             android:ellipsize="end"
             android:textColor="#FFFFFF" />
     </com.freeenterprise.app.ff4ui.FF4Window>

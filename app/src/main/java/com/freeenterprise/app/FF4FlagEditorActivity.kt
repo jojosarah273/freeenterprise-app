@@ -69,6 +69,14 @@ class FF4FlagEditorActivity : FF4Activity() {
         FF4Theme.applyText(this, validityText, FF4Theme.textSmallPx(this))
         FF4Theme.applyText(this, hintText, FF4Theme.textSmallPx(this))
 
+        // Same geometry as every other menu screen: the status slot is three lines
+        // (flags line + validity line here) and the hint one, so the menu box in
+        // between is the same size and never reshapes when moving between screens.
+        pinBoxHeights(
+            findViewById(R.id.ff4EditorStatusWindow),
+            findViewById(R.id.ff4EditorHintWindow),
+        )
+
         menu.onSelectionChanged = { i -> updateHintForSelection(i) }
 
         engine = SeedEngine(this) {}

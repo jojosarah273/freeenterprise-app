@@ -18,6 +18,12 @@ abstract class FF4MenuActivity : FF4Activity() {
     private lateinit var statusWindow: FF4Window
     protected lateinit var statusText: TextView
 
+    /**
+     * Line shown in the status box when the screen has nothing of its own to say,
+     * so the box is never an unexplained blank. Set before calling [setStatus].
+     */
+    protected var defaultStatus: CharSequence? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_ff4_menu)
@@ -30,6 +36,10 @@ abstract class FF4MenuActivity : FF4Activity() {
         FF4Theme.applyText(this, hint, FF4Theme.textSmallPx(this))
         FF4Theme.applyText(this, statusText, FF4Theme.textSmallPx(this))
 
+        // Identical geometry on every screen that uses this layout, decided before
+        // the first layout pass, so nothing reshapes once the screen is visible.
+        pinBoxHeights(statusWindow, findViewById(R.id.ff4HintWindow))
+
         // Small version indicator at the far right of the hint box.
         findViewById<TextView>(R.id.ff4Version)?.let { v ->
             v.text = "v" + BuildConfig.VERSION_NAME
@@ -39,13 +49,16 @@ abstract class FF4MenuActivity : FF4Activity() {
     }
 
     protected fun setStatus(text: CharSequence?, color: Int = FF4Theme.WHITE) {
-        if (text.isNullOrBlank()) {
-            statusWindow.visibility = View.GONE
+        val shown = if (text.isNullOrBlank()) defaultStatus else text
+        if (shown.isNullOrBlank()) {
+            // Reserved rather than collapsed: the space stays occupied so the menu
+            // box below keeps exactly the same height as on every other screen.
+            statusWindow.visibility = View.INVISIBLE
             return
         }
         statusWindow.visibility = View.VISIBLE
-        statusText.text = text
-        statusText.setTextColor(color)
+        statusText.text = shown
+        statusText.setTextColor(if (text.isNullOrBlank()) FF4Theme.WHITE else color)
     }
 
     protected fun setHint(text: String) {

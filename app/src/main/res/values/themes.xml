@@ -10,5 +10,10 @@
         <item name="windowNoTitle">true</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
+        <!-- Menus are meant to switch instantly, the way the game's own menus do.
+             The platform's default activity transition is what made entering a
+             screen look like it was reshaping: the new window animated in while
+             its layout was still settling. Removed entirely. -->
+        <item name="android:windowAnimationStyle">@null</item>
     </style>
 </resources>

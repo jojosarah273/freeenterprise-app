@@ -1,6 +1,7 @@
 package com.freeenterprise.app.ff4ui
 
 import android.graphics.drawable.ColorDrawable
+import android.graphics.Paint
 import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
@@ -12,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import kotlin.math.ceil
 
 /** Base activity for FF4-styled screens: black background, immersive, landscape. */
 abstract class FF4Activity : AppCompatActivity() {
@@ -56,6 +58,28 @@ abstract class FF4Activity : AppCompatActivity() {
     private fun dp(value: Int): Int = TypedValue.applyDimension(
         TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics
     ).toInt()
+
+    /**
+     * Pin the status and hint boxes to a fixed height.
+     *
+     * Every screen shares this geometry, so the flexible menu box between the two
+     * is the same size everywhere and never has to change shape. Without it the
+     * boxes wrapped their content: entering a screen showed the menu box resizing
+     * from the previous screen's size once the status text arrived — while going
+     * *back* looked smooth, because the screen being returned to was already laid
+     * out. Both boxes hold [statusLines] and [hintLines] lines of text respectively,
+     * ellipsised in XML if a message is longer.
+     */
+    protected fun pinBoxHeights(status: View?, hint: View?, statusLines: Int = 2, hintLines: Int = 1) {
+        val metrics = Paint().apply {
+            typeface = FF4Theme.font(this@FF4Activity)
+            textSize = FF4Theme.textSmallPx(this@FF4Activity)
+        }.fontMetrics
+        val line = ceil((metrics.descent - metrics.ascent).toDouble()).toInt()
+        val pad = FF4Theme.contentPadding(this) * 2
+        status?.layoutParams?.let { it.height = line * statusLines + pad }
+        hint?.layoutParams?.let { it.height = line * hintLines + pad }
+    }
 
     /**
      * Inset the content root from the screen edge so a rounded display corner

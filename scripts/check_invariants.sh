@@ -26,6 +26,15 @@ hasnot "$J/ff4ui/FF4ProgressOverlay.kt" 'stageText.text = "' \
 has    "$J/FF4MainActivity.kt" 'title = "DOWNLOADING UPDATE"' "APK download labels its window"
 has    "$J/FF4MainActivity.kt" 'title = "UPDATING ENGINE"'    "engine update labels its window"
 
+echo "Stable menu geometry"
+has    "$J/ff4ui/FF4Activity.kt"     'pinBoxHeights'          "boxes are pinned to a fixed height"
+has    "$J/ff4ui/FF4MenuActivity.kt" 'pinBoxHeights'          "the menus pin them"
+has    "$J/FF4FlagEditorActivity.kt" 'pinBoxHeights'          "the flag editor pins them too"
+hasnot "$J/ff4ui/FF4MenuActivity.kt" 'View.GONE'              "the status slot is never collapsed"
+hasnot app/src/main/res/layout/activity_ff4_menu.xml 'visibility="gone"' "the status slot reserves its space in XML"
+has    app/src/main/res/values/themes.xml 'windowAnimationStyle' "menu switches are not animated"
+has    "$J/FF4MainActivity.kt"       'defaultStatus'          "the main menu fills its status box"
+
 echo "Screen edges and icon"
 has    "$J/ff4ui/FF4Activity.kt"     'applyEdgeBuffer'          "menus keep clear of rounded corners"
 hasnot "$J/FF4PlayerActivity.kt"     'keepsScreenEdgeBuffer'    "the emulator play screen is NOT insetted"
