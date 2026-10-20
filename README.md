@@ -244,6 +244,9 @@ The engine is verified from the host without an emulator. The useful tricks:
 
 ## Documentation
 
+- `MENU_PORTABILITY.md` — how the FF4 menu interface becomes portable across Android, Windows, Linux (and iOS)
+
+
 - `SYNC_FEASIBILITY.md` — multi-device sync research (not planned; no server, no cost)
 
 
