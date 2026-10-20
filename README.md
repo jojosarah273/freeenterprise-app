@@ -208,10 +208,20 @@ Doors/entrances randomization is **bundled but hidden** from the menus; flipping
 `UiSpec.DOORS_ENABLED` to `true` is the whole change. See
 `DESIGN_FF4_UI.md` §11.
 
-## Building
+## Branches
+
+- `main` is release-only: what the GitHub releases are cut from.
+- `dev` is where work lands first: refactors, experiments, in-progress features.
+
+A debug build is a **test build**. It carries its own application id
+(`com.freeenterprise.app.dev`) and a `-dev` version suffix, so it installs *beside*
+the public app instead of replacing it, and the version shown in the app names the
+build. That is how a change is checked on a device before it reaches `main`.
 
 ```bash
 ./gradlew :app:assembleDebug     # → app/build/outputs/apk/debug/app-debug.apk
+./gradlew :core:test             # the portable core's unit tests
+./scripts/selftest.sh            # invariants + core tests, the dev gate
 ```
 
 Requirements: **JDK 17+**, Android SDK with **NDK 21.4.7075529** (pinned in
