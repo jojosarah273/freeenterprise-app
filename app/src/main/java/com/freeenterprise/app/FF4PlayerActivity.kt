@@ -40,6 +40,12 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
 
     companion object {
         private const val REGION_WRAM = 1
+
+        /**
+         * `Tracker__KeyItemFoundFlags` is at WRAM $7E1500, i.e. offset 0x500 of the
+         * $7E1000-$17FF window the tracker reads.
+         */
+        private const val KEY_ITEM_FOUND_OFFSET = 0x500
         private const val TRACKER_PAGES = 2
     }
 
@@ -575,12 +581,17 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         } else {
             var checked = 0
             for ((name, place) in locations) {
-                val isChecked = isFreeStartingItem(place) || normalise(name) in obtained
+                // The engine's own "have I been there" flag decides it. The other
+                // two rules only cover what it does not track (Pass, and anything
+                // held but not yet flagged) and can never un-tick a found item.
+                val index = feKeyItemIndex(name)
+                val isChecked = (index != null && feKeyItemFound(wram, index)) ||
+                    isFreeStartingItem(place) || normalise(name) in obtained
                 if (isChecked) checked++
                 sb.append(" %s %s\n".format(if (isChecked) "\u2713" else "\u00b7", place.take(38)))
             }
             sb.append("\n %d / %d checked\n".format(checked, locations.size))
-            sb.append(" \u2713 = key item obtained.\n")
+            sb.append(" \u2713 = check done.\n")
             sb.append(" Where each item is stays in the spoiler.\n")
         }
         return sb.toString()
@@ -617,6 +628,42 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
      * the Package is delivered in Mist. Hence: ticked unconditionally.
      */
     private fun isFreeStartingItem(place: String): Boolean = normalise(place) == "startingitem"
+
+    /**
+     * The engine's own key-item tracker, in its own order.
+     *
+     * `FreeEnt/scripts/tracker.f4c` lists 17 key items (`Tracker__KeyItemCodes`),
+     * and index i owns bit i of `Tracker__KeyItemFoundFlags`. That bit is set by
+     * `Rewards__DeliverKeyItemSideEffects` the moment the item is handed over, and
+     * cleared by `first_launch.f4c` when a game starts. It is the engine's own
+     * answer to "have I been there?", which is what this page is for — and why
+     * asking the item bag was the wrong question.
+     *
+     * Four of the 17 are not items from the usual key-item range: the engine
+     * borrows a sword ($19 Legend), a weapon ($3E Spoon), a consumable ($C8
+     * Crystal) and the dummy slot ($FC Hook). Scanning the bag for $E7-$FA could
+     * never see those four, so the old approach topped out at 13 of 17 however
+     * much you played.
+     */
+    private val FE_KEY_ITEM_INDEX = mapOf(
+        "package" to 0, "sandruby" to 1, "legendsword" to 2, "baronkey" to 3,
+        "twinharp" to 4, "earthcrystal" to 5, "magmakey" to 6, "towerkey" to 7,
+        "hook" to 8, "lucakey" to 9, "darkcrystal" to 10, "rattail" to 11,
+        "adamant" to 12, "pan" to 13, "spoon" to 14, "pinktail" to 15,
+        "crystal" to 16,
+    )
+
+    private fun feKeyItemIndex(name: String): Int? = FE_KEY_ITEM_INDEX[normalise(name)]
+
+    /**
+     * Bit [index] of the engine's found flags. `Tracker__LocateBit` derives the byte
+     * as index >> 3 and the bit as index & 7, least-significant bit first.
+     */
+    private fun feKeyItemFound(wram: ByteArray, index: Int): Boolean {
+        val offset = KEY_ITEM_FOUND_OFFSET + (index shr 3)
+        if (offset < 0 || offset >= wram.size) return false
+        return (wram[offset].toInt() and (1 shl (index and 7))) != 0
+    }
 
     /** Loose name match between the spoiler and the inventory item names. */
     private fun normalise(name: String): String {
