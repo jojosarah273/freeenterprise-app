@@ -10,6 +10,9 @@ import com.freeenterprise.app.R
 /** Base for FF4 screens with a status window, a scrolling menu and a hint bar. */
 abstract class FF4MenuActivity : FF4Activity() {
 
+    /** Menus sit slightly in from the screen edge — see [FF4Activity.applyEdgeBuffer]. */
+    override val keepsScreenEdgeBuffer: Boolean = true
+
     protected lateinit var menu: FF4Menu
     protected lateinit var hint: TextView
     private lateinit var statusWindow: FF4Window

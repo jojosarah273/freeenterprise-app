@@ -26,6 +26,15 @@ hasnot "$J/ff4ui/FF4ProgressOverlay.kt" 'stageText.text = "' \
 has    "$J/FF4MainActivity.kt" 'title = "DOWNLOADING UPDATE"' "APK download labels its window"
 has    "$J/FF4MainActivity.kt" 'title = "UPDATING ENGINE"'    "engine update labels its window"
 
+echo "Screen edges and icon"
+has    "$J/ff4ui/FF4Activity.kt"     'applyEdgeBuffer'          "menus keep clear of rounded corners"
+hasnot "$J/FF4PlayerActivity.kt"     'keepsScreenEdgeBuffer'    "the emulator play screen is NOT insetted"
+has    "$J/ff4ui/FF4MenuActivity.kt" 'keepsScreenEdgeBuffer'    "the menus opt in"
+has    "$J/FF4FlagEditorActivity.kt" 'keepsScreenEdgeBuffer'    "the flag editor opts in"
+has    scripts/make_icons.py         'emblem_crop'              "legacy icons crop to the artwork"
+has    scripts/make_icons.py         'content_box'              "the icon script finds the emblem"
+hasnot scripts/make_icons.py         'legacy = scaled(src,'     "legacy icons are not the raw canvas"
+
 echo "Update path"
 has    "$J/FF4MainActivity.kt" 'Check for updates'        "the update menu entry exists"
 has    "$J/UpdateChecker.kt"   'api.github.com'           "release feed is queried"

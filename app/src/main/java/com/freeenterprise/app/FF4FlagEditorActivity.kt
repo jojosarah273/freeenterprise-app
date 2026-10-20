@@ -24,6 +24,9 @@ import org.json.JSONObject
 class FF4FlagEditorActivity : FF4Activity() {
 
     private lateinit var engine: SeedEngine
+    /** Keep the flag editor's windows clear of rounded screen corners. */
+    override val keepsScreenEdgeBuffer: Boolean = true
+
     private lateinit var menu: FF4Menu
     private lateinit var flagsText: TextView
     private lateinit var validityText: TextView
