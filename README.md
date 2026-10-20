@@ -244,6 +244,9 @@ The engine is verified from the host without an emulator. The useful tricks:
 
 ## Documentation
 
+- `SYNC_FEASIBILITY.md` — multi-device sync research (not planned; no server, no cost)
+
+
 | File | Contents |
 |---|---|
 | `DESIGN_FF4_UI.md` | Living design doc: palette research, design tokens, input map, roadmap, status log, doors plan |
