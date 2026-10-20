@@ -43,3 +43,7 @@ keystore.properties
 # Built engine bundles (release assets, not source)
 freeenterprise-engine-*.zip
 freeenterprise-engine-*.zip.sha256
+
+# ff4dump harness
+tools/ff4dump/build/
+tools/ff4dump/ff4dump

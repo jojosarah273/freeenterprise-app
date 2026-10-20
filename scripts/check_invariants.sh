@@ -46,6 +46,10 @@ echo "Dev build identity"
 has    app/build.gradle.kts 'applicationIdSuffix = ".dev"' "a test build installs beside the public app"
 has    app/build.gradle.kts 'versionNameSuffix = "-dev"'  "and says so in the version string"
 
+echo "ff4dump harness"
+has    tools/ff4dump/Makefile 'Makefile.common'   "the harness shares the Android source list"
+has    tools/ff4dump/main.cpp 'Tracker__KeyItemFoundFlags' "and decodes the engine's flags"
+
 echo "Portable core"
 has    "$J/ff4ui/FF4Window.kt" 'Ff4WindowChrome.of'            "window chrome comes from the core"
 has    core/src/main/kotlin/com/freeenterprise/ff4/Ff4WindowChrome.kt 'Ff4WindowChrome' "the core owns the chrome model"
