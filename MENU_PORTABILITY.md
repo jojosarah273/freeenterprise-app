@@ -250,10 +250,32 @@ performs the same three Canvas calls as before, driven by those numbers, and
 `./scripts/selftest.sh` is the gate for this work: the structural invariants plus
 the core's unit tests (15 so far).
 
-Still to do for step 2: the menu row model and list navigation (the selection
-logic is already pure and easy), the dialog and progress overlays, and the glyph
-atlas, which is the change that actually makes text identical rather than merely
-proportioned the same.
+Since then, in the same step:
+
+| In the core | Switched on for Android now? |
+| --- | --- |
+| `Ff4MenuModel` | yes: menu navigation (wrap, skip disabled, remembered row) |
+| `Ff4ProgressBarChrome` | yes: the generation and update progress bar |
+| `Ff4WindowChrome` | yes: every window |
+| `Ff4Scale`, `Ff4Palette` | yes: the layout unit and the colours |
+
+Both new geometry models ship with a parity test that re-derives the arithmetic the
+view performed inline, so switching them over could not move a pixel. That test
+earned its keep immediately: it caught a genuine one-bit float difference between
+`(width - border) - border` and `width - border * 2` in the progress bar, which was
+enough to move a rounded pixel.
+
+A test build is produced by `:app:assembleDebug`. It installs *beside* the public
+app (`applicationIdSuffix = ".dev"`, `versionNameSuffix = "-dev"`, debug
+signature), so the released app is never replaced and both can be compared on one
+device. Note that the base ROM lives in app-private storage, so a dev build needs
+its own import; the seed library, flagsets and saves live in `FF4_FE` on shared
+storage and are shared.
+
+Still to do for step 2: the menu row geometry (it belongs with the glyph atlas,
+since exact row heights depend on exact text metrics), the dialog and progress
+overlays, and the glyph atlas itself, which is the change that actually makes text
+identical rather than merely proportioned the same.
 
 ## 9. Open decisions
 

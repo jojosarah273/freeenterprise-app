@@ -35,11 +35,19 @@ hasnot app/src/main/res/layout/activity_ff4_menu.xml 'visibility="gone"' "the st
 has    app/src/main/res/values/themes.xml 'windowAnimationStyle' "menu switches are not animated"
 has    "$J/FF4MainActivity.kt"       'defaultStatus'          "the main menu fills its status box"
 
+echo "Dev build identity"
+has    app/build.gradle.kts 'applicationIdSuffix = ".dev"' "a test build installs beside the public app"
+has    app/build.gradle.kts 'versionNameSuffix = "-dev"'  "and says so in the version string"
+
 echo "Portable core"
 has    "$J/ff4ui/FF4Window.kt" 'Ff4WindowChrome.of'            "window chrome comes from the core"
 has    core/src/main/kotlin/com/freeenterprise/ff4/Ff4WindowChrome.kt 'Ff4WindowChrome' "the core owns the chrome model"
 has    core/src/main/kotlin/com/freeenterprise/ff4/Ff4Scale.kt       'SNES_SHORT_EDGE_PX' "the core owns the layout unit"
 has    core/src/main/kotlin/com/freeenterprise/ff4/Ff4Palette.kt     'BLUE_SELECTED'      "the core owns the palette"
+has    core/src/main/kotlin/com/freeenterprise/ff4/Ff4Menu.kt        'Ff4MenuModel'       "the core owns menu navigation"
+has    "$J/ff4ui/FF4Menu.kt"       'Ff4MenuModel'                "and the menu uses it"
+has    core/src/main/kotlin/com/freeenterprise/ff4/Ff4ProgressBarChrome.kt 'Ff4ProgressBarChrome' "the core owns the progress bar"
+has    "$J/ff4ui/FF4ProgressBar.kt" 'Ff4ProgressBarChrome.of'     "and the bar uses it"
 if grep -rq 'android\.' core/src/main/kotlin 2>/dev/null; then
   bad "the core must not depend on Android"
 else

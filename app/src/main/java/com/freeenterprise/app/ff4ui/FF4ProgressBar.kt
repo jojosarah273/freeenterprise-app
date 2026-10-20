@@ -5,8 +5,15 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.View
+import com.freeenterprise.ff4.Ff4ProgressBarChrome
 
-/** A chunky FF4-styled progress bar (bordered trough + filled proportion). */
+/**
+ * A chunky FF4-styled progress bar (bordered trough + filled proportion).
+ *
+ * The geometry comes from the portable core, so the same bar can be drawn by the
+ * desktop client. The core has a test asserting these numbers are unchanged from
+ * when this arithmetic lived in [onDraw].
+ */
 class FF4ProgressBar @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -26,7 +33,7 @@ class FF4ProgressBar @JvmOverloads constructor(
     private val troughPaint = Paint().apply {
         style = Paint.Style.FILL
         isAntiAlias = false
-        color = 0xFF000050.toInt()
+        color = Ff4ProgressBarChrome.TROUGH_COLOR
     }
     private val borderPaint = Paint().apply {
         style = Paint.Style.STROKE
@@ -36,7 +43,7 @@ class FF4ProgressBar @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val unit = FF4Theme.unit(context)
-        val wantedHeight = (unit * 10f).toInt()
+        val wantedHeight = (unit * Ff4ProgressBarChrome.WANTED_HEIGHT_UNITS).toInt()
         val height = resolveSize(wantedHeight, heightMeasureSpec)
         val width = resolveSize(suggestedMinimumWidth, widthMeasureSpec)
         setMeasuredDimension(width, height)
@@ -44,28 +51,37 @@ class FF4ProgressBar @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val w = width.toFloat()
-        val h = height.toFloat()
-        if (w <= 0 || h <= 0) return
 
-        val border = FF4Theme.unit(context)
-        borderPaint.strokeWidth = border
+        val chrome = Ff4ProgressBarChrome.of(
+            width.toFloat(),
+            height.toFloat(),
+            FF4Theme.scale(context),
+            progress,
+        ) ?: return
 
-        canvas.drawRect(border, border, w - border, h - border, troughPaint)
+        troughPaint.color = chrome.troughColor
+        canvas.drawRect(
+            chrome.trough.left,
+            chrome.trough.top,
+            chrome.trough.right,
+            chrome.trough.bottom,
+            troughPaint,
+        )
 
         // inner track, then filled proportion
-        val left = border * 2
-        val top = border * 2
-        val right = w - border * 2
-        val bottom = h - border * 2
-        val innerWidth = right - left
-        if (innerWidth > 0) {
-            val filled = innerWidth * (progress / 100f)
-            if (filled > 0f) {
-                canvas.drawRect(left, top, left + filled, bottom, fillPaint)
-            }
+        chrome.fill?.let { fill ->
+            fillPaint.color = chrome.fillColor
+            canvas.drawRect(fill.left, fill.top, fill.right, fill.bottom, fillPaint)
         }
 
-        canvas.drawRect(border / 2f, border / 2f, w - border / 2f, h - border / 2f, borderPaint)
+        borderPaint.strokeWidth = chrome.border.widthPx
+        borderPaint.color = chrome.border.color
+        canvas.drawRect(
+            chrome.border.rect.left,
+            chrome.border.rect.top,
+            chrome.border.rect.right,
+            chrome.border.rect.bottom,
+            borderPaint,
+        )
     }
 }

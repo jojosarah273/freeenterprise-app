@@ -11,6 +11,8 @@ import android.view.View
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.freeenterprise.ff4.Ff4MenuItem
+import com.freeenterprise.ff4.Ff4MenuModel
 
 /**
  * FF4-style menu: a vertical list of rows with a blinking ">" cursor, driven by
@@ -42,6 +44,13 @@ class FF4Menu @JvmOverloads constructor(
     private var items: List<Item> = emptyList()
     private var onActivate: ((Int) -> Unit)? = null
 
+    /**
+     * Which row is current, and the rules for moving it, live in the portable core
+     * so a gamepad behaves identically on every platform. This view renders the
+     * rows; the model decides the selection.
+     */
+    private val model = Ff4MenuModel(emptyList())
+
     var selected: Int = 0
         private set
 
@@ -60,11 +69,8 @@ class FF4Menu @JvmOverloads constructor(
         this.items = items
         this.onActivate = onActivate
         rebuild()
-        selected = if (initialSelected in items.indices && items[initialSelected].enabled) {
-            initialSelected
-        } else {
-            firstEnabled()
-        }
+        model.reset(items.map { it.toCoreItem() }, initialSelected)
+        selected = model.selected
         updateRowStyles()
         ensureSelectionVisible()
         // Make sure the pointer and focus land here when a menu is (re)shown,
@@ -73,33 +79,33 @@ class FF4Menu @JvmOverloads constructor(
     }
 
     fun moveSelection(delta: Int) {
-        if (items.isEmpty()) return
-        var next = selected
-        repeat(items.size) {
-            next = (next + delta + items.size) % items.size
-            if (items[next].enabled) {
-                selected = next
-                updateRowStyles()
-                onSelectionChanged?.invoke(selected)
-                ensureSelectionVisible()
-                return
-            }
-        }
+        if (!model.moveSelection(delta)) return
+        selected = model.selected
+        updateRowStyles()
+        onSelectionChanged?.invoke(selected)
+        ensureSelectionVisible()
     }
 
     fun activate() {
-        val item = items.getOrNull(selected) ?: return
-        if (item.enabled) onActivate?.invoke(selected)
+        model.activationTarget()?.let { onActivate?.invoke(it) }
     }
 
     fun select(index: Int) {
-        if (index in items.indices && items[index].enabled) {
-            selected = index
-            updateRowStyles()
-            onSelectionChanged?.invoke(selected)
-            ensureSelectionVisible()
-        }
+        if (!model.select(index)) return
+        selected = model.selected
+        updateRowStyles()
+        onSelectionChanged?.invoke(selected)
+        ensureSelectionVisible()
     }
+
+    /** Map to the portable model's item, so navigation rules are shared. */
+    private fun Item.toCoreItem() = Ff4MenuItem(
+        label = label,
+        value = value,
+        enabled = enabled,
+        indent = indent,
+        subtitle = subtitle,
+    )
 
     /** Scroll the nearest ancestor ScrollView so the selected row is visible. */
     private fun ensureSelectionVisible() {
@@ -115,8 +121,6 @@ class FF4Menu @JvmOverloads constructor(
             parent = parent.parent
         }
     }
-
-    private fun firstEnabled(): Int = items.indexOfFirst { it.enabled }.coerceAtLeast(0)
 
     /** The game's own POINTER.png, scaled to our pixel grid, nearest-neighbour. */
     private fun pointer(): Bitmap {

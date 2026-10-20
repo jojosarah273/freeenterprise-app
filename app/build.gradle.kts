@@ -57,6 +57,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            // A dev build installs beside the public app instead of replacing it:
+            // its own application id and debug signature, and a -dev marker in the
+            // version string (which the hint box shows). Nothing about the release
+            // build changes, and the public app is never touched.
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+        }
         release {
             isMinifyEnabled = false
             signingConfig = if (hasReleaseKeystore) {
