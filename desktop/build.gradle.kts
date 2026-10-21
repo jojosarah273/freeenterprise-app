@@ -25,11 +25,15 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
+    // Reading the engine's JSON replies. The Android app already uses this API
+    // (from the platform), so the two sides parse the same shapes the same way.
+    implementation("org.json:json:20240303")
     testImplementation("junit:junit:4.13.2")
 }
 
 application {
     mainClass.set("com.freeenterprise.desktop.MainKt")
+    applicationName = "freeenterprise"
 }
 
 // The font and the cursor are the app's own assets; copy them in so the desktop

@@ -261,3 +261,35 @@ Result: a smaller, clearer menu than vanilla's, and less surface to keep in sync
   the unresolved "renders FuSoYa" blocker) and the silent patch-skip.
 - **The scope trim is largely free work**, since most of FuSoYa's flag surface
   disappears anyway.
+
+## Removing White magic from Golbez's menu
+
+Golbez has no white magic, but the Magic menu still offers a "White" entry with
+nothing in it. The menu code decides this itself, and the mechanism is simple:
+
+`third_party/ff4/menu/magic.asm` draws the White, Black and Summon labels from a
+per-character table, `SpellListTbl` (`third_party/ff4/menu/system.asm`), one
+three-byte entry per character:
+
+```
+SpellListTbl:
+        .byte   $ff,$ff,$ff      ; Cecil: no lists at all
+        .byte   $02,$03,$04      ; Rydia: white, black, summon
+        .byte   $05,$06,$ff      ; Tellah: white, black, no summon
+```
+
+A byte is either the index of the spell list in RAM, or `$ff` for "not available".
+The menu tests the sign bit: a negative byte draws `BlankMagicStr` instead of the
+label, and the cursor loop skips those entries entirely.
+
+So **no menu code needs changing**. Give Golbez's character entry `$ff` in the
+White slot and the label blanks and the cursor skips it, which is exactly the
+behaviour wanted. It is a one-byte data patch, and the natural home for it is
+wherever Golbez's character data is written, alongside his other stats and spell
+lists.
+
+Note this cannot be tested in the bundled engine yet: `FreeEnt/character_rando.py`
+lists twelve playable characters and Golbez is not among them, so there is nothing
+to attach the patch to until Golbez mode exists as its own engine. Verification is
+then a byte check plus the menu behaviour that follows from the sign-bit logic
+above.

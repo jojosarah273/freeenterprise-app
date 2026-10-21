@@ -513,3 +513,60 @@ def _generate_impl(flags, seed, metaconfig_json, rom_path, out_dir, cache_dir):
         'seconds': round(elapsed, 1),
         'private_spoiler': build_output.private_spoiler,
     }
+
+
+# ---------------------------------------------------------------------------
+# Command line
+#
+# The same bridge the Android app calls through Chaquopy, runnable as a process.
+# The desktop build drives the engine this way (the progress file already gives the
+# UI everything it needs), and it makes the engine usable from a shell or CI.
+#
+#     python3 fe_bridge.py version
+#     python3 fe_bridge.py check --flags "Kmain"
+#     python3 fe_bridge.py generate --flags Kmain --seed NAME \
+#         --rom base.smc --out DIR [--cache DIR] [--progress FILE] [--ext DIR]
+# ---------------------------------------------------------------------------
+def _main(argv):
+    import argparse
+    parser = argparse.ArgumentParser(description='Free Enterprise engine bridge')
+    parser.add_argument('--ext', default=None, help='directory holding FreeEnt/ and f4c/')
+    sub = parser.add_subparsers(dest='command', required=True)
+
+    sub.add_parser('version')
+
+    check = sub.add_parser('check')
+    check.add_argument('--flags', default='')
+
+    gen = sub.add_parser('generate')
+    gen.add_argument('--flags', default='')
+    gen.add_argument('--seed', required=True)
+    gen.add_argument('--rom', required=True, help='base FF2 (US) v1.0/v1.1 ROM')
+    gen.add_argument('--out', required=True)
+    gen.add_argument('--cache', default=None)
+    gen.add_argument('--progress', default=None, help='file the UI polls for progress')
+    gen.add_argument('--meta', default='{}')
+
+    args = parser.parse_args(argv)
+    if args.ext:
+        set_ext_path(args.ext)
+
+    if args.command == 'version':
+        return engine_version()
+    if args.command == 'check':
+        return check_flags(args.flags)
+    cache = args.cache or os.path.join(args.out, 'cache')
+    return generate(
+        flags=args.flags,
+        seed=args.seed,
+        metaconfig_json=args.meta,
+        rom_path=args.rom,
+        out_dir=args.out,
+        cache_dir=cache,
+        progress_path=args.progress,
+    )
+
+
+if __name__ == '__main__':
+    import sys as _sys
+    print(_main(_sys.argv[1:]))
