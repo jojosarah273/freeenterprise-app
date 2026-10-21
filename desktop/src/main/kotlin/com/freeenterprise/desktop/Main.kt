@@ -68,6 +68,8 @@ data class Config(
     val frames: Int,
     val export: File?,
     val checksFile: File?,
+    val uiSpecFile: File?,
+    val presetsFile: File?,
     val nativeDir: File?,
     /** Drives a scripted pad instead of SDL, so the pad path can be checked here. */
     val fakePad: Boolean,
@@ -91,6 +93,8 @@ data class Config(
             var export: String? = null
             var native: String? = null
             var checks: String? = null
+            var uiSpec: String? = null
+            var presetsFile: String? = null
             var fakePad = false
             var windowed = false
             var quitAfter = 0
@@ -111,6 +115,8 @@ data class Config(
                     "--export" -> export = args.getOrNull(++i)
                     "--native" -> native = args.getOrNull(++i)
                     "--checks" -> checks = args.getOrNull(++i)
+                    "--ui-spec" -> uiSpec = args.getOrNull(++i)
+                    "--presets" -> presetsFile = args.getOrNull(++i)
                     "--fake-pad" -> fakePad = true
                     "--windowed" -> windowed = true
                     "--quit-after" -> quitAfter = args.getOrNull(++i)?.toIntOrNull() ?: 0
@@ -147,6 +153,18 @@ data class Config(
                 // Null unless asked for: a default value here made the export branch
                 // always win, so the application itself could never start.
                 export = export?.let { File(it) },
+                uiSpecFile = uiSpec?.let { File(it) } ?: firstExisting(
+                    "app/src/main/assets/spec/ui_spec.json",
+                    "../app/src/main/assets/spec/ui_spec.json",
+                    "engine/assets/ui_spec.json",
+                    "assets/ui_spec.json",
+                ),
+                presetsFile = presetsFile?.let { File(it) } ?: firstExisting(
+                    "app/src/main/assets/presets/presets.json",
+                    "../app/src/main/assets/presets/presets.json",
+                    "engine/assets/presets.json",
+                    "assets/presets.json",
+                ),
                 checksFile = checks?.let { File(it) } ?: firstExisting(
                     "app/src/main/assets/spec/checks.json",
                     "../app/src/main/assets/spec/checks.json",
@@ -182,7 +200,7 @@ private fun findNativeDir(config: Config): File {
 
 // ------------------------------------------------------------------ the app loop
 
-private enum class Screen { LIBRARY, GENERATING, PLAYING }
+private enum class Screen { LIBRARY, FLAGS, GENERATING, PLAYING }
 private enum class Overlay { NONE, PAUSE, TRACKER }
 
 /** Intent published by the UI thread and consumed by whichever worker is running. */
@@ -224,6 +242,10 @@ private class PadWiring(
 
     fun tick() = router.update(mask())
 }
+
+/** Keep a row index inside a list that may have shrunk after a page change. */
+private fun List<Any>.coerceSelection(index: Int): Int =
+    if (isEmpty()) 0 else index.coerceIn(0, size - 1)
 
 /** The check list, from the generated database. Empty if it cannot be read. */
 private fun loadChecks(file: File?): List<Ff4Checks.Check> {
@@ -271,12 +293,21 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     val canvas = SoftwareCanvas(width, height, metrics, shadowOffsetPx = scale.unit * 0.5f)
     val library = SeedLibrary(config.libraryDir).also { it.ensureExists() }
     val checks = loadChecks(config.checksFile)
+    val flagUi = FlagUi(
+        sections = SpecLoader.uiSpec(config.uiSpecFile),
+        presets = SpecLoader.presets(config.presetsFile),
+        store = FlagsetStore(config.libraryDir),
+    )
+    // Start from the command line's flags, so --flags still works for scripts.
+    runCatching { flagUi.editor.addAll(config.flags.split(" ").filter { it.isNotBlank() }) }
     var trackerLocations = emptyList<Pair<String, String>>()
 
     val ui = UiState()
     var session: GameSession? = null
+    var currentRom: File? = null
     var playingSince = 0L
     val libraryModel = Ff4MenuModel(emptyList())
+    var flagSelected = 0
     val pauseModel = Ff4MenuModel(pauseItems())
     val gameLoop = arrayOfNulls<Thread>(1)
 
@@ -303,6 +334,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     // cannot be referenced before they are declared. Forward references break that
     // cycle; they are assigned once everything exists.
     lateinit var activateLibraryRow: () -> Unit
+    lateinit var flagActivate: () -> Unit
     lateinit var onPadShortcut: (PadRouter.PadShortcut) -> Unit
     lateinit var onPadMenuInput: (PadRouter.MenuInput) -> Unit
     lateinit var quit: (Int) -> Unit
@@ -320,6 +352,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     fun libraryItems(): List<Ff4MenuItem> {
         val seeds = library.seeds()
         val rows = seeds.map { Ff4MenuItem(it.name, it.detail) }.toMutableList()
+        rows.add(Ff4MenuItem("Flags & presets", flagUi.editor.flagsText().take(22).ifBlank { "none set" }))
         rows.add(Ff4MenuItem("Generate seed", if (config.baseRom == null) "no base ROM" else "20 seconds or so"))
         rows.add(Ff4MenuItem("Quit"))
         return rows
@@ -352,6 +385,13 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     )
                 }
             }
+            Screen.FLAGS -> canvas.draw(
+                renderer.flagScreen(
+                    width, height, flagUi.items(), flagSelected,
+                    status = flagUi.status(flagSelected),
+                    hint = flagUi.hint(),
+                ),
+            )
             Screen.GENERATING -> {
                 // The library stays visible underneath, dimmed, as it does on Android:
                 // the modal darkens the screen rather than blacking it out.
@@ -429,6 +469,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             return
         }
         ui.screen = Screen.PLAYING
+        currentRom = rom
         ui.trackerPage = 0
         trackerLocations = spoilerLocationsFor(rom)
         playingSince = System.currentTimeMillis()
@@ -473,7 +514,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         val worker = Thread {
             try {
                 val result = EngineProcess(engine, bridge, baseRom, File(config.workDir, "cache"))
-                    .generate(seedName, config.flags, config.libraryDir, File(config.workDir, "progress.txt")) {
+                    .generate(seedName, flagUi.editor.flagsText(), config.libraryDir, File(config.workDir, "progress.txt")) {
                         ui.progress = it
                         compose()
                     }
@@ -492,9 +533,16 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         val index = libraryModel.activationTarget()
         if (index != null) {
             val seeds = library.seeds()
+            // The rows are: the seeds, then Flags & presets, Generate seed, Quit.
             when {
                 index < seeds.size -> play(seeds[index].rom)
-                index == seeds.size -> startGeneration("SEED%04d".format(System.currentTimeMillis() % 10000))
+                index == seeds.size -> {
+                    flagUi.page = FlagUi.Page.HOME
+                    ui.screen = Screen.FLAGS
+                    compose()
+                }
+                index == seeds.size + 1 ->
+                    startGeneration("SEED%04d".format(System.currentTimeMillis() % 10000))
                 else -> askQuit()
             }
         }
@@ -531,7 +579,26 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     onPadMenuInput = { input ->
         if (ui.screen == Screen.LIBRARY) {
-            if (ui.confirmingQuit) {
+            if (ui.screen == Screen.FLAGS) {
+                when (input) {
+                    PadRouter.MenuInput.UP -> {
+                        flagSelected = (flagSelected - 1).coerceAtLeast(0)
+                        compose()
+                    }
+                    PadRouter.MenuInput.DOWN -> {
+                        flagSelected = (flagSelected + 1).coerceAtMost(flagUi.items().size - 1)
+                        compose()
+                    }
+                    PadRouter.MenuInput.CONFIRM -> flagActivate()
+                    PadRouter.MenuInput.CANCEL -> {
+                        if (flagUi.back() == FlagUi.Action.CLOSE) {
+                            ui.screen = Screen.LIBRARY
+                            libraryModel.reset(libraryItems())
+                        }
+                        compose()
+                    }
+                }
+            } else if (ui.confirmingQuit) {
                 when (input) {
                     PadRouter.MenuInput.UP, PadRouter.MenuInput.DOWN -> {
                         ui.confirmChoice = 1 - ui.confirmChoice
@@ -592,6 +659,17 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         javax.swing.Timer(config.quitAfter * 1000) { quit(0) }.apply { isRepeats = false }.start()
     }
 
+    fun flagItems(): List<Ff4MenuItem> = flagUi.items()
+
+    flagActivate = {
+        if (flagUi.activate(flagSelected) == FlagUi.Action.CLOSE) {
+            ui.screen = Screen.LIBRARY
+            libraryModel.reset(libraryItems())
+        }
+        flagSelected = flagUi.items().coerceSelection(flagSelected)
+        compose()
+    }
+
     panel.addKeyListener(object : KeyAdapter() {
         override fun keyPressed(e: KeyEvent) {
             when (ui.screen) {
@@ -637,7 +715,34 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                         KeyEvent.VK_TAB -> ui.overlay = Overlay.TRACKER
                         KeyEvent.VK_F11 -> { display.toggle(); compose() }
                         KeyEvent.VK_F -> session?.fastForward = true
+                KeyEvent.VK_F5 -> currentRom?.let { open ->
+                    val file = File(config.workDir, "${open.nameWithoutExtension}.slot1.state")
+                    ui.message = if (session?.saveState(file) == true) "state saved" else "could not save the state"
+                }
+                KeyEvent.VK_F9 -> currentRom?.let { open ->
+                    val file = File(config.workDir, "${open.nameWithoutExtension}.slot1.state")
+                    ui.message = if (session?.loadState(file) == true) "state loaded" else "no state in slot 1"
+                }
                         else -> keyToButton(e.keyCode)?.let { session?.setButton(it, true) }
+                    }
+                }
+                Screen.FLAGS -> when (e.keyCode) {
+                    KeyEvent.VK_UP, KeyEvent.VK_W -> {
+                        flagSelected = (flagSelected - 1).coerceAtLeast(0)
+                        compose()
+                    }
+                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> {
+                        flagSelected = (flagSelected + 1).coerceAtMost(flagUi.items().size - 1)
+                        compose()
+                    }
+                    KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> flagActivate()
+                    KeyEvent.VK_ESCAPE -> {
+                        if (flagUi.back() == FlagUi.Action.CLOSE) {
+                            ui.screen = Screen.LIBRARY
+                            libraryModel.reset(libraryItems())
+                        }
+                        flagSelected = flagSelected.coerceAtMost(flagUi.items().size - 1)
+                        compose()
                     }
                 }
                 Screen.GENERATING -> Unit
@@ -759,6 +864,27 @@ private fun exportScreens(out: File, metrics: AwtTextMetrics) {
         )
         canvas.writePng(File(out, "confirm-dialog-$choice.png"))
     }
+    // The flag editor screens, for the same reason as the dialog: to be measured.
+    val flagUi = FlagUi(
+        SpecLoader.uiSpec(Config.from(emptyArray()).uiSpecFile),
+        SpecLoader.presets(Config.from(emptyArray()).presetsFile),
+        FlagsetStore(File("/tmp/ff4shots-library")),
+    )
+    flagUi.openSections()
+    for ((index, name) in listOf("sections" to "flags-sections", "controls" to "flags-controls").withIndex()) {
+        if (index == 1) {
+            flagUi.activate(0)   // enter the first section
+            flagUi.activate(0)   // toggle its first control
+        }
+        canvas.clear(Ff4Palette.BLACK)
+        canvas.draw(
+            renderer.flagScreen(
+                width, height, flagUi.items(), 0,
+                status = flagUi.status(0), hint = flagUi.hint(),
+            ),
+        )
+        canvas.writePng(File(out, "$name.png"))
+    }
     println("wrote screen images to ${out.absolutePath}")
 }
 
@@ -838,7 +964,7 @@ private fun inGameHint(overlay: Overlay, padConnected: Boolean): String = when (
     Overlay.PAUSE -> "Up/Down  Move      Enter  Select      Esc  Close"
     Overlay.TRACKER -> "Left/Right  Page      Tab  Close"
     Overlay.NONE -> buildString {
-        append("Tab  Tracker      Esc  Menu      F11  Window      F  Fast-forward")
+        append("Tab  Tracker   Esc  Menu   F11  Window   F  Fast-forward   F5/F9  Save/Load")
         if (padConnected) append("      Pad: L2 Tracker   R2 Fast-forward")
     }
 }
@@ -1038,6 +1164,20 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
                 KeyEvent.VK_TAB -> ui.overlay = Overlay.TRACKER
                 KeyEvent.VK_F11 -> { display.toggle(); compose() }
                 KeyEvent.VK_F -> session.fastForward = true
+                KeyEvent.VK_F5 -> println(
+                    if (session.saveState(File(config.workDir, "${File(rom).nameWithoutExtension}.slot1.state"))) {
+                        "state saved to slot 1"
+                    } else {
+                        "could not save the state"
+                    },
+                )
+                KeyEvent.VK_F9 -> println(
+                    if (session.loadState(File(config.workDir, "${File(rom).nameWithoutExtension}.slot1.state"))) {
+                        "state loaded from slot 1"
+                    } else {
+                        "no state in slot 1"
+                    },
+                )
                 else -> keyToButton(e.keyCode)?.let { session.setButton(it, true) }
             }
         }

@@ -138,6 +138,64 @@ object Ff4MenuLayout {
         return out
     }
 
+    /**
+     * Emit a menu inside a fixed height, scrolling so the selected row is visible.
+     *
+     * The Android build puts its menus in a ScrollView, which scrolls the selection
+     * into view. The desktop draws rows directly, so without this a long list - the
+     * flag editor's twelve sections, say - ran past the bottom of its window and over
+     * the hint bar. Only rows that fall inside the window are drawn, so nothing
+     * escapes the box, and the scroll follows the cursor.
+     *
+     * Returns the height actually used.
+     */
+    fun emitScrolled(
+        items: List<Ff4MenuItem>,
+        scale: Ff4Scale,
+        metrics: Ff4TextMetrics,
+        widthPx: Float,
+        selected: Int,
+        topPx: Float,
+        leftPx: Float,
+        maxHeightPx: Float,
+        list: Ff4DrawList,
+    ): Float {
+        if (items.isEmpty() || maxHeightPx <= 0f) return 0f
+
+        // Lay everything out relative to zero, then shift when drawing.
+        val layout = rows(items, scale, metrics, widthPx, selected, topPx = 0f, leftPx = leftPx)
+        val total = layout.lastOrNull()?.bounds?.bottom ?: 0f
+        val index = selected.coerceIn(0, layout.lastIndex)
+
+        // Scroll just enough that the selected row is inside the window.
+        val selectedTop = layout[index].bounds.top
+        val selectedBottom = layout[index].bounds.bottom
+        val offset = when {
+            selectedBottom > maxHeightPx -> selectedBottom - maxHeightPx
+            selectedTop < 0f -> 0f
+            else -> 0f
+        }.coerceAtLeast(0f)
+
+        for (row in layout) {
+            val top = row.bounds.top - offset
+            val bottom = row.bounds.bottom - offset
+            // Whole rows only: without a clip op, a half-drawn row would spill out.
+            if (top < 0f || bottom > maxHeightPx) continue
+            emitRow(row, topPx + top, list)
+        }
+        return minOf(total, maxHeightPx)
+    }
+
+    /** Draw one laid-out row at [y], keeping the layout's own positions otherwise. */
+    private fun emitRow(row: Ff4MenuRow, y: Float, list: Ff4DrawList) {
+        val dy = y - row.bounds.top
+        if (row.selected) list.fill(row.bounds.translated(0f, dy), Ff4Palette.BLUE_SELECTED)
+        row.cursor?.let { list.sprite(Ff4Sprite.CURSOR, it.translated(0f, dy)) }
+        list.text(row.label.text, row.label.x, row.label.baselineY + dy, row.label.sizePx, row.label.color)
+        row.subtitle?.let { list.text(it.text, it.x, it.baselineY + dy, it.sizePx, it.color) }
+        row.value?.let { list.text(it.text, it.x, it.baselineY + dy, it.sizePx, it.color, it.align) }
+    }
+
     /** Emit a laid-out menu into [list]: row highlights, the cursor, then the text. */
     fun emit(
         items: List<Ff4MenuItem>,

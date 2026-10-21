@@ -57,7 +57,7 @@ class ScreenRenderer(
         )
 
         val inner = boxes.menu.inset(pad)
-        Ff4MenuLayout.emit(
+        Ff4MenuLayout.emitScrolled(
             items = items,
             scale = scale,
             metrics = metrics,
@@ -65,6 +65,7 @@ class ScreenRenderer(
             selected = selected,
             topPx = inner.top,
             leftPx = inner.left,
+            maxHeightPx = inner.height,
             list = list,
         )
         return list

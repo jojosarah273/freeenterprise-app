@@ -95,6 +95,22 @@ class GameSession(
 
     fun setButton(id: Int, pressed: Boolean) = EmulatorBridge.nativeSetButton(id, pressed)
 
+    /** Save the emulator state to [file]; returns false and says why on failure. */
+    fun saveState(file: File): Boolean {
+        file.parentFile?.mkdirs()
+        return EmulatorBridge.nativeSaveState(file.absolutePath)
+    }
+
+    /** Load an emulator state; the core refuses a state from another core version. */
+    fun loadState(file: File): Boolean =
+        file.isFile && EmulatorBridge.nativeLoadState(file.absolutePath)
+
+    /** Where this seed's states live: beside its battery save. */
+    fun stateFile(romPath: String, slot: Int): File {
+        val name = File(romPath).nameWithoutExtension
+        return File(File(romPath).parentFile, "$name.slot$slot.state")
+    }
+
     /** The picture at native resolution, RGB. */
     fun image(): BufferedImage = frame
 
