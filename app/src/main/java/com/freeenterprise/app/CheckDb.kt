@@ -73,9 +73,17 @@ object CheckDb {
         val byWorld = worldTotal.keys.associateWith { w ->
             (worldOpen[w] ?: 0) to (worldTotal[w] ?: 0)
         }
+        // Most remaining first, because that is the question this list answers: where
+        // should I go next. The previous key, `(total - opened) * 1000 - total`, sorted
+        // ascending and so put the *finished* areas at the top - the opposite of what
+        // the heading above it said.
         val byArea = areaTotal.keys
             .map { a -> Triple(a, areaOpen[a] ?: 0, areaTotal[a] ?: 0) }
-            .sortedBy { (_, openedCount, total) -> (total - openedCount) * 1000 - total }
+            .sortedWith(
+                compareByDescending<Triple<String, Int, Int>> { (_, opened, total) -> total - opened }
+                    .thenByDescending { (_, _, total) -> total }
+                    .thenBy { (area, _, _) -> area },
+            )
         return Progress(opened, checks.size, byWorld, byArea)
     }
 }
