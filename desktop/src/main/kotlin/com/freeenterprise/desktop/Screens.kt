@@ -19,6 +19,9 @@ import com.freeenterprise.ff4.emitTo
  * what is left — comes from [Ff4ScreenLayout] in the core, so it is the same
  * structure the Android app lays out in XML. Only the content differs per screen.
  */
+/** About 80% black: the menus behind stay readable but obviously inactive. */
+private const val SCRIM_COLOR = 0xCC000000.toInt()
+
 class ScreenRenderer(
     private val scale: Ff4Scale,
     private val metrics: AwtTextMetrics,
@@ -176,6 +179,17 @@ class ScreenRenderer(
             }
             y += line
         }
+        return list
+    }
+
+    /**
+     * The dimming layer behind a modal window: translucent black, so whatever is
+     * underneath is still visible but clearly out of play - the same idea as the
+     * overlay the app dims its menus with.
+     */
+    fun scrim(width: Int, height: Int): Ff4DrawList {
+        val list = Ff4DrawList()
+        list.fill(Ff4Rect(0f, 0f, width.toFloat(), height.toFloat()), SCRIM_COLOR)
         return list
     }
 

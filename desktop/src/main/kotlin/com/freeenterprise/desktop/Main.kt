@@ -293,12 +293,27 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     hint = "Up/Down  Move      Enter  Select      Esc  Quit",
                 ),
             )
-            Screen.GENERATING -> canvas.draw(
-                renderer.progressOverlay(
-                    width, height, "GENERATING SEED",
-                    ui.progress.percent, ui.progress.stage, ui.progress.detail.ifBlank { "…" },
-                ),
-            )
+            Screen.GENERATING -> {
+                // The library stays visible underneath, dimmed, as it does on Android:
+                // the modal darkens the screen rather than blacking it out.
+                canvas.draw(
+                    renderer.mainMenu(
+                        width, height, libraryModel.items, libraryModel.selected,
+                        status = listOf(
+                            "Free Enterprise  ${config.baseRom?.name ?: "no base ROM"}",
+                            "generating…",
+                        ),
+                        hint = "Please wait",
+                    ),
+                )
+                canvas.draw(renderer.scrim(width, height))
+                canvas.draw(
+                    renderer.progressOverlay(
+                        width, height, "GENERATING SEED",
+                        ui.progress.percent, ui.progress.stage, ui.progress.detail.ifBlank { "…" },
+                    ),
+                )
+            }
             Screen.PLAYING -> {
                 session?.let {
                     canvas.drawGameFrame(it.image(), gameRect(width, height, it.width, it.height))
@@ -515,6 +530,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                         KeyEvent.VK_ESCAPE -> ui.overlay = Overlay.PAUSE
                         KeyEvent.VK_TAB -> ui.overlay = Overlay.TRACKER
                         KeyEvent.VK_F11 -> { display.toggle(); compose() }
+                        KeyEvent.VK_F -> session?.fastForward = true
                         else -> keyToButton(e.keyCode)?.let { session?.setButton(it, true) }
                     }
                 }
@@ -523,6 +539,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         }
 
         override fun keyReleased(e: KeyEvent) {
+            if (e.keyCode == KeyEvent.VK_F) session?.fastForward = false
             keyToButton(e.keyCode)?.let { session?.setButton(it, false) }
         }
     })
@@ -688,13 +705,13 @@ private fun inGameHint(overlay: Overlay, padConnected: Boolean): String = when (
     Overlay.PAUSE -> "Up/Down  Move      Enter  Select      Esc  Close"
     Overlay.TRACKER -> "Tab  Close      Esc  Close"
     Overlay.NONE -> buildString {
-        append("Tab  Tracker      Esc  Menu      F11  Window")
+        append("Tab  Tracker      Esc  Menu      F11  Window      F  Fast-forward")
         if (padConnected) append("      Pad: L2 Tracker   R2 Fast-forward")
     }
 }
 
 /** The picture surface: the canvas, scaled to whatever size the window is. */
-private fun gamePanel(canvas: SoftwareCanvas) = object : JPanel() {
+internal fun gamePanel(canvas: SoftwareCanvas) = object : JPanel() {
     override fun paintComponent(g: Graphics) {
         val g2 = g as java.awt.Graphics2D
         g2.setRenderingHint(
@@ -703,7 +720,12 @@ private fun gamePanel(canvas: SoftwareCanvas) = object : JPanel() {
         )
         g2.drawImage(canvas.image, 0, 0, width, height, null)
     }
-}.apply { isFocusable = true }
+}.apply {
+    isFocusable = true
+    // Tab is a focus-traversal key by default, so it never reaches a KeyListener.
+    // That is why the tracker shortcut did nothing.
+    setFocusTraversalKeysEnabled(false)
+}
 
 /** A decorated window, so windowed mode has a title bar and a working close button. */
 private fun gameFrame(title: String, panel: JPanel): JFrame = JFrame(title).apply {
@@ -873,11 +895,13 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
                 KeyEvent.VK_ESCAPE -> ui.overlay = Overlay.PAUSE
                 KeyEvent.VK_TAB -> ui.overlay = Overlay.TRACKER
                 KeyEvent.VK_F11 -> { display.toggle(); compose() }
+                KeyEvent.VK_F -> session.fastForward = true
                 else -> keyToButton(e.keyCode)?.let { session.setButton(it, true) }
             }
         }
 
         override fun keyReleased(e: KeyEvent) {
+            if (e.keyCode == KeyEvent.VK_F) session.fastForward = false
             keyToButton(e.keyCode)?.let { session.setButton(it, false) }
         }
     })
