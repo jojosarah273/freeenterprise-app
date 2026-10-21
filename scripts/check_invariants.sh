@@ -52,6 +52,11 @@ has    "$J/UpdateChecker.kt"   'api.github.com'           "release feed is queri
 has    app/src/main/AndroidManifest.xml 'android.permission.INTERNET'              "INTERNET declared"
 has    app/src/main/AndroidManifest.xml 'REQUEST_INSTALL_PACKAGES'                 "install permission declared"
 
+echo "Back never leaves the app by accident"
+has    "$J/ff4ui/FF4MenuActivity.kt" 'menuLayer = key'        "the menu layer is tracked"
+has    "$J/FF4MainActivity.kt"       'menuLayer != "main"'    "back goes up a layer"
+has    "$J/FF4MainActivity.kt"       'confirmQuit'            "and leaving is confirmed"
+
 echo "Key-item tracking"
 has    "$J/FF4GenerateActivity.kt" 'keyItems = Spoiler.keyItemLocations' "generation records key items"
 has    "$J/FF4GenerateActivity.kt" 'RomLibrary.save('                    "generation saves the seed"

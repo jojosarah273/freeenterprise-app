@@ -68,10 +68,18 @@ abstract class FF4MenuActivity : FF4Activity() {
     }
 
     /**
+     * Which layer is on screen. Screens with sub-menus use it to decide what Back
+     * means: going back a layer, never leaving the app by accident.
+     */
+    protected var menuLayer: String = ""
+        private set
+
+    /**
      * Populate the menu, restoring the cursor to the row that previously opened
      * this layer (keyed by [key]) and taking focus.
      */
     protected fun submitMenu(key: String, items: List<FF4Menu.Item>, onActivate: (Int) -> Unit) {
+        menuLayer = key
         val initial = rememberedSelection(key)
         menu.submit(items, initial) { index ->
             selectionMemory[key] = index      // row that leads deeper / was toggled
