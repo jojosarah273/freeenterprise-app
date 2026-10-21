@@ -544,9 +544,6 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     )
                     Overlay.NONE -> Unit
                 }
-                if (hintVisible(ui.overlay, playingSince)) {
-                    canvas.draw(renderer.hintBar(width, height, inGameHint(ui.overlay, gamepad?.connected == true)))
-                }
             }
         }
         panel.repaint()
@@ -595,7 +592,13 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         val loop = Thread {
             try {
                 while (!Thread.currentThread().isInterrupted) {
-                    session?.step()
+                    // Our menus pause the game, exactly as the app's do: a modal window
+                    // over a running game is not what 0.1.25 does.
+                    if (ui.overlay == Overlay.NONE) {
+                        session?.step()
+                    } else {
+                        Thread.sleep(16)
+                    }
                     if (ui.overlay == Overlay.TRACKER) ui.wram = session?.readWram() ?: ByteArray(0x800)
                     // A menu being up means the game must not see the pad.
                     pad.menuOpen = ui.screen != Screen.PLAYING || ui.overlay != Overlay.NONE
@@ -973,7 +976,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                         KeyEvent.VK_ESCAPE -> ui.overlay = Overlay.PAUSE
                         KeyEvent.VK_TAB -> ui.overlay = Overlay.TRACKER
                         KeyEvent.VK_F11 -> { display.toggle(); compose() }
-                        KeyEvent.VK_F -> session?.fastForward = true
+                        KeyEvent.VK_F -> session?.let { it.fastForward = !it.fastForward }
                 KeyEvent.VK_F5 -> currentRom?.let { open ->
                     val file = GameSession.stateFile(open.absolutePath)
                     ui.message = if (session?.saveState(file) == true) "state saved" else "could not save the state"
@@ -1017,7 +1020,6 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         }
 
         override fun keyReleased(e: KeyEvent) {
-            if (e.keyCode == KeyEvent.VK_F) session?.fastForward = false
             keyToButton(e.keyCode)?.let { session?.setButton(it, false) }
         }
     })
@@ -1446,7 +1448,7 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
                 KeyEvent.VK_ESCAPE -> ui.overlay = Overlay.PAUSE
                 KeyEvent.VK_TAB -> ui.overlay = Overlay.TRACKER
                 KeyEvent.VK_F11 -> { display.toggle(); compose() }
-                KeyEvent.VK_F -> session.fastForward = true
+                KeyEvent.VK_F -> session.fastForward = !session.fastForward
                 KeyEvent.VK_F5 -> println(
                     if (session.saveState(GameSession.stateFile(File(rom).absolutePath))) {
                         "state saved beside the seed"
@@ -1466,7 +1468,6 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
         }
 
         override fun keyReleased(e: KeyEvent) {
-            if (e.keyCode == KeyEvent.VK_F) session.fastForward = false
             keyToButton(e.keyCode)?.let { session.setButton(it, false) }
         }
     })
@@ -1490,7 +1491,7 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
     val loop = Thread {
         try {
             while (!Thread.currentThread().isInterrupted) {
-                session.step()
+                if (ui.overlay == Overlay.NONE) session.step() else Thread.sleep(16)
                 if (ui.overlay == Overlay.TRACKER) ui.wram = session.readWram()
                 pad.menuOpen = ui.overlay != Overlay.NONE
                 pad.tick()

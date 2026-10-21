@@ -94,9 +94,17 @@ object SeedMeta {
             val o = JSONObject(file.readText())
             val verification = o.optJSONArray("verification")
                 ?.let { arr -> (0 until arr.length()).map { arr.optString(it) } }.orEmpty()
+            val seed = o.optString("seed")
+            val recorded = o.optString("name")
             Summary(
-                name = o.optString("name").ifBlank { rom.nameWithoutExtension },
-                seed = o.optString("seed"),
+                // Older seeds recorded the file name as their name; the seed is the
+                // identity, so prefer it when the recorded name looks like a file name.
+                name = when {
+                    recorded.isNotBlank() && !recorded.startsWith("FF4FE") -> recorded
+                    seed.isNotBlank() -> seed
+                    else -> rom.nameWithoutExtension
+                },
+                seed = seed,
                 flags = o.optString("flags"),
                 verification = verification,
                 lastPlayed = o.optLong("last_played", o.optLong("created", rom.lastModified())),

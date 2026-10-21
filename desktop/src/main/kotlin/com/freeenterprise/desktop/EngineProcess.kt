@@ -118,7 +118,9 @@ class EngineProcess(
         SeedMeta.write(
             rom,
             SeedMeta.Meta(
-                name = rom.nameWithoutExtension,
+                // The seed is what identifies it, as in the app; the file name is an
+                // implementation detail (FF4FE.<seed>.<binary flags>.smc).
+                name = json.optString("seed", seed).ifBlank { seed },
                 seed = json.optString("seed", seed),
                 flags = json.optString("flags", flags),
                 binaryFlags = json.optString("binary_flags"),

@@ -25,6 +25,12 @@ sealed interface Ff4Op {
 
     /** Draw [sprite] scaled into [rect]. */
     data class Sprite(val sprite: Ff4Sprite, val rect: Ff4Rect) : Ff4Op
+
+    /** Clip everything after this to [rect], the way a ScrollView clips its content. */
+    data class Clip(val rect: Ff4Rect) : Ff4Op
+
+    /** Undo the last clip. */
+    object ResetClip : Ff4Op
 }
 
 /** Horizontal anchoring for a text run. */
@@ -77,6 +83,10 @@ class Ff4DrawList {
     }
 
     fun sprite(sprite: Ff4Sprite, rect: Ff4Rect) { ops.add(Ff4Op.Sprite(sprite, rect)) }
+
+    fun clip(rect: Ff4Rect) { ops.add(Ff4Op.Clip(rect)) }
+
+    fun resetClip() { ops.add(Ff4Op.ResetClip) }
 }
 
 /** A window's chrome, expressed as ops. Draw order is body, border, bevel. */

@@ -172,27 +172,27 @@ object Ff4MenuLayout {
     ): Float {
         if (items.isEmpty() || maxHeightPx <= 0f) return 0f
 
-        // Lay everything out relative to zero, then shift when drawing.
         val layout = rows(items, scale, metrics, widthPx, selected, topPx = 0f, leftPx = leftPx)
         val total = layout.lastOrNull()?.bounds?.bottom ?: 0f
         val index = selected.coerceIn(0, layout.lastIndex)
 
-        // Scroll just enough that the selected row is inside the window.
+        // Scroll the minimum needed to keep the selected row inside the window. The
+        // whole list is then drawn shifted and clipped, so a row that is only partly
+        // visible is cut off at the edge - like the ScrollView the app uses - instead
+        // of being skipped, which used to leave gaps and could hide the selection.
         val selectedTop = layout[index].bounds.top
         val selectedBottom = layout[index].bounds.bottom
-        val offset = when {
-            selectedBottom > maxHeightPx -> selectedBottom - maxHeightPx
-            selectedTop < 0f -> 0f
-            else -> 0f
-        }.coerceAtLeast(0f)
+        val maxOffset = (total - maxHeightPx).coerceAtLeast(0f)
+        val offset = (selectedBottom - maxHeightPx).coerceIn(0f, maxOffset)
 
+        list.clip(Ff4Rect(leftPx - 1f, topPx, leftPx + widthPx + 1f, topPx + maxHeightPx))
         for (row in layout) {
             val top = row.bounds.top - offset
-            val bottom = row.bounds.bottom - offset
-            // Whole rows only: without a clip op, a half-drawn row would spill out.
-            if (top < 0f || bottom > maxHeightPx) continue
+            if (top + (row.bounds.bottom - row.bounds.top) < 0f) continue
+            if (top > maxHeightPx) break
             emitRow(row, topPx + top, list)
         }
+        list.resetClip()
         return minOf(total, maxHeightPx)
     }
 
