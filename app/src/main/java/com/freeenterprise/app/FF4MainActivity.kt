@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import com.freeenterprise.app.ff4ui.FF4Dialog
 import com.freeenterprise.app.ff4ui.FF4Menu
 import com.freeenterprise.app.ff4ui.FF4MenuActivity
 import com.freeenterprise.app.ff4ui.FF4Theme
@@ -165,7 +166,7 @@ class FF4MainActivity : FF4MenuActivity() {
                 1 -> startActivity(Intent(this, FF4GenerateActivity::class.java))
                 2 -> checkForUpdates()
                 3 -> showSettings()
-                4 -> finish()
+                4 -> confirmQuit()
             }
         }
     }
@@ -605,12 +606,30 @@ class FF4MainActivity : FF4MenuActivity() {
         }
     }
 
+    /**
+     * Back means "up a layer", never "out of the app".
+     *
+     * This used to finish() for every layer except settings, so cancelling out of a
+     * finished update check - or any other sub-menu - closed the whole app.
+     */
     override fun onBackRequested(): Boolean {
-        if (inSettings) {
+        if (inSettings || menuLayer != "main") {
             showMainMenu()
             return true
         }
-        finish()
+        confirmQuit()
         return true
+    }
+
+    /** Leaving is deliberate, so it is confirmed - as leaving a game already is. */
+    private fun confirmQuit() {
+        FF4Dialog.confirm(
+            this,
+            "Quit",
+            "Leave Free Enterprise?\nYour seeds, flagsets and saves stay in FF4_FE.",
+            yes = "Quit",
+            no = "Cancel",
+            onYes = { finish() },
+        )
     }
 }
