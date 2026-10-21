@@ -4,237 +4,310 @@ import com.freeenterprise.ff4.Ff4FlagControl
 import com.freeenterprise.ff4.Ff4FlagEditor
 import com.freeenterprise.ff4.Ff4FlagSection
 import com.freeenterprise.ff4.Ff4MenuItem
-import com.freeenterprise.ff4.Ff4MenuLayout
-import com.freeenterprise.ff4.Ff4MenuModel
 import com.freeenterprise.ff4.Ff4Palette
-import com.freeenterprise.ff4.Ff4Rect
-import com.freeenterprise.ff4.Ff4Scale
-import com.freeenterprise.ff4.Ff4ScreenLayout
-import com.freeenterprise.ff4.Ff4WindowChrome
-import com.freeenterprise.ff4.emitTo
+import com.freeenterprise.ff4.Ff4StatusLine
 
 /**
- * The flag editor, over the desktop build's screens: the same structure as the app's
- * FF4 flag editor, driven by the same `ui_spec.json`.
+ * The flag editor, mirroring the app's FF4FlagEditorActivity.
  *
- * Navigation mirrors the app: sections, then a section's controls, with containers
- * opening another level and selects opening their options. Each row shows its state
- * on the right, the way the app's rows do, and the control's description goes in the
- * status box.
+ * Three levels, exactly as the app has them:
+ *
+ *   level 0  categories - one row per section, with a count of what is on
+ *   level 1  a section's controls - A toggles a flag, or opens a selector; a select
+ *            shows its current option and, beneath it, that option's own controls;
+ *            a toggle that is on shows its children the same way
+ *   level 2  a selector's options - A picks one, exclusively, and returns to level 1
+ *
+ * The same rows, values ("ON"/"OFF", an option's name, "none", "(none)"), indents and
+ * hint text as the app, because the two should be the same interface rather than two
+ * takes on it. The app renders HTML in the hint; here the tags are stripped.
+ *
+ * Validation is the engine's: `check_flags` canonicalises the set and runs the same
+ * logic checks the website does, so the status box can say "Flags OK" or how many
+ * logical errors there are. The caller supplies that result through [applyEngine].
  */
 class FlagUi(
     private val sections: List<Ff4FlagSection>,
     private val presets: List<SpecLoader.PresetCategory>,
     private val store: FlagsetStore,
 ) {
+    enum class Mode { CATEGORIES, SECTION, SELECTOR }
+
+    /** What activating a row does. */
+    private sealed class Action {
+        object OpenSection : Action()
+        class Toggle(val flag: String) : Action()
+        class OpenSelector(val control: Ff4FlagControl) : Action()
+        class ChooseOption(val control: Ff4FlagControl, val optionFlag: String) : Action()
+    }
+
+    private data class Row(
+        val title: String,
+        val value: String,
+        val indent: Int,
+        val flag: String?,
+        val description: String?,
+    )
+
     val editor = Ff4FlagEditor(sections)
-    private var loadedPreset = ""
 
-    /** Where we are: the flag home, a section's controls, presets, or saved sets. */
-    enum class Page { HOME, CONTROLS, PRESET_CATEGORIES, PRESET_LIST, FLAGSETS }
+    var mode: Mode = Mode.CATEGORIES
+        private set
+    private var currentSection: Ff4FlagSection? = null
+    private var selectorControl: Ff4FlagControl? = null
 
-    var page: Page = Page.HOME
-    var section: Ff4FlagSection? = null
-    var container: Ff4FlagControl? = null
-    var category: SpecLoader.PresetCategory? = null
+    private var actions: List<Action> = emptyList()
+    private var rows: List<Row> = emptyList()
 
-    /** Controls currently listed: a section's, or a container's children. */
-    private fun currentControls(): List<Ff4FlagControl> =
-        container?.subcontrols ?: section?.controls.orEmpty()
+    /** The engine's answer; the desktop fills these in after each change. */
+    var canonicalFlags: String = ""
+        private set
+    var valid: Boolean = true
+        private set
+    var errors: List<String> = emptyList()
+        private set
 
-    fun items(): List<Ff4MenuItem> = when (page) {
-        Page.HOME -> listOf(
-            Ff4MenuItem("Edit flags"),
-            Ff4MenuItem("Presets", if (presets.isEmpty()) "none" else "${presets.sumOf { it.presets.size }} available"),
-            Ff4MenuItem("My flagsets", "${store.list().size} saved"),
-            Ff4MenuItem("Save these flags", editor.flagsText().ifBlank { "nothing set" }),
-            Ff4MenuItem("Back"),
-        )
-        Page.CONTROLS -> when {
-            section == null -> sections.map { Ff4MenuItem(it.title, "${it.controls.size}") }
-                .plus(Ff4MenuItem("Back"))
-            else -> currentControls().map { control -> row(control) }
-                .plus(Ff4MenuItem("Back"))
-        }
-        Page.PRESET_CATEGORIES -> presets.map { Ff4MenuItem(it.name, "${it.presets.size}") }
+    /** Somewhere else to be: the presets and saved sets pages hang off this. */
+    var extra: Extra? = null
+        private set
+    enum class Extra { PRESET_CATEGORIES, PRESET_LIST, FLAGSETS }
+    private var category: SpecLoader.PresetCategory? = null
+
+    /** The preset or flagset last applied, shown on the generate screen. */
+    var appliedName: String = ""
+        private set
+
+    /** Called after any change, so the caller can compose and re-check. */
+    var onChanged: (() -> Unit)? = null
+
+    // ------------------------------------------------------------------- rows
+
+    fun items(): List<Ff4MenuItem> = when (extra) {
+        Extra.PRESET_CATEGORIES -> presets.map { Ff4MenuItem(it.name, "${it.presets.size}") }
             .plus(Ff4MenuItem("Back"))
-        Page.PRESET_LIST -> (category?.presets ?: emptyList()).map { Ff4MenuItem(it.name, it.description.take(22)) }
+        Extra.PRESET_LIST -> (category?.presets.orEmpty()).map { Ff4MenuItem(it.name, it.description.take(22)) }
             .plus(Ff4MenuItem("Back"))
-        Page.FLAGSETS -> store.list().map { Ff4MenuItem(it.name, it.flags.take(22)) }
+        Extra.FLAGSETS -> store.list().map { Ff4MenuItem(it.name, it.flags.take(22)) }
             .plus(Ff4MenuItem("Back"))
+        null -> rows.map { Ff4MenuItem(it.title, it.value, indent = it.indent) }
     }
 
-    private fun row(control: Ff4FlagControl): Ff4MenuItem {
-        val value = when {
-            control.isContainer -> ">"
-            control.isSelect -> ">"
-            control.isSeparator -> ""
-            editor.isEnabled(control.flag) -> "on"
-            else -> "off"
+    /** The two status lines the app shows: the flagset, and whether it is valid. */
+    fun status(): List<Ff4StatusLine> {
+        val flags = canonicalFlags.ifBlank { editor.flagsText() }
+        val first = Ff4StatusLine(flags.ifBlank { "No flags yet" })
+        val second = if (valid) {
+            Ff4StatusLine(if (flags.isBlank()) "" else "Flags OK", Ff4Palette.GREEN)
+        } else {
+            val firstError = errors.firstOrNull()?.let { " — $it" } ?: ""
+            Ff4StatusLine("${errors.size} logical error(s)$firstError", Ff4Palette.PINK)
         }
-        return Ff4MenuItem(control.title.ifBlank { control.flag }, value, indent = if (control.hard) 1 else 0)
+        return listOf(first, second)
     }
 
-    /** What the status box says: the flagset, or the highlighted control's description. */
-    fun status(selected: Int): List<String> {
-        val flags = editor.flagsText()
-        val summary = if (flags.isBlank()) "No flags yet" else flags
-        if (page != Page.CONTROLS) {
-            val suffix = if (loadedPreset.isBlank()) "" else "  (preset: $loadedPreset)"
-            return listOf(summary.take(58), "loaded:${if (flags.isBlank()) " -" else " ${editor.currentFlagList().size} flags"}$suffix")
+    /** The app's hint, as the lines its three-line hint box shows. */
+    fun hintLines(selected: Int): List<String> {
+        val nav = navigationHint()
+        val row = rows.getOrNull(selected)
+        if (row == null) return listOf(nav)
+        val title = buildString {
+            append(row.title)
+            if (!row.flag.isNullOrBlank()) append("  [").append(row.flag).append("]")
         }
-        if (section == null) {
-            val title = sections.getOrNull(selected)?.title ?: "Sections"
-            return listOf(summary.take(58), "Enter opens $title")
-        }
-        val control = currentControls().getOrNull(selected)
-        val description = control?.description?.let { stripHtml(it) }?.takeIf { it.isNotBlank() }
-        return listOf(summary.take(58), description?.take(58) ?: "Enter toggles, Back returns")
+        val description = row.description?.let { stripHtml(it) }.orEmpty()
+        return listOf(title, description, nav)
     }
 
-    fun hint(): String = when (page) {
-        Page.CONTROLS -> "Up/Down  Move      Enter  Change      Esc  Back"
-        else -> "Up/Down  Move      Enter  Select      Esc  Back"
-    }
-
-    /**
-     * Activate the row at [selected]. Returns what the caller should do: stay, go
-     * back a level, generate a seed, or leave the flag screens.
-     */
-    enum class Action { STAY, BACK, GENERATE, CLOSE }
-
-    fun activate(selected: Int): Action {
-        return when (page) {
-        Page.HOME -> when (selected) {
-            0 -> { page = Page.CONTROLS; section = null; container = null; Action.STAY }
-            1 -> { page = Page.PRESET_CATEGORIES; Action.STAY }
-            2 -> { page = Page.FLAGSETS; Action.STAY }
-            3 -> { saveCurrentFlags(); Action.STAY }
-            else -> Action.CLOSE
-        }
-        Page.CONTROLS -> {
-            if (section == null) {
-                // The section list: enter one, or leave.
-                if (selected >= sections.size) {
-                    back()
-                } else {
-                    section = sections.getOrNull(selected)
-                    container = null
-                }
-                return Action.STAY
+    private fun navigationHint(): String =
+        when (extra) {
+            Extra.PRESET_CATEGORIES, Extra.PRESET_LIST, Extra.FLAGSETS -> "A  Open      B  Back"
+            null -> when (mode) {
+                Mode.CATEGORIES -> "A  Open      B  Exit"
+                Mode.SELECTOR -> "A  Choose      B  Back"
+                Mode.SECTION -> "A  Toggle      B  Back"
             }
-            val controls = currentControls()
-            if (selected == controls.size) {
-                back()
-            } else {
-                controls.getOrNull(selected)?.let { control ->
-                    when {
-                        control.isContainer -> container = control
-                        control.isSelect -> chooseSelectOption(control)
-                        else -> editor.toggle(control.flag)
+        }
+
+    /** The app's hint: the row's title, its flag, its description, then the keys. */
+    fun hint(selected: Int): String {
+        val nav = when (extra) {
+            Extra.PRESET_CATEGORIES, Extra.PRESET_LIST, Extra.FLAGSETS -> "A Open    B Back"
+            null -> when (mode) {
+                Mode.CATEGORIES -> "A Open    B Exit"
+                Mode.SELECTOR -> "A Choose    B Back"
+                Mode.SECTION -> "A Toggle    B Back"
+            }
+        }
+        val row = rows.getOrNull(selected) ?: return nav
+        return buildString {
+            append(row.title)
+            if (!row.flag.isNullOrBlank()) append("  [").append(row.flag).append("]")
+            val description = row.description?.let { stripHtml(it) }
+            if (!description.isNullOrBlank()) append("\n").append(description)
+            append("\n").append(nav)
+        }
+    }
+
+    // ---------------------------------------------------------------- actions
+
+    fun activate(selected: Int) {
+        when (extra) {
+            Extra.PRESET_CATEGORIES -> {
+                if (selected >= presets.size) extra = null
+                else { category = presets.getOrNull(selected); extra = Extra.PRESET_LIST }
+            }
+            Extra.PRESET_LIST -> {
+                val list = category?.presets.orEmpty()
+                if (selected >= list.size) extra = Extra.PRESET_CATEGORIES
+                else list.getOrNull(selected)?.let { applyFlags(it.flags, it.name) }
+            }
+            Extra.FLAGSETS -> {
+                val sets = store.list()
+                if (selected >= sets.size) extra = null
+                else sets.getOrNull(selected)?.let { applyFlags(it.flags, it.name) }
+            }
+            null -> when (mode) {
+                Mode.CATEGORIES -> {
+                    currentSection = sections.getOrNull(selected)
+                    if (currentSection != null) showSection()
+                }
+                Mode.SECTION -> when (val action = actions.getOrNull(selected)) {
+                    is Action.Toggle -> {
+                        editor.toggle(action.flag)
+                        showSection()      // rebuild: children appear and disappear
+                    }
+                    is Action.OpenSelector -> showSelector(action.control)
+                    else -> Unit
+                }
+                Mode.SELECTOR -> {
+                    val action = actions.getOrNull(selected)
+                    if (action is Action.ChooseOption) {
+                        val options = action.control.subcontrols.map { it.flag }
+                        editor.chooseExclusive(options, action.optionFlag)
+                        showSection()
                     }
                 }
-                Action.STAY
             }
         }
-        Page.PRESET_CATEGORIES -> {
-            if (selected == presets.size) {
-                page = Page.HOME
-            } else {
-                category = presets.getOrNull(selected)
-                page = Page.PRESET_LIST
-            }
-            Action.STAY
-        }
-        Page.PRESET_LIST -> {
-            val list = category?.presets.orEmpty()
-            if (selected == list.size) {
-                page = Page.PRESET_CATEGORIES
-            } else {
-                list.getOrNull(selected)?.let { preset ->
-                    editor.clear()
-                    editor.addAll(preset.flags.split(" ").filter { it.isNotBlank() })
-                    loadedPreset = preset.name
-                    page = Page.HOME
-                }
-            }
-            Action.STAY
-        }
-        Page.FLAGSETS -> {
-            val sets = store.list()
-            if (selected == sets.size) {
-                page = Page.HOME
-            } else {
-                sets.getOrNull(selected)?.let { set ->
-                    editor.clear()
-                    editor.addAll(set.flags.split(" ").filter { it.isNotBlank() })
-                    loadedPreset = set.name
-                    page = Page.HOME
-                }
-            }
-            Action.STAY
-        }
-    }
+        onChanged?.invoke()
     }
 
-    /**
-     * A select offers its options as a sub-page. Rather than another page type, the
-     * options are pushed into the current control list by swapping in a synthetic
-     * container, which keeps navigation to the same two keys.
-     */
-    private fun chooseSelectOption(control: Ff4FlagControl) {
-        val options = control.subcontrols.map { it.flag }
-        if (options.isEmpty()) return
-        // Cycle: each press picks the next option, wrapping. Predictable with a d-pad,
-        // and it needs no third navigation key.
-        val current = options.indexOfFirst { editor.isEnabled(it) }
-        editor.chooseExclusive(options, options[(current + 1) % options.size])
-    }
-
-    /** Back one level; true when there is nowhere further up. */
-    fun back(): Action {
-        return when {
-            page == Page.CONTROLS && container != null -> { container = null; Action.STAY }
-            page == Page.CONTROLS && section != null -> { section = null; container = null; Action.STAY }
-            page == Page.CONTROLS -> { page = Page.HOME; Action.STAY }
-            page == Page.PRESET_LIST -> { page = Page.PRESET_CATEGORIES; Action.STAY }
-            page == Page.PRESET_CATEGORIES || page == Page.FLAGSETS -> { page = Page.HOME; Action.STAY }
-            page == Page.HOME -> Action.CLOSE
-            else -> Action.STAY
+    /** Back one level. True when there is nowhere further up. */
+    fun back(): Boolean {
+        when {
+            extra != null -> extra = when (extra) {
+                Extra.PRESET_LIST -> Extra.PRESET_CATEGORIES
+                else -> null
+            }
+            mode == Mode.SELECTOR -> showSection()
+            mode == Mode.SECTION -> showCategories()
+            else -> return true
         }
+        onChanged?.invoke()
+        return false
     }
 
-    /** Sections are entered from the home screen: the first row of CONTROLS lists them. */
-    fun openSections() {
-        page = Page.CONTROLS
-        section = null
-        container = null
-    }
+    /** Open the presets page (from the flags home). */
+    fun openPresets() { extra = Extra.PRESET_CATEGORIES; onChanged?.invoke() }
+    fun openFlagsets() { extra = Extra.FLAGSETS; onChanged?.invoke() }
+    fun closeExtra() { extra = null; onChanged?.invoke() }
 
     fun saveCurrentFlags() {
         val flags = editor.flagsText()
         if (flags.isBlank()) return
-        // Named after its distinguishing flags, since the desktop shell has no text
-        // entry yet: "Kmain Cvanilla" becomes "Kmain+Cvanilla".
-        val name = flags.split(" ").filter { !it.startsWith("-") }.take(2).joinToString("+")
-            .ifBlank { "Flagset" }
+        val name = flags.split(" ").filter { !it.startsWith("-") }.take(2).joinToString("+").ifBlank { "Flagset" }
         store.save(name, flags)
+        onChanged?.invoke()
+    }
+
+    private fun applyFlags(flags: String, name: String = "") {
+        appliedName = name
+        editor.clear()
+        editor.addAll(flags.split(" ").filter { it.isNotBlank() })
+        extra = null
+        showCategories()
+    }
+
+    // ----------------------------------------------------------------- levels
+
+    fun showCategories() {
+        mode = Mode.CATEGORIES
+        currentSection = null
+        selectorControl = null
+        rows = sections.map { Row(it.title, "${enabledCount(it)} on", 0, null, null) }
+        actions = sections.map { Action.OpenSection }
+    }
+
+    private fun showSection() {
+        val section = currentSection ?: return showCategories()
+        mode = Mode.SECTION
+        selectorControl = null
+
+        val newRows = mutableListOf<Row>()
+        val newActions = mutableListOf<Action>()
+
+        fun walk(controls: List<Ff4FlagControl>, indent: Int) {
+            for (control in controls) {
+                if (control.isSeparator) continue
+                if (control.isSelect) {
+                    val current = control.subcontrols.firstOrNull { editor.isEnabled(it.flag) }
+                    newRows += Row(control.title, current?.title ?: "none", indent, null, control.description)
+                    newActions += Action.OpenSelector(control)
+                    // The chosen option carries its own controls; show them, as the app does.
+                    if (current != null) walk(current.subcontrols, indent + 1)
+                    continue
+                }
+                val on = editor.isEnabled(control.flag)
+                newRows += Row(control.title, if (on) "ON" else "OFF", indent, control.flag, control.description)
+                newActions += Action.Toggle(control.flag)
+                if (on && control.subcontrols.isNotEmpty()) walk(control.subcontrols, indent + 1)
+            }
+        }
+        walk(section.controls, 0)
+
+        rows = newRows
+        actions = newActions
+    }
+
+    private fun showSelector(control: Ff4FlagControl) {
+        mode = Mode.SELECTOR
+        selectorControl = control
+
+        val newRows = mutableListOf<Row>()
+        val newActions = mutableListOf<Action>()
+        if (!control.important) {
+            newRows += Row("(none)", if (control.subcontrols.none { editor.isEnabled(it.flag) }) "ON" else "", 0, null, null)
+            newActions += Action.ChooseOption(control, "")
+        }
+        for (option in control.subcontrols) {
+            newRows += Row(option.title, if (editor.isEnabled(option.flag)) "ON" else "", 0, option.flag, option.description)
+            newActions += Action.ChooseOption(control, option.flag)
+        }
+        rows = newRows
+        actions = newActions
+    }
+
+    private fun enabledCount(section: Ff4FlagSection): Int {
+        var count = 0
+        fun walk(controls: List<Ff4FlagControl>) {
+            for (control in controls) {
+                if (!control.isContainer && !control.isSeparator && !control.isSelect && editor.isEnabled(control.flag)) {
+                    count++
+                }
+                if (control.subcontrols.isNotEmpty()) walk(control.subcontrols)
+            }
+        }
+        walk(section.controls)
+        return count
+    }
+
+    /** The engine's canonicalisation and logic check for the current set. */
+    fun applyEngine(canonical: String, isValid: Boolean, errorMessages: List<String>) {
+        canonicalFlags = canonical
+        valid = isValid
+        errors = errorMessages
     }
 
     private fun stripHtml(html: String): String =
         html.replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ").trim()
 }
-
-/**
- * The flag screens, drawn as draw lists: a status box, a scrolling list and a hint.
- * The list is the same widget as every other menu, so the cursor and the highlighting
- * behave identically.
- */
-fun ScreenRenderer.flagScreen(
-    width: Int,
-    height: Int,
-    items: List<Ff4MenuItem>,
-    selected: Int,
-    status: List<String>,
-    hint: String,
-): com.freeenterprise.ff4.Ff4DrawList = mainMenu(width, height, items, selected, status, hint)

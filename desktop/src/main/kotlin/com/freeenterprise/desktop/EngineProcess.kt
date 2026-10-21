@@ -122,6 +122,63 @@ class EngineProcess(
         )
     }
 
+    data class Check(
+        val canonical: String,
+        val binary: String,
+        val valid: Boolean,
+        val errors: List<String>,
+        val warnings: List<String>,
+    )
+
+    /**
+     * Canonicalise a flag list and run the engine's logic checks - the same call the
+     * app's editor makes after every change, so the desktop shows the same readable
+     * flagset and the same errors.
+     */
+    fun checkFlags(flags: String): Check {
+        val command = listOf(
+            python(),
+            bridgeFile.absolutePath,
+            "--ext", engineDir.absolutePath,
+            "check",
+            "--flags", flags,
+        )
+        val process = ProcessBuilder(command).redirectErrorStream(false).start()
+        val output = process.inputStream.bufferedReader().readText()
+        val stderr = process.errorStream.bufferedReader().readText()
+        if (!process.waitFor(90, java.util.concurrent.TimeUnit.SECONDS)) {
+            process.destroyForcibly()
+            throw EngineError("the engine did not answer within 90s")
+        }
+        val json = try {
+            JSONObject(output.trim().lines().last())
+        } catch (e: Exception) {
+            throw EngineError("could not read the engine's reply: ${output.takeLast(200)} ${stderr.takeLast(200)}")
+        }
+        if (json.optString("status") != "ok") {
+            throw EngineError(json.optString("error").ifBlank { "the engine rejected the flags" })
+        }
+        val errors = mutableListOf<String>()
+        val warnings = mutableListOf<String>()
+        json.optJSONArray("log")?.let { log ->
+            for (i in 0 until log.length()) {
+                val entry = log.getJSONObject(i)
+                val message = entry.optString("message")
+                when (entry.optString("severity")) {
+                    "error" -> errors.add(message)
+                    "warning" -> warnings.add(message)
+                }
+            }
+        }
+        return Check(
+            canonical = json.optString("flags"),
+            binary = json.optString("binary_flags"),
+            valid = json.optBoolean("valid", errors.isEmpty()),
+            errors = errors,
+            warnings = warnings,
+        )
+    }
+
     private fun parseProgress(text: String): Progress {
         val lines = text.lines()
         return Progress(

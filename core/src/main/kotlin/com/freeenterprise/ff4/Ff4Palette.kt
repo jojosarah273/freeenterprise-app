@@ -19,3 +19,6 @@ object Ff4Palette {
     const val PINK = 0xFFFF3983.toInt()          // errors
     const val PEACH = 0xFFFF9C5A.toInt()
 }
+
+/** One line in a screen's status box, with its own colour. */
+data class Ff4StatusLine(val text: String, val color: Int = Ff4Palette.WHITE)

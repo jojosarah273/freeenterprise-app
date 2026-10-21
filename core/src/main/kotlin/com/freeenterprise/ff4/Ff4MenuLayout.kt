@@ -91,8 +91,18 @@ object Ff4MenuLayout {
             val isSelected = index == selected
             val labelColor = if (item.enabled) Ff4Palette.WHITE else Ff4Palette.GREY
 
+            // Trim the label so it cannot run into the right-aligned value. The app's
+            // TextView ellipsises inside its weighted column; this is the same thing,
+            // measured with the same metrics.
+            val valueWidth = item.value?.takeIf { it.isNotEmpty() }
+                ?.let { metrics.widthPx(it, labelSize).toFloat() } ?: 0f
+            val labelRoom = if (valueWidth > 0f) {
+                leftPx + widthPx - pad - valueWidth - cursorGap - labelX
+            } else {
+                leftPx + widthPx - pad - labelX
+            }
             val label = Ff4TextRun(
-                text = item.label.toString(),
+                text = ellipsize(item.label.toString(), labelRoom, labelSize, metrics),
                 x = labelX,
                 baselineY = blockTop + metrics.ascentPx(labelSize),
                 sizePx = labelSize,
@@ -184,6 +194,15 @@ object Ff4MenuLayout {
             emitRow(row, topPx + top, list)
         }
         return minOf(total, maxHeightPx)
+    }
+
+    /** Truncate [text] with an ellipsis so it fits [roomPx]. */
+    fun ellipsize(text: String, roomPx: Float, sizePx: Float, metrics: Ff4TextMetrics): String {
+        if (roomPx <= 0f) return ""
+        if (metrics.widthPx(text, sizePx) <= roomPx) return text
+        var end = text.length
+        while (end > 1 && metrics.widthPx(text.substring(0, end) + "...", sizePx) > roomPx) end--
+        return text.substring(0, end) + "..."
     }
 
     /** Draw one laid-out row at [y], keeping the layout's own positions otherwise. */

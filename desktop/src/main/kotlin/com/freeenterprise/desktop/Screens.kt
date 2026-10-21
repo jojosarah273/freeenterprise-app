@@ -34,7 +34,7 @@ class ScreenRenderer(
         height: Int,
         items: List<Ff4MenuItem>,
         selected: Int,
-        status: List<String>,
+        status: List<com.freeenterprise.ff4.Ff4StatusLine>,
         hint: String,
     ): Ff4DrawList {
         val list = Ff4DrawList()
@@ -44,7 +44,7 @@ class ScreenRenderer(
 
         var statusBaseline = boxes.status.top + pad + metrics.ascentPx(scale.textSmallPx)
         for (line in status) {
-            list.text(line, boxes.status.left + pad, statusBaseline, scale.textSmallPx, Ff4Palette.WHITE)
+            list.text(line.text, boxes.status.left + pad, statusBaseline, scale.textSmallPx, line.color)
             statusBaseline += metrics.lineHeightPx(scale.textSmallPx)
         }
 
@@ -87,20 +87,38 @@ class ScreenRenderer(
      * Tab opens the tracker. Same height as the app's hint box, from the same core
      * layout, so the two interfaces agree.
      */
-    fun hintBar(width: Int, height: Int, text: String): Ff4DrawList {
+    fun hintBar(width: Int, height: Int, text: String): Ff4DrawList = hintBox(width, height, listOf(text))
+
+    /**
+     * The hint box, holding one to three lines - the app's editor uses three (the
+     * control's title and flag, its description, and the keys), and the box grows to
+     * fit rather than letting the text run out of it.
+     */
+    fun hintBox(width: Int, height: Int, lines: List<String>): Ff4DrawList {
         val list = Ff4DrawList()
         val inset = Ff4ScreenLayout.defaultEdgeInsetPx(scale)
-        val boxHeight = Ff4ScreenLayout.hintHeightPx(scale, metrics)
+        val lineHeight = metrics.lineHeightPx(scale.textSmallPx)
+        val shown = lines.filter { it.isNotBlank() }.take(3)
+        val boxHeight = (lineHeight * maxOf(1, shown.size) + scale.contentPaddingPx * 2).toFloat()
         val box = Ff4Rect(inset, height - inset - boxHeight, width - inset, height - inset)
         Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
-        list.text(
-            text,
-            box.left + pad,
-            box.top + pad + metrics.ascentPx(scale.textSmallPx),
-            scale.textSmallPx,
-            Ff4Palette.WHITE,
-        )
+
+        // Trim to what fits, so nothing runs past the window.
+        val available = box.width - pad * 2
+        var y = box.top + pad + metrics.ascentPx(scale.textSmallPx)
+        for (line in shown) {
+            list.text(fit(line, available), box.left + pad, y, scale.textSmallPx, Ff4Palette.WHITE)
+            y += lineHeight
+        }
         return list
+    }
+
+    /** Truncate [text] so its rendered width fits [available]. */
+    private fun fit(text: String, available: Float): String {
+        if (metrics.widthPx(text, scale.textSmallPx) <= available) return text
+        var end = text.length
+        while (end > 1 && metrics.widthPx(text.substring(0, end) + "…", scale.textSmallPx) > available) end--
+        return text.substring(0, end) + "..."
     }
 
     /** A paused-game menu: the same list widget, in a window over the picture. */

@@ -7,6 +7,7 @@ import com.freeenterprise.ff4.Ff4MenuModel
 import com.freeenterprise.ff4.Ff4Palette
 import com.freeenterprise.ff4.Ff4Scale
 import com.freeenterprise.ff4.Ff4Spoiler
+import com.freeenterprise.ff4.Ff4StatusLine
 import java.awt.Graphics
 import java.awt.Toolkit
 import java.awt.event.KeyAdapter
@@ -200,7 +201,7 @@ private fun findNativeDir(config: Config): File {
 
 // ------------------------------------------------------------------ the app loop
 
-private enum class Screen { LIBRARY, FLAGS, GENERATING, PLAYING }
+private enum class Screen { LIBRARY, FLAGS, EDITOR, GENERATING, PLAYING }
 private enum class Overlay { NONE, PAUSE, TRACKER }
 
 /** Intent published by the UI thread and consumed by whichever worker is running. */
@@ -308,6 +309,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     var playingSince = 0L
     val libraryModel = Ff4MenuModel(emptyList())
     var flagSelected = 0
+    var editorSelected = 0
+    var seedName = ""
     val pauseModel = Ff4MenuModel(pauseItems())
     val gameLoop = arrayOfNulls<Thread>(1)
 
@@ -335,6 +338,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     // cycle; they are assigned once everything exists.
     lateinit var activateLibraryRow: () -> Unit
     lateinit var flagActivate: () -> Unit
+    lateinit var scheduleCheck: () -> Unit
+    var pendingCheck = 0
     lateinit var onPadShortcut: (PadRouter.PadShortcut) -> Unit
     lateinit var onPadMenuInput: (PadRouter.MenuInput) -> Unit
     lateinit var quit: (Int) -> Unit
@@ -349,11 +354,19 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     val panel = gamePanel(canvas)
 
+    /** The app's Generate screen: preset, flags, seed, generate, back. */
+    fun generateMenuItems(): List<Ff4MenuItem> = listOf(
+        Ff4MenuItem("Choose Preset", flagUi.appliedName),
+        Ff4MenuItem("Choose Flags", if (flagUi.editor.flagsText().isBlank()) "none set" else ""),
+        Ff4MenuItem("Seed", seedName.ifBlank { "random" }),
+        Ff4MenuItem("Generate Seed", if (!flagUi.valid) "fix errors" else ""),
+        Ff4MenuItem("Back"),
+    )
+
     fun libraryItems(): List<Ff4MenuItem> {
         val seeds = library.seeds()
         val rows = seeds.map { Ff4MenuItem(it.name, it.detail) }.toMutableList()
-        rows.add(Ff4MenuItem("Flags & presets", flagUi.editor.flagsText().take(22).ifBlank { "none set" }))
-        rows.add(Ff4MenuItem("Generate seed", if (config.baseRom == null) "no base ROM" else "20 seconds or so"))
+        rows.add(Ff4MenuItem("Generate Seed", if (config.baseRom == null) "no base ROM" else "choose flags, then generate"))
         rows.add(Ff4MenuItem("Quit"))
         return rows
     }
@@ -366,8 +379,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     renderer.mainMenu(
                         width, height, libraryModel.items, libraryModel.selected,
                         status = listOf(
-                            "Free Enterprise  ${config.baseRom?.name ?: "no base ROM"}",
-                            ui.message.ifBlank { "${library.seeds().size} seed(s)  ·  ${ui.padStatus}" },
+                            Ff4StatusLine("Free Enterprise  ${config.baseRom?.name ?: "no base ROM"}"),
+                            Ff4StatusLine(ui.message.ifBlank { "${library.seeds().size} seed(s)  ·  ${ui.padStatus}" }),
                         ),
                         hint = "Up/Down  Move      Enter  Select      Esc  Quit",
                     ),
@@ -386,12 +399,22 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 }
             }
             Screen.FLAGS -> canvas.draw(
-                renderer.flagScreen(
-                    width, height, flagUi.items(), flagSelected,
-                    status = flagUi.status(flagSelected),
-                    hint = flagUi.hint(),
+                renderer.mainMenu(
+                    width, height, generateMenuItems(), flagSelected,
+                    status = flagUi.status(),
+                    hint = "A  Select      B  Back",
                 ),
             )
+            Screen.EDITOR -> {
+                canvas.draw(
+                    renderer.mainMenu(
+                        width, height, flagUi.items(), editorSelected,
+                        status = flagUi.status(),
+                        hint = "",
+                    ),
+                )
+                canvas.draw(renderer.hintBox(width, height, flagUi.hintLines(editorSelected)))
+            }
             Screen.GENERATING -> {
                 // The library stays visible underneath, dimmed, as it does on Android:
                 // the modal darkens the screen rather than blacking it out.
@@ -399,8 +422,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     renderer.mainMenu(
                         width, height, libraryModel.items, libraryModel.selected,
                         status = listOf(
-                            "Free Enterprise  ${config.baseRom?.name ?: "no base ROM"}",
-                            "generating…",
+                            Ff4StatusLine("Free Enterprise  ${config.baseRom?.name ?: "no base ROM"}"),
+                            Ff4StatusLine("generating…"),
                         ),
                         hint = "Please wait",
                     ),
@@ -514,7 +537,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         val worker = Thread {
             try {
                 val result = EngineProcess(engine, bridge, baseRom, File(config.workDir, "cache"))
-                    .generate(seedName, flagUi.editor.flagsText(), config.libraryDir, File(config.workDir, "progress.txt")) {
+                    .generate(seedName, flagUi.canonicalFlags.ifBlank { flagUi.editor.flagsText() }, config.libraryDir, File(config.workDir, "progress.txt")) {
                         ui.progress = it
                         compose()
                     }
@@ -536,13 +559,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             // The rows are: the seeds, then Flags & presets, Generate seed, Quit.
             when {
                 index < seeds.size -> play(seeds[index].rom)
-                index == seeds.size -> {
-                    flagUi.page = FlagUi.Page.HOME
-                    ui.screen = Screen.FLAGS
-                    compose()
-                }
-                index == seeds.size + 1 ->
-                    startGeneration("SEED%04d".format(System.currentTimeMillis() % 10000))
+                index == seeds.size -> { ui.screen = Screen.FLAGS; compose() }
                 else -> askQuit()
             }
         }
@@ -591,10 +608,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     }
                     PadRouter.MenuInput.CONFIRM -> flagActivate()
                     PadRouter.MenuInput.CANCEL -> {
-                        if (flagUi.back() == FlagUi.Action.CLOSE) {
-                            ui.screen = Screen.LIBRARY
-                            libraryModel.reset(libraryItems())
-                        }
+                        if (flagUi.back()) { ui.screen = Screen.FLAGS; flagSelected = 0 }
+                        editorSelected = flagUi.items().coerceSelection(editorSelected)
                         compose()
                     }
                 }
@@ -661,13 +676,53 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     fun flagItems(): List<Ff4MenuItem> = flagUi.items()
 
-    flagActivate = {
-        if (flagUi.activate(flagSelected) == FlagUi.Action.CLOSE) {
-            ui.screen = Screen.LIBRARY
-            libraryModel.reset(libraryItems())
+    /** The generate screen's rows, mirroring the app's Generate screen. */
+    fun generateActivate() {
+        when (flagSelected) {
+            0 -> { flagUi.openPresets(); ui.screen = Screen.EDITOR; editorSelected = 0 }
+            1 -> { flagUi.showCategories(); ui.screen = Screen.EDITOR; editorSelected = 0 }
+            2 -> seedName = "SEED%04d".format(System.currentTimeMillis() % 10000)
+            3 -> {
+                startGeneration(seedName.ifBlank { "SEED%04d".format(System.currentTimeMillis() % 10000) })
+                return
+            }
+            else -> { ui.screen = Screen.LIBRARY; libraryModel.reset(libraryItems()) }
         }
-        flagSelected = flagUi.items().coerceSelection(flagSelected)
         compose()
+    }
+
+    /** The flag editor: three levels, exactly as the app's editor. */
+    flagActivate = {
+        flagUi.activate(editorSelected)
+        scheduleCheck()
+        editorSelected = flagUi.items().coerceSelection(editorSelected)
+        compose()
+    }
+
+    /**
+     * Canonicalise and validate after a change, off the UI thread: the engine's answer
+     * is what the app shows in its status box ("Flags OK" or the number of logical
+     * errors), and it is also what gets generated.
+     */
+    scheduleCheck = {
+        val engine = config.engineDir
+        val bridge = config.bridgeFile
+        if (engine != null && bridge != null) {
+        pendingCheck += 1
+        val token = pendingCheck
+        Thread {
+            Thread.sleep(250)
+            if (token != pendingCheck) return@Thread      // superseded by a newer edit
+            try {
+                val result = EngineProcess(engine, bridge, config.baseRom ?: File("none"), File(config.workDir, "cache"))
+                    .checkFlags(flagUi.editor.flagsText())
+                flagUi.applyEngine(result.canonical, result.valid, result.errors)
+            } catch (t: Throwable) {
+                flagUi.applyEngine(flagUi.editor.flagsText(), false, listOf(t.message ?: "check failed"))
+            }
+            compose()
+        }.apply { isDaemon = true }.start()
+        }
     }
 
     panel.addKeyListener(object : KeyAdapter() {
@@ -727,21 +782,18 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     }
                 }
                 Screen.FLAGS -> when (e.keyCode) {
-                    KeyEvent.VK_UP, KeyEvent.VK_W -> {
-                        flagSelected = (flagSelected - 1).coerceAtLeast(0)
-                        compose()
-                    }
-                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> {
-                        flagSelected = (flagSelected + 1).coerceAtMost(flagUi.items().size - 1)
-                        compose()
-                    }
+                    KeyEvent.VK_UP, KeyEvent.VK_W -> { flagSelected = (flagSelected - 1).coerceAtLeast(0); compose() }
+                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> { flagSelected = (flagSelected + 1).coerceAtMost(generateMenuItems().size - 1); compose() }
+                    KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> generateActivate()
+                    KeyEvent.VK_ESCAPE -> { ui.screen = Screen.LIBRARY; libraryModel.reset(libraryItems()); compose() }
+                }
+                Screen.EDITOR -> when (e.keyCode) {
+                    KeyEvent.VK_UP, KeyEvent.VK_W -> { editorSelected = (editorSelected - 1).coerceAtLeast(0); compose() }
+                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> { editorSelected = (editorSelected + 1).coerceAtMost(flagUi.items().size - 1); compose() }
                     KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> flagActivate()
                     KeyEvent.VK_ESCAPE -> {
-                        if (flagUi.back() == FlagUi.Action.CLOSE) {
-                            ui.screen = Screen.LIBRARY
-                            libraryModel.reset(libraryItems())
-                        }
-                        flagSelected = flagSelected.coerceAtMost(flagUi.items().size - 1)
+                        if (flagUi.back()) { ui.screen = Screen.FLAGS; flagSelected = 0 }
+                        editorSelected = flagUi.items().coerceSelection(editorSelected)
                         compose()
                     }
                 }
@@ -827,7 +879,10 @@ private fun exportScreens(out: File, metrics: AwtTextMetrics) {
         canvas.draw(
             renderer.mainMenu(
                 width, height, menuItems(), selected,
-                status = listOf("Free Enterprise 4.7.0.Gale", "3 seed(s) ready"),
+                status = listOf(
+                    Ff4StatusLine("Free Enterprise 4.7.0.Gale"),
+                    Ff4StatusLine("3 seed(s) ready"),
+                ),
                 hint = "A  Select      B  Exit",
             ),
         )
@@ -848,7 +903,10 @@ private fun exportScreens(out: File, metrics: AwtTextMetrics) {
         canvas.draw(
             renderer.mainMenu(
                 width, height, menuItems(), 0,
-                status = listOf("Free Enterprise 4.7.0.Gale", "3 seed(s) ready"),
+                status = listOf(
+                    Ff4StatusLine("Free Enterprise 4.7.0.Gale"),
+                    Ff4StatusLine("3 seed(s) ready"),
+                ),
                 hint = "A  Select      B  Exit",
             ),
         )
@@ -870,19 +928,29 @@ private fun exportScreens(out: File, metrics: AwtTextMetrics) {
         SpecLoader.presets(Config.from(emptyArray()).presetsFile),
         FlagsetStore(File("/tmp/ff4shots-library")),
     )
-    flagUi.openSections()
-    for ((index, name) in listOf("sections" to "flags-sections", "controls" to "flags-controls").withIndex()) {
-        if (index == 1) {
-            flagUi.activate(0)   // enter the first section
-            flagUi.activate(0)   // toggle its first control
+    flagUi.showCategories()
+    for ((index, name) in listOf("flags-categories", "flags-section", "flags-selector").withIndex()) {
+        if (index == 1) flagUi.activate(0)                       // open the first section
+        if (index == 2) {
+            // Walk the sections until one has a selector ("none" means no option chosen),
+            // so level 2 is genuinely rendered rather than re-rendering level 1.
+            var found = false
+            for (section in 0 until flagUi.items().size) {
+                flagUi.showCategories()
+                flagUi.activate(section)
+                val selector = flagUi.items().indexOfFirst { it.value == "none" }
+                if (selector >= 0) { flagUi.activate(selector); found = true; break }
+            }
+            if (!found) flagUi.showCategories()
         }
         canvas.clear(Ff4Palette.BLACK)
         canvas.draw(
-            renderer.flagScreen(
+            renderer.mainMenu(
                 width, height, flagUi.items(), 0,
-                status = flagUi.status(0), hint = flagUi.hint(),
+                status = flagUi.status(), hint = "",
             ),
         )
+        canvas.draw(renderer.hintBox(width, height, flagUi.hintLines(0)))
         canvas.writePng(File(out, "$name.png"))
     }
     println("wrote screen images to ${out.absolutePath}")
