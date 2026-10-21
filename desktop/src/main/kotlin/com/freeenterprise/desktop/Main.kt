@@ -225,6 +225,11 @@ private class UiState {
     /** Polled on the UI thread, read by the emulator loop. */
     @Volatile var padMask: Int = 0
     @Volatile var padStatus: String = "pad: none (keyboard)"
+    /** A modal question (Reset core, Exit to sessions), and what yes does. */
+    @Volatile var confirmTitle: String? = null
+    @Volatile var confirmMessage: String = ""
+    @Volatile var confirmYes: String = "Yes"
+    var confirmAction: (() -> Unit)? = null
 }
 
 /**
@@ -358,7 +363,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     var selectedSeed: File? = null
     /** A modal text field; while it is up it owns the keyboard. */
     var textInput: TextInput? = null
-    val pauseModel = Ff4MenuModel(pauseItems())
+    val pauseModel = Ff4MenuModel(pauseItems(false, false))
     val gameLoop = arrayOfNulls<Thread>(1)
 
     // The controller, if the machine has one. SDL wants its event calls on the main
@@ -580,6 +585,15 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 renderer.textInput(width, height, input.title, input.prompt, input.value),
             )
         }
+        ui.confirmTitle?.let { title ->
+            canvas.draw(renderer.scrim(width, height))
+            canvas.draw(
+                renderer.confirmDialog(
+                    width, height, title, ui.confirmMessage,
+                    listOf(ui.confirmYes, "Cancel"), ui.confirmChoice,
+                ),
+            )
+        }
         panel.repaint()
     }
 
@@ -610,7 +624,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     fun play(rom: File) {
         stopGame()
         try {
-            session = GameSession(rom.absolutePath, findNativeDir(config), config.workDir)
+            session = GameSession(rom.absoluteFile.path, findNativeDir(config), config.workDir)
         } catch (t: Throwable) {
             ui.message = "could not start ${rom.name}: ${t.message}"
             ui.screen = Screen.LIBRARY
@@ -704,6 +718,64 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             ui.confirmingQuit = false
             compose()
         }
+    }
+
+    /** Opening the pause menu refreshes its values, as the app does. */
+    fun openPause() {
+        val state = currentRom?.let { GameSession.stateFile(it.absolutePath) }
+        pauseModel.reset(pauseItems(state?.isFile == true, session?.fastForward == true), 0)
+        ui.overlay = Overlay.PAUSE
+        compose()
+    }
+
+    /** The app's pause menu rows and what each does. */
+    fun pauseActivate(index: Int) {
+        val rom = currentRom
+        when (index) {
+            0 -> ui.overlay = Overlay.NONE
+            1 -> {
+                // Save, then return to the game - as the app does.
+                if (rom != null && session?.saveState(GameSession.stateFile(rom.absolutePath)) == true) {
+                    ui.message = "state saved"
+                }
+                ui.overlay = Overlay.NONE
+            }
+            2 -> {
+                if (rom != null && session?.loadState(GameSession.stateFile(rom.absolutePath)) == true) {
+                    ui.message = "state loaded"
+                }
+                ui.overlay = Overlay.NONE
+            }
+            3 -> {
+                // Toggle and redraw the menu so the row shows on/off, as the app does.
+                session?.let { it.fastForward = !it.fastForward }
+                pauseModel.reset(pauseItems(
+                    currentRom?.let { GameSession.stateFile(it.absolutePath).isFile } == true,
+                    session?.fastForward == true,
+                ), 3)
+            }
+            4 -> { ui.overlay = Overlay.TRACKER }
+            5 -> {
+                ui.confirmTitle = "Reset core"
+                ui.confirmMessage = "Reset the emulator?\nUnsaved progress since the last save state is lost."
+                ui.confirmYes = "Reset"
+                ui.confirmChoice = 1
+                ui.confirmAction = {
+                    ui.overlay = Overlay.NONE
+                    currentRom?.let { play(it) }
+                }
+                return
+            }
+            6 -> {
+                ui.confirmTitle = "Exit to sessions"
+                ui.confirmMessage = "Leave the game?\nYour battery save is written to FF4_FE first."
+                ui.confirmYes = "Exit"
+                ui.confirmChoice = 1
+                ui.confirmAction = { openLibrary() }
+                return
+            }
+        }
+        compose()
     }
 
     /** Leaving is deliberate, so it is asked about - as leaving a game is. */
@@ -979,6 +1051,29 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 compose()
                 return
             }
+            // A question owns the keyboard while it is up.
+            if (ui.confirmTitle != null) {
+                when (e.keyCode) {
+                    KeyEvent.VK_UP, KeyEvent.VK_W, KeyEvent.VK_DOWN, KeyEvent.VK_S -> {
+                        ui.confirmChoice = 1 - ui.confirmChoice
+                        compose()
+                    }
+                    KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> {
+                        val action = ui.confirmAction
+                        val yes = ui.confirmChoice == 0
+                        ui.confirmTitle = null
+                        ui.confirmAction = null
+                        if (yes) action?.invoke()
+                        compose()
+                    }
+                    KeyEvent.VK_ESCAPE -> {
+                        ui.confirmTitle = null
+                        ui.confirmAction = null
+                        compose()
+                    }
+                }
+                return
+            }
             // A text field owns the keyboard while it is up: typing must not also
             // move the menu underneath.
             textInput?.let { input ->
@@ -1050,7 +1145,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                         return
                     }
                     when (e.keyCode) {
-                        KeyEvent.VK_ESCAPE -> ui.overlay = Overlay.PAUSE
+                        KeyEvent.VK_ESCAPE -> openPause()
                         KeyEvent.VK_TAB -> ui.overlay = Overlay.TRACKER
                         KeyEvent.VK_F11 -> { display.toggle(); compose() }
                         KeyEvent.VK_F -> session?.let { it.fastForward = !it.fastForward }
@@ -1127,7 +1222,7 @@ private fun runGenerateHeadless(config: Config, metrics: AwtTextMetrics) {
 /** Runs a ROM headlessly and writes the game, pause and tracker screens. */
 private fun runRomHeadless(config: Config, metrics: AwtTextMetrics) {
     val rom = config.rom ?: error("no ROM")
-    val session = GameSession(rom, findNativeDir(config), config.workDir)
+    val session = GameSession(resolveRom(config, rom).absoluteFile.path, findNativeDir(config), config.workDir)
     try {
         repeat(maxOf(config.frames, 1)) { session.step() }
 
@@ -1145,7 +1240,7 @@ private fun runRomHeadless(config: Config, metrics: AwtTextMetrics) {
             canvas.clear(Ff4Palette.BLACK)
             canvas.drawGameFrame(session.image(), picture)
             when (variant) {
-                "game-pause" -> canvas.draw(renderer.pauseMenu(width, height, pauseItems(), 0, "PAUSED"))
+                "game-pause" -> canvas.draw(renderer.pauseMenu(width, height, pauseItems(false, false), 0, "PAUSED"))
                 "game-tracker" -> canvas.draw(
                     renderer.tracker(width, height, 0, wram, spoilerLocationsFor(File(rom)), loadChecks(config.checksFile)),
                 )
@@ -1258,11 +1353,19 @@ private fun menuItems() = listOf(
     Ff4MenuItem("Exit"),
 )
 
-private fun pauseItems() = listOf(
+/**
+ * The app's pause menu: Resume, Save State, Load State (disabled when there is none),
+ * Fast-forward (showing on/off), Checks tracker, Reset Core, Exit to sessions.
+ * Built when the menu opens so the values are current.
+ */
+private fun pauseItems(hasState: Boolean, fastForward: Boolean) = listOf(
     Ff4MenuItem("Resume"),
-    Ff4MenuItem("Tracker", "Tab"),
-    Ff4MenuItem("Save state", "F5"),
-    Ff4MenuItem("Exit to library", "Esc"),
+    Ff4MenuItem("Save State"),
+    Ff4MenuItem("Load State", if (hasState) "load" else "none", enabled = hasState),
+    Ff4MenuItem("Fast-forward", if (fastForward) "on" else "off"),
+    Ff4MenuItem("Checks tracker", "Tab"),
+    Ff4MenuItem("Reset Core"),
+    Ff4MenuItem("Exit to sessions"),
 )
 
 private fun keyToButton(code: Int): Int? = when (code) {
@@ -1339,6 +1442,21 @@ private class TextInput(
     val onAccept: (String) -> Unit,
 )
 
+/**
+ * Find a seed by name: beside the working directory first, then in FF4_FE, then by
+ * bare file name in FF4_FE - the app's seeds live there, so `--rom PLAINNAME.smc`
+ * should find one.
+ */
+private fun resolveRom(config: Config, path: String): File {
+    val direct = File(path)
+    if (direct.isFile) return direct
+    val inLibrary = File(config.libraryDir, path)
+    if (inLibrary.isFile) return inLibrary
+    val byName = File(config.libraryDir, direct.name)
+    if (byName.isFile) return byName
+    return direct
+}
+
 /** The picture surface: the canvas, scaled to whatever size the window is. */
 internal fun gamePanel(canvas: SoftwareCanvas) = object : JPanel() {
     override fun paintComponent(g: Graphics) {
@@ -1401,12 +1519,12 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
     val canvas = SoftwareCanvas(width, height, metrics, shadowOffsetPx = scale.unit * 0.5f)
 
     println("loading $rom")
-    val session = GameSession(rom, findNativeDir(config), config.workDir)
+    val session = GameSession(resolveRom(config, rom).absoluteFile.path, findNativeDir(config), config.workDir)
     val checks = loadChecks(config.checksFile)
     val trackerLocations = spoilerLocationsFor(File(rom))
     val playingSince = System.currentTimeMillis()
     var lastHint = false
-    val pause = Ff4MenuModel(pauseItems())
+    val pause = Ff4MenuModel(pauseItems(false, false))
     val ui = UiState()
     val gamepad = if (config.fakePad) null else Gamepad(findNativeDir(config))
     val padStartedAt = System.currentTimeMillis()

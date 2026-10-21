@@ -97,8 +97,23 @@ class EngineProcess(
             throw EngineError(json.optString("error").ifBlank { "generation failed" })
         }
         val path = json.optString("path").ifBlank { json.optString("file_name") }
-        val rom = File(path)
-        if (!rom.isFile) throw EngineError("the engine reported success but wrote no ROM: $path")
+        val produced = File(path)
+        if (!produced.isFile) throw EngineError("the engine reported success but wrote no ROM: $path")
+
+        // The engine names its output FF4FE.<seed>.<binary flags>.smc. The app stores
+        // seeds as <name>.smc, so the library reads clearly and the flags live in the
+        // metadata instead of the file name.
+        val clean = sanitizeName(json.optString("seed", seed))
+        var rom = File(outDir, clean + ".smc")
+        var suffix = 2
+        while (rom.exists() && rom.absolutePath != produced.absolutePath) {
+            rom = File(outDir, "$clean ($suffix).smc")
+            suffix++
+        }
+        if (produced.absolutePath != rom.absolutePath) {
+            produced.copyTo(rom, overwrite = false)
+            produced.delete()
+        }
 
         // Keep the spoiler next to the ROM. The app does the same, and the tracker
         // needs it to say *where* a check is without saying which item is there.
@@ -120,7 +135,7 @@ class EngineProcess(
             SeedMeta.Meta(
                 // The seed is what identifies it, as in the app; the file name is an
                 // implementation detail (FF4FE.<seed>.<binary flags>.smc).
-                name = json.optString("seed", seed).ifBlank { seed },
+                name = rom.nameWithoutExtension,
                 seed = json.optString("seed", seed),
                 flags = json.optString("flags", flags),
                 binaryFlags = json.optString("binary_flags"),
@@ -216,6 +231,12 @@ class EngineProcess(
             errors = errors,
             warnings = warnings,
         )
+    }
+
+    /** Anything a file name should not contain becomes a space. */
+    private fun sanitizeName(raw: String): String {
+        val cleaned = raw.replace(Regex("[^A-Za-z0-9 _.-]"), " ").replace(Regex("\\s+"), " ").trim()
+        return cleaned.ifBlank { "seed" }
     }
 
     private fun parseProgress(text: String): Progress {

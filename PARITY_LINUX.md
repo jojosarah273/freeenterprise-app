@@ -17,7 +17,12 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 | Fast-forward is a **toggle** (menu row on/off, and R2) | `F` and `R2` now toggle | same |
 | Save state + load state | `F5` / `F9`, one state per seed | same |
 | Battery save written beside the ROM | `<name>.srm` beside the ROM | same |
-| Pause menu rows: Resume, Save State, Load State, Fast-forward, Checks tracker, Reset Core, Exit to sessions | Resume, Tracker, Save state, Exit to library | differs (rows) |
+| Pause menu rows: Resume, Save State, Load State, Fast-forward, Checks tracker, Reset Core, Exit to sessions | the same seven rows, same values ("none" greyed, "off"/"on") | same |
+| Save State saves, then returns to the game | same | same |
+| Load State present, disabled when there is none | same | same |
+| Fast-forward toggled from the menu (row shows on/off) | same | same |
+| Reset Core, confirmed | same, confirmed | same |
+| Exit to sessions, confirmed ("Leave the game? Your battery save is written to FF4_FE first.") | same, same wording | same |
 | On-screen pad (touch), PAD toggle | none (desktop has no touch; controller + keyboard) | n/a |
 | Tracker: key-item page then checks page, L2 opens | Two pages, `Tab` opens, Left/Right pages | same |
 | Exit asks first | Exit asks first | same |
@@ -45,7 +50,8 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 
 | Android 0.1.25 | Linux | State |
 | --- | --- | --- |
-| Row label is the seed's name | the seed's name (fixed: was the file name) | same |
+| Row label is the seed's name; subtitle "seed X · icons · save · last played" | same | same |
+| Seed files are named `<name>.smc` (never the engine's binary-flags name) | same | same |
 | Row shows **verification icons** (checksum item sprites) | the same four icons, from the app's own `checksum-*.png` | same |
 | Row shows seed, save size, last played | same, as a subtitle | same |
 | Actions: Play Seed, Manage Save, New seed with these flags, Save flags as Flagset, Rename Seed, Delete Seed, Back | Play Seed, New seed with these flags, Save flags as Flagset, Delete Seed, Back | missing Manage Save, Rename |

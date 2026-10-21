@@ -65,7 +65,8 @@ class GameSession(
         EmulatorBridge.nativeSetVideoBuffer(video)
 
         // Beside the ROM, like the app: <name>.srm in the seed's own folder.
-        savePath = File(File(romPath).parentFile, File(romPath).nameWithoutExtension + ".srm").absolutePath
+        val romFile = File(romPath).absoluteFile
+        savePath = File(romFile.parentFile, romFile.nameWithoutExtension + ".srm").absolutePath
         if (!EmulatorBridge.nativeLoadRom(romPath, savePath)) {
             throw IllegalStateException("the core refused the ROM: ${EmulatorBridge.nativeLastError()}")
         }
