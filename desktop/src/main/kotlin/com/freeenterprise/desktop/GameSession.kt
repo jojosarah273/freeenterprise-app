@@ -45,6 +45,7 @@ class GameSession(
     }
 
     private val savePath: String
+    private var closed = false
 
     init {
         EmulatorBridge.load(nativeDir)
@@ -104,7 +105,10 @@ class GameSession(
         return out
     }
 
+    /** Idempotent: the emulator loop and the quit path can both ask for this. */
     override fun close() {
+        if (closed) return
+        closed = true
         try {
             EmulatorBridge.nativeFlushSaveRam(savePath)
             EmulatorBridge.nativeUnload()

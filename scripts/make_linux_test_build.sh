@@ -31,55 +31,128 @@ cp desktop/native/build/libff4input.so "$STAGE/native/"
 cp -r app/src/main/assets/python_ext "$STAGE/engine/python_ext"
 cp app/src/main/python/fe_bridge.py "$STAGE/engine/fe_bridge.py"
 
-cat > "$STAGE/run.sh" <<'LAUNCHER'
+cat > "$STAGE/FreeEnterprise" <<'LAUNCHER'
 #!/usr/bin/env bash
-# Free Enterprise - Linux dev build.
+# Free Enterprise - Linux test build.
 #
-#   ./run.sh                                   the seed library, fullscreen
-#   ./run.sh --generate SEED --flags "Kmain"   generate, then play it
-#   ./run.sh --rom game.smc                    play a ROM directly
+#   ./FreeEnterprise                     the seed library, fullscreen
+#   ./FreeEnterprise --windowed          start in a window (F11 switches)
+#   ./FreeEnterprise --generate SEED     generate a seed, then play it
+#   ./FreeEnterprise --rom some.smc      play a seed you already have
 #
-# Needs a JDK 17+ and your own FF2 (US) v1.0/v1.1 ROM for generation
-# (--base-rom, or put it at ~/.freeenterprise/base_rom.smc).
+# Your own FF2 (US) v1.0/v1.1 ROM is needed to generate seeds. Put it beside this
+# script as ff2.smc and it will be found automatically, or pass --base-rom PATH.
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# FF2 (US) v1.0 and v1.1, without a copier header.
+MD5_V10=4fa9e542b954dcb954d5ce38188d9d41
+MD5_V11=27d02a4f03e172e029c9b82ac3db79f7
+
+looks_like_base_rom() {
+    local file="$1" md5
+    md5="$(md5sum "$file" | cut -d' ' -f1)"
+    [ "$md5" = "$MD5_V10" ] || [ "$md5" = "$MD5_V11" ] && return 0
+    # Some dumps carry a 512-byte copier header; the ROM itself starts after it.
+    md5="$(tail -c +513 "$file" | md5sum | cut -d' ' -f1)"
+    [ "$md5" = "$MD5_V10" ] || [ "$md5" = "$MD5_V11" ]
+}
+
+find_base_rom() {
+    local candidate
+    for candidate in "$HERE"/ff2.smc "$HERE"/ff2.sfc "$HERE"/*.smc "$HERE"/*.sfc; do
+        [ -f "$candidate" ] || continue
+        if looks_like_base_rom "$candidate"; then printf '%s\n' "$candidate"; return 0; fi
+    done
+    return 1
+}
+
+extra=()
+if base_rom="$(find_base_rom)"; then
+    echo "base ROM: $(basename "$base_rom")"
+    extra+=(--base-rom "$base_rom")
+else
+    echo "No base ROM found beside this launcher."
+    echo "  Put your FF2 (US) v1.0/v1.1 ROM here as ff2.smc, or pass --base-rom PATH."
+    echo "  Everything except generating a seed works without it."
+fi
+
 exec "$HERE/runtime/bin/freeenterprise" \
     --native "$HERE/native" \
     --engine "$HERE/engine/python_ext" \
     --bridge "$HERE/engine/fe_bridge.py" \
-    --library "${FE_LIBRARY:-$HOME/.freeenterprise/library}" \
-    --work "${FE_WORK:-$HOME/.freeenterprise}" \
-    "$@"
+    --library "${FE_LIBRARY:-$HERE/library}" \
+    --work "${FE_WORK:-$HERE/work}" \
+    "${extra[@]}" "$@"
 LAUNCHER
+chmod +x "$STAGE/FreeEnterprise"
+
+cat > "$STAGE/run.sh" <<'WRAPPER'
+#!/usr/bin/env bash
+# Kept for convenience: passes everything through to ./FreeEnterprise, which is the
+# launcher that finds the base ROM and wires up the directories.
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/FreeEnterprise" "$@"
+WRAPPER
 chmod +x "$STAGE/run.sh"
 
-cat > "$STAGE/README.md" <<'README'
-# Free Enterprise — Linux dev build
+mkdir -p "$STAGE/library" "$STAGE/work"
 
-A test build of the desktop client: the same portable interface core as the Android
-app, with the same emulator bridge and core sources, on Linux.
+cat > "$STAGE/README.md" <<'README'
+# Free Enterprise — Linux test build
+
+## Run it
 
 ```sh
-./run.sh                                   # the seed library, fullscreen
-./run.sh --generate SEED --flags "Kmain"   # generate a seed, then play it
-./run.sh --rom path/to/seed.smc            # play a seed you already have
-./run.sh --help
+# 1. put your own FF2 (US) v1.0/v1.1 ROM in this folder, named ff2.smc
+# 2. then:
+./FreeEnterprise
 ```
 
-Keys: arrows are the d-pad, X/Z are A/B, S/D are Y/X, Enter is Start, Q/W are L/R,
-Tab opens the tracker, Esc opens the pause menu.
+That is the whole setup. The launcher looks for the ROM beside itself (it checks the
+known checksums, with or without a copier header), and keeps everything it creates in
+this folder:
 
-Controller (SDL2, detected automatically; the mapping database means most pads work):
-A confirms, B cancels, the left stick drives the menus, Start opens our menu,
-L2 opens the tracker, and R2 fast-forwards while held. SDL2 is loaded at runtime, so
-a machine without it simply falls back to the keyboard.
+```
+library/   the seeds you generate or play
+work/      saves, save states and the engine cache
+```
 
-Requires **JDK 17+** (`java -version`) and, for generation, **your own FF2 (US)
-v1.0/v1.1 ROM** — pass `--base-rom /path/to/ff2.smc` or put it at
-`~/.freeenterprise/base_rom.smc`. No ROM is included, and none is ever uploaded.
+`run.sh` still exists and does the same thing, if you have scripts that call it.
 
-Known gaps: keyboard only (no controller backend yet), audio needs a 32 kHz stereo
-line from the sound system, and there is no metadata sidecar or updater.
+## Keys
+
+| | |
+| --- | --- |
+| Arrows | d-pad |
+| X / Z | A / B |
+| S / D | Y / X |
+| Enter | Start |
+| Q / W | L / R |
+| Tab | tracker |
+| Esc | our menu |
+| **F11** | **windowed ⇄ fullscreen** |
+| Esc, then Quit | leave |
+
+A controller is picked up automatically if one is attached (SDL2; the library's
+mapping database means most pads work). A confirms, B cancels, the stick drives the
+menus, Start opens our menu, L2 opens the tracker, R2 fast-forwards while held.
+
+## Command line
+
+```sh
+./FreeEnterprise --windowed                  start in a window
+./FreeEnterprise --generate SEED --flags "Kmain"
+./FreeEnterprise --rom some-seed.smc
+./FreeEnterprise --base-rom /path/to/ff2.smc
+./FreeEnterprise --library /somewhere/else
+```
+
+## Notes
+
+- Needs **JDK 17+** (`java -version`).
+- Your ROM is never copied, uploaded or modified; it is read to generate a seed.
+- Audio needs a 32 kHz stereo line from your sound system; without one the app runs
+  silently and says so.
 README
 
 echo "== packing =="

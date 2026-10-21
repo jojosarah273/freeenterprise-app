@@ -53,7 +53,7 @@ tasks.named("processResources") { dependsOn(ff4Assets) }
 // application so a distribution can carry them; Main looks here first.
 val copyNativeLibs = tasks.register<Copy>("copyNativeLibs") {
     from(layout.projectDirectory.dir("native/build")) {
-        include("libretro.so", "libff4emu.so")
+        include("libretro.so", "libff4emu.so", "libff4input.so")
     }
     into(layout.buildDirectory.dir("native"))
 }

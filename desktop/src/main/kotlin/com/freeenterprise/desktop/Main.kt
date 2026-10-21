@@ -68,6 +68,10 @@ data class Config(
     val nativeDir: File?,
     /** Drives a scripted pad instead of SDL, so the pad path can be checked here. */
     val fakePad: Boolean,
+    /** Start in a window rather than fullscreen. */
+    val windowed: Boolean,
+    /** Quit after this many seconds; a smoke test for the shutdown path. */
+    val quitAfter: Int,
     val help: Boolean,
 ) {
     companion object {
@@ -84,6 +88,8 @@ data class Config(
             var export: String? = null
             var native: String? = null
             var fakePad = false
+            var windowed = false
+            var quitAfter = 0
             var help = false
 
             var i = 0
@@ -101,6 +107,8 @@ data class Config(
                     "--export" -> export = args.getOrNull(++i)
                     "--native" -> native = args.getOrNull(++i)
                     "--fake-pad" -> fakePad = true
+                    "--windowed" -> windowed = true
+                    "--quit-after" -> quitAfter = args.getOrNull(++i)?.toIntOrNull() ?: 0
                     "--help", "-h" -> help = true
                     else -> System.err.println("unknown argument: ${args[i]}")
                 }
@@ -136,6 +144,8 @@ data class Config(
                 export = export?.let { File(it) },
                 nativeDir = native?.let { File(it) },
                 fakePad = fakePad,
+                windowed = windowed,
+                quitAfter = quitAfter,
                 help = help,
             )
         }
@@ -236,13 +246,13 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         else -> "pad: SDL2 not found (keyboard)"
     }
     val padStartedAt = System.currentTimeMillis()
-    javax.swing.Timer(8) {
+    val padTimer = javax.swing.Timer(8) {
         ui.padMask = if (config.fakePad) {
             fakePadMask(System.currentTimeMillis() - padStartedAt)
         } else {
             gamepad?.poll() ?: 0
         }
-    }.start()
+    }.apply { start() }
 
     // The emulator loop needs the pad, and the pad needs the screen functions, which
     // cannot be referenced before they are declared. Forward references break that
@@ -250,6 +260,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     lateinit var activateLibraryRow: () -> Unit
     lateinit var onPadShortcut: (PadRouter.PadShortcut) -> Unit
     lateinit var onPadMenuInput: (PadRouter.MenuInput) -> Unit
+    lateinit var quit: (Int) -> Unit
+    var quitting = false
     val pad = PadWiring(
         mask = { ui.padMask },
         sendButton = { id, down -> session?.setButton(id, down) },
@@ -257,12 +269,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         onMenuInput = { onPadMenuInput(it) },
     )
 
-    val panel = object : JPanel() {
-        override fun paintComponent(g: Graphics) {
-            g.drawImage(canvas.image, 0, 0, null)
-        }
-    }
-    panel.isFocusable = true
+    val panel = gamePanel(canvas)
 
     fun libraryItems(): List<Ff4MenuItem> {
         val seeds = library.seeds()
@@ -308,7 +315,17 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     }
 
     fun stopGame() {
-        gameLoop[0]?.interrupt()
+        val loop = gameLoop[0]
+        if (loop != null) {
+            loop.interrupt()
+            // Let it leave the native call before we touch the core: closing while
+            // retro_run is executing is a race, and a needless one.
+            try {
+                loop.join(1500)
+            } catch (_: InterruptedException) {
+            }
+            gameLoop[0] = null
+        }
         session?.close()
         session = null
         ui.overlay = Overlay.NONE
@@ -395,7 +412,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             when {
                 index < seeds.size -> play(seeds[index].rom)
                 index == seeds.size -> startGeneration("SEED%04d".format(System.currentTimeMillis() % 10000))
-                else -> exitProcess(0)
+                else -> quit(0)
             }
         }
     }
@@ -419,7 +436,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 PadRouter.MenuInput.UP -> if (libraryModel.moveSelection(-1)) compose()
                 PadRouter.MenuInput.DOWN -> if (libraryModel.moveSelection(1)) compose()
                 PadRouter.MenuInput.CONFIRM -> activateLibraryRow()
-                PadRouter.MenuInput.CANCEL -> exitProcess(0)
+                PadRouter.MenuInput.CANCEL -> quit(0)
             }
         } else {
             when (input) {
@@ -435,6 +452,36 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         }
     }
 
+    val frame = gameFrame("Free Enterprise - dev build", panel)
+    val display = Display(frame, screen, startFullscreen = !config.windowed)
+
+    quit = { code ->
+        if (!quitting) {
+            quitting = true
+            padTimer.stop()
+            stopGame()
+            gamepad?.close()
+            closeCleanly(frame)
+            exitOffEventThread(code)
+        }
+    }
+
+    frame.addWindowListener(object : java.awt.event.WindowAdapter() {
+        override fun windowClosing(e: java.awt.event.WindowEvent) = quit(0)
+    })
+
+    display.apply()
+    panel.requestFocusInWindow()
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        // No Swing work here: see closeCleanly.
+        stopGame()
+    })
+
+    if (config.quitAfter > 0) {
+        javax.swing.Timer(config.quitAfter * 1000) { quit(0) }.apply { isRepeats = false }.start()
+    }
+
     panel.addKeyListener(object : KeyAdapter() {
         override fun keyPressed(e: KeyEvent) {
             when (ui.screen) {
@@ -442,7 +489,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     KeyEvent.VK_UP, KeyEvent.VK_W -> if (libraryModel.moveSelection(-1)) compose()
                     KeyEvent.VK_DOWN, KeyEvent.VK_S -> if (libraryModel.moveSelection(1)) compose()
                     KeyEvent.VK_ENTER -> activateLibraryRow()
-                    KeyEvent.VK_ESCAPE, KeyEvent.VK_Q -> exitProcess(0)
+                    KeyEvent.VK_F11 -> { display.toggle(); compose() }
+                    KeyEvent.VK_ESCAPE, KeyEvent.VK_Q -> quit(0)
                 }
                 Screen.PLAYING -> {
                     if (ui.overlay != Overlay.NONE) {
@@ -461,6 +509,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     when (e.keyCode) {
                         KeyEvent.VK_ESCAPE -> ui.overlay = Overlay.PAUSE
                         KeyEvent.VK_TAB -> ui.overlay = Overlay.TRACKER
+                        KeyEvent.VK_F11 -> { display.toggle(); compose() }
                         else -> keyToButton(e.keyCode)?.let { session?.setButton(it, true) }
                     }
                 }
@@ -471,18 +520,6 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         override fun keyReleased(e: KeyEvent) {
             keyToButton(e.keyCode)?.let { session?.setButton(it, false) }
         }
-    })
-
-    val frame = JFrame("Free Enterprise - dev build")
-    frame.isUndecorated = true
-    frame.contentPane.add(panel)
-    frame.isVisible = true
-    frame.graphicsConfiguration.device.setFullScreenWindow(frame)
-    panel.requestFocusInWindow()
-
-    Runtime.getRuntime().addShutdownHook(Thread {
-        stopGame()
-        frame.dispose()
     })
 
     openLibrary()
@@ -601,6 +638,77 @@ private fun keyToButton(code: Int): Int? = when (code) {
     else -> null
 }
 
+/**
+ * Quitting, correctly.
+ *
+ * The freeze was a deadlock of our own making: `System.exit` was called from the AWT
+ * event thread, so the JVM ran the shutdown hooks on another thread - and the hook
+ * called `frame.dispose()`, which is Swing work needing the event thread, which was
+ * blocked inside `System.exit` waiting for the hooks. The window stayed on screen
+ * and the process never left.
+ *
+ * So: no Swing work in a hook, and the exit happens off the event thread, after the
+ * window has been disposed on it.
+ */
+private fun closeCleanly(frame: JFrame) {
+    val dispose = { frame.isVisible = false; frame.dispose() }
+    if (javax.swing.SwingUtilities.isEventDispatchThread()) dispose() else javax.swing.SwingUtilities.invokeLater(dispose)
+}
+
+private fun exitOffEventThread(code: Int) {
+    Thread {
+        Thread.sleep(150)   // let the event thread finish disposing
+        exitProcess(code)
+    }.start()
+}
+
+/** The picture surface: the canvas, scaled to whatever size the window is. */
+private fun gamePanel(canvas: SoftwareCanvas) = object : JPanel() {
+    override fun paintComponent(g: Graphics) {
+        val g2 = g as java.awt.Graphics2D
+        g2.setRenderingHint(
+            java.awt.RenderingHints.KEY_INTERPOLATION,
+            java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR,
+        )
+        g2.drawImage(canvas.image, 0, 0, width, height, null)
+    }
+}.apply { isFocusable = true }
+
+/** A decorated window, so windowed mode has a title bar and a working close button. */
+private fun gameFrame(title: String, panel: JPanel): JFrame = JFrame(title).apply {
+    defaultCloseOperation = JFrame.DO_NOTHING_ON_CLOSE
+    contentPane.add(panel)
+}
+
+/** Fullscreen or a window, and the key that swaps between them. */
+private class Display(
+    private val frame: JFrame,
+    private val screen: java.awt.Dimension,
+    startFullscreen: Boolean,
+) {
+    var fullscreen: Boolean = startFullscreen
+        private set
+
+    fun apply() {
+        val device = frame.graphicsConfiguration.device
+        if (fullscreen) {
+            frame.isVisible = true
+            device.setFullScreenWindow(frame)
+        } else {
+            device.setFullScreenWindow(null)
+            frame.isVisible = true
+            frame.setSize(minOf(1280, screen.width - 80), minOf(720, screen.height - 80))
+            frame.setLocationRelativeTo(null)
+        }
+    }
+
+    fun toggle(): Boolean {
+        fullscreen = !fullscreen
+        apply()
+        return fullscreen
+    }
+}
+
 /** Plays one ROM fullscreen, with no library around it. */
 private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
     val screen = Toolkit.getDefaultToolkit().screenSize
@@ -616,20 +724,28 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
     val ui = UiState()
     val gamepad = if (config.fakePad) null else Gamepad(findNativeDir(config))
     val padStartedAt = System.currentTimeMillis()
-    javax.swing.Timer(8) {
+    val padTimer = javax.swing.Timer(8) {
         ui.padMask = if (config.fakePad) {
             fakePadMask(System.currentTimeMillis() - padStartedAt)
         } else {
             gamepad?.poll() ?: 0
         }
-    }.start()
+    }.apply { start() }
 
-    val panel = object : JPanel() {
-        override fun paintComponent(g: Graphics) {
-            g.drawImage(canvas.image, 0, 0, null)
-        }
+    val panel = gamePanel(canvas)
+    val frame = gameFrame("Free Enterprise - dev build", panel)
+    val display = Display(frame, screen, startFullscreen = !config.windowed)
+
+    var quitting = false
+    fun quit(code: Int = 0) {
+        if (quitting) return
+        quitting = true
+        padTimer?.stop()
+        session.close()
+        gamepad?.close()
+        closeCleanly(frame)
+        exitOffEventThread(code)
     }
-    panel.isFocusable = true
 
     fun compose() {
         canvas.clear(Ff4Palette.BLACK)
@@ -641,40 +757,6 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
         }
         panel.repaint()
     }
-
-    panel.addKeyListener(object : KeyAdapter() {
-        override fun keyPressed(e: KeyEvent) {
-            if (ui.overlay != Overlay.NONE) {
-                when (e.keyCode) {
-                    KeyEvent.VK_UP -> if (pause.moveSelection(-1)) compose()
-                    KeyEvent.VK_DOWN -> if (pause.moveSelection(1)) compose()
-                    KeyEvent.VK_ENTER -> when (pause.activationTarget()) {
-                        0 -> ui.overlay = Overlay.NONE
-                        1 -> ui.overlay = Overlay.TRACKER
-                        else -> exitProcess(0)
-                    }
-                    KeyEvent.VK_ESCAPE, KeyEvent.VK_TAB -> ui.overlay = Overlay.NONE
-                }
-                return
-            }
-            when (e.keyCode) {
-                KeyEvent.VK_ESCAPE -> ui.overlay = Overlay.PAUSE
-                KeyEvent.VK_TAB -> ui.overlay = Overlay.TRACKER
-                else -> keyToButton(e.keyCode)?.let { session.setButton(it, true) }
-            }
-        }
-
-        override fun keyReleased(e: KeyEvent) {
-            keyToButton(e.keyCode)?.let { session.setButton(it, false) }
-        }
-    })
-
-    val frame = JFrame("Free Enterprise - dev build")
-    frame.isUndecorated = true
-    frame.contentPane.add(panel)
-    frame.isVisible = true
-    frame.graphicsConfiguration.device.setFullScreenWindow(frame)
-    panel.requestFocusInWindow()
 
     val pad = PadWiring(
         mask = { ui.padMask },
@@ -696,12 +778,56 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
                 PadRouter.MenuInput.CONFIRM -> when (pause.activationTarget()) {
                     0 -> ui.overlay = Overlay.NONE
                     1 -> ui.overlay = Overlay.TRACKER
-                    else -> exitProcess(0)
+                    else -> quit()
                 }
                 PadRouter.MenuInput.CANCEL -> ui.overlay = Overlay.NONE
             }
         },
     )
+
+    panel.addKeyListener(object : KeyAdapter() {
+        override fun keyPressed(e: KeyEvent) {
+            if (ui.overlay != Overlay.NONE) {
+                when (e.keyCode) {
+                    KeyEvent.VK_UP -> if (pause.moveSelection(-1)) compose()
+                    KeyEvent.VK_DOWN -> if (pause.moveSelection(1)) compose()
+                    KeyEvent.VK_ENTER -> when (pause.activationTarget()) {
+                        0 -> ui.overlay = Overlay.NONE
+                        1 -> ui.overlay = Overlay.TRACKER
+                        else -> quit()
+                    }
+                    KeyEvent.VK_ESCAPE, KeyEvent.VK_TAB -> ui.overlay = Overlay.NONE
+                }
+                return
+            }
+            when (e.keyCode) {
+                KeyEvent.VK_ESCAPE -> ui.overlay = Overlay.PAUSE
+                KeyEvent.VK_TAB -> ui.overlay = Overlay.TRACKER
+                KeyEvent.VK_F11 -> { display.toggle(); compose() }
+                else -> keyToButton(e.keyCode)?.let { session.setButton(it, true) }
+            }
+        }
+
+        override fun keyReleased(e: KeyEvent) {
+            keyToButton(e.keyCode)?.let { session.setButton(it, false) }
+        }
+    })
+
+    frame.addWindowListener(object : java.awt.event.WindowAdapter() {
+        override fun windowClosing(e: java.awt.event.WindowEvent) = quit()
+    })
+
+    display.apply()
+    panel.requestFocusInWindow()
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        // No Swing work here: see exitOffEventThread.
+        session.close()
+    })
+
+    if (config.quitAfter > 0) {
+        javax.swing.Timer(config.quitAfter * 1000) { quit() }.apply { isRepeats = false }.start()
+    }
 
     val loop = Thread {
         try {
@@ -714,15 +840,8 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
             }
         } catch (t: Throwable) {
             System.err.println("emulator loop stopped: ${t.message}")
-        } finally {
-            session.close()
         }
     }
     loop.isDaemon = true
     loop.start()
-
-    Runtime.getRuntime().addShutdownHook(Thread {
-        loop.interrupt()
-        frame.dispose()
-    })
 }
