@@ -63,7 +63,8 @@ looks_like_base_rom() {
 
 find_base_rom() {
     local candidate
-    for candidate in "$HERE"/ff2.smc "$HERE"/ff2.sfc "$HERE"/*.smc "$HERE"/*.sfc; do
+    for candidate in "$HERE"/FF4_FE/ff2.smc "$HERE"/FF4_FE/ff2.sfc \
+                     "$HERE"/ff2.smc "$HERE"/ff2.sfc "$HERE"/*.smc "$HERE"/*.sfc; do
         [ -f "$candidate" ] || continue
         if looks_like_base_rom "$candidate"; then printf '%s\n' "$candidate"; return 0; fi
     done
@@ -84,8 +85,8 @@ exec "$HERE/runtime/bin/freeenterprise" \
     --native "$HERE/native" \
     --engine "$HERE/engine/python_ext" \
     --bridge "$HERE/engine/fe_bridge.py" \
-    --library "${FE_LIBRARY:-$HERE/library}" \
-    --work "${FE_WORK:-$HERE/work}" \
+    --library "${FE_LIBRARY:-$HERE/FF4_FE}" \
+    --work "${FE_WORK:-$HERE/FF4_FE/.work}" \
     "${extra[@]}" "$@"
 LAUNCHER
 chmod +x "$STAGE/FreeEnterprise"
@@ -98,7 +99,7 @@ exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/FreeEnterprise" "$@"
 WRAPPER
 chmod +x "$STAGE/run.sh"
 
-mkdir -p "$STAGE/library" "$STAGE/work"
+mkdir -p "$STAGE/FF4_FE/.work"
 
 cat > "$STAGE/README.md" <<'README'
 # Free Enterprise — Linux test build
@@ -116,8 +117,8 @@ known checksums, with or without a copier header), and keeps everything it creat
 this folder:
 
 ```
-library/   the seeds you generate or play
-work/      saves, save states and the engine cache
+FF4_FE/    the seeds you generate or play, with their metadata, battery saves,
+           save states and spoilers - the same folder layout as the Android app
 ```
 
 `run.sh` still exists and does the same thing, if you have scripts that call it.

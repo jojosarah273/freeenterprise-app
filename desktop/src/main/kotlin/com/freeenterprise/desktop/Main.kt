@@ -127,8 +127,11 @@ data class Config(
                 i++
             }
 
-            val workDir = File(work ?: (System.getProperty("user.home") + "/.freeenterprise"))
-            val libraryDir = File(library ?: (workDir.path + "/library"))
+            // The library folder the app uses, at the installation root: FF4_FE holds
+            // the seeds, their metadata, battery saves, states and the spoilers.
+            val libraryDir = File(library ?: firstExisting("FF4_FE", "../FF4_FE")?.path ?: "FF4_FE")
+                .also { it.mkdirs() }
+            val workDir = File(work ?: File(libraryDir, ".work").path).also { it.mkdirs() }
             val engineDir = engine?.let { File(it) } ?: firstExisting(
                 "app/src/main/assets/python_ext",
                 "../app/src/main/assets/python_ext",
@@ -138,8 +141,10 @@ data class Config(
                 "../app/src/main/python/fe_bridge.py",
             )
             val baseRomFile = baseRom?.let { File(it) }
-                ?: listOf(File(workDir, "base_rom.smc"), File(workDir, "ff2.smc"))
-                    .firstOrNull { it.isFile }
+                ?: listOf(
+                    File(libraryDir, "base_rom.smc"), File(libraryDir, "ff2.smc"),
+                    File(workDir, "base_rom.smc"), File(workDir, "ff2.smc"),
+                ).firstOrNull { it.isFile }
 
             return Config(
                 libraryDir = libraryDir,
@@ -263,8 +268,13 @@ private fun loadChecks(file: File?): List<Ff4Checks.Check> {
     }
 }
 
-/** The key-item locations recorded beside a seed, if it has a spoiler. */
+/**
+ * The key-item locations recorded for a seed. The metadata is the normal source, as
+ * it is in the app; the spoiler beside the ROM is the fallback for a seed that
+ * predates it or was copied in from elsewhere.
+ */
 private fun spoilerLocationsFor(rom: File): List<Pair<String, String>> {
+    SeedMeta.keyItems(rom).let { if (it.isNotEmpty()) return it }
     val spoiler = File(rom.parentFile, rom.nameWithoutExtension + ".spoiler.txt")
     if (!spoiler.isFile) return emptyList()
     return try {
@@ -786,12 +796,12 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                         KeyEvent.VK_F11 -> { display.toggle(); compose() }
                         KeyEvent.VK_F -> session?.fastForward = true
                 KeyEvent.VK_F5 -> currentRom?.let { open ->
-                    val file = File(config.workDir, "${open.nameWithoutExtension}.slot1.state")
+                    val file = GameSession.stateFile(open.absolutePath)
                     ui.message = if (session?.saveState(file) == true) "state saved" else "could not save the state"
                 }
                 KeyEvent.VK_F9 -> currentRom?.let { open ->
-                    val file = File(config.workDir, "${open.nameWithoutExtension}.slot1.state")
-                    ui.message = if (session?.loadState(file) == true) "state loaded" else "no state in slot 1"
+                    val file = GameSession.stateFile(open.absolutePath)
+                    ui.message = if (session?.loadState(file) == true) "state loaded" else "no state saved yet"
                 }
                         else -> keyToButton(e.keyCode)?.let { session?.setButton(it, true) }
                     }
@@ -1248,17 +1258,17 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
                 KeyEvent.VK_F11 -> { display.toggle(); compose() }
                 KeyEvent.VK_F -> session.fastForward = true
                 KeyEvent.VK_F5 -> println(
-                    if (session.saveState(File(config.workDir, "${File(rom).nameWithoutExtension}.slot1.state"))) {
-                        "state saved to slot 1"
+                    if (session.saveState(GameSession.stateFile(File(rom).absolutePath))) {
+                        "state saved beside the seed"
                     } else {
                         "could not save the state"
                     },
                 )
                 KeyEvent.VK_F9 -> println(
-                    if (session.loadState(File(config.workDir, "${File(rom).nameWithoutExtension}.slot1.state"))) {
-                        "state loaded from slot 1"
+                    if (session.loadState(GameSession.stateFile(File(rom).absolutePath))) {
+                        "state loaded"
                     } else {
-                        "no state in slot 1"
+                        "no state saved yet"
                     },
                 )
                 else -> keyToButton(e.keyCode)?.let { session.setButton(it, true) }

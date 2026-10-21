@@ -1,5 +1,6 @@
 package com.freeenterprise.desktop
 
+import com.freeenterprise.ff4.Ff4Spoiler
 import org.json.JSONObject
 import java.io.File
 
@@ -109,6 +110,26 @@ class EngineProcess(
         } else {
             null
         }
+
+        // The same metadata file the app writes, with the same keys, so a library
+        // folder is interchangeable between the two.
+        val verification = json.optJSONArray("verification")
+            ?.let { arr -> (0 until arr.length()).map { arr.optString(it) } }.orEmpty()
+        SeedMeta.write(
+            rom,
+            SeedMeta.Meta(
+                name = rom.nameWithoutExtension,
+                seed = json.optString("seed", seed),
+                flags = json.optString("flags", flags),
+                binaryFlags = json.optString("binary_flags"),
+                verification = verification,
+                version = json.optString("version"),
+                seconds = json.optDouble("seconds", 0.0),
+                created = System.currentTimeMillis(),
+                keyItems = Ff4Spoiler.usableKeyItemLocations(spoilerText),
+            ),
+            spoilerText,
+        )
 
         return Result(
             rom = rom,

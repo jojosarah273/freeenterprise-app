@@ -39,9 +39,13 @@ class GameSession(
     private val audioBytes = ByteArray(8192 * 2 * 2)
     private val frameNanos = (1_000_000_000.0 / 60.0988).toLong()
 
-    private companion object {
+    companion object {
         /** Frames per displayed frame while fast-forward is held. */
-        const val FAST_FORWARD_FRAMES = 4
+        private const val FAST_FORWARD_FRAMES = 4
+
+        /** Where this seed's state lives: beside the ROM, named as the app names it. */
+        fun stateFile(romPath: String): File =
+            File(File(romPath).parentFile, File(romPath).nameWithoutExtension + ".state")
     }
 
     private val savePath: String
@@ -60,7 +64,8 @@ class GameSession(
         video = ByteBuffer.allocateDirect(512 * 478 * 4).order(ByteOrder.LITTLE_ENDIAN)
         EmulatorBridge.nativeSetVideoBuffer(video)
 
-        savePath = File(workDir, File(romPath).nameWithoutExtension + ".srm").absolutePath
+        // Beside the ROM, like the app: <name>.srm in the seed's own folder.
+        savePath = File(File(romPath).parentFile, File(romPath).nameWithoutExtension + ".srm").absolutePath
         if (!EmulatorBridge.nativeLoadRom(romPath, savePath)) {
             throw IllegalStateException("the core refused the ROM: ${EmulatorBridge.nativeLastError()}")
         }
@@ -105,11 +110,7 @@ class GameSession(
     fun loadState(file: File): Boolean =
         file.isFile && EmulatorBridge.nativeLoadState(file.absolutePath)
 
-    /** Where this seed's states live: beside its battery save. */
-    fun stateFile(romPath: String, slot: Int): File {
-        val name = File(romPath).nameWithoutExtension
-        return File(File(romPath).parentFile, "$name.slot$slot.state")
-    }
+
 
     /** The picture at native resolution, RGB. */
     fun image(): BufferedImage = frame
