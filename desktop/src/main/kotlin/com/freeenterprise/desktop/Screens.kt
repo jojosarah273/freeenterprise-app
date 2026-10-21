@@ -9,6 +9,7 @@ import com.freeenterprise.ff4.Ff4Palette
 import com.freeenterprise.ff4.Ff4ProgressBarChrome
 import com.freeenterprise.ff4.Ff4Rect
 import com.freeenterprise.ff4.Ff4Scale
+import com.freeenterprise.ff4.Ff4Spoiler
 import com.freeenterprise.ff4.Ff4ScreenLayout
 import com.freeenterprise.ff4.Ff4WindowChrome
 import com.freeenterprise.ff4.emitTo
@@ -183,10 +184,11 @@ class ScreenRenderer(
         wram: ByteArray,
         locations: List<Pair<String, String>>,
         checks: List<Ff4Checks.Check>,
+        seen: Set<String>,
     ): Ff4DrawList {
         val list = Ff4DrawList()
         val line = metrics.lineHeightPx(scale.textSmallPx).toFloat()
-        val lines = if (page == 0) keyItemLines(wram, locations) else checkLines(wram, checks)
+        val lines = if (page == 0) keyItemLines(wram, locations, seen) else checkLines(wram, checks)
 
         val widest = lines.maxOf { metrics.widthPx(it.text, scale.textSmallPx) }
         val boxWidth = minOf(
@@ -207,60 +209,98 @@ class ScreenRenderer(
 
     private data class TrackerLine(val text: String, val color: Int)
 
-    private fun keyItemLines(wram: ByteArray, locations: List<Pair<String, String>>): List<TrackerLine> {
-        val found = Ff4KeyItems.foundCount(wram)
-        val out = mutableListOf(
-            TrackerLine("KEY ITEM CHECKS   $found / ${Ff4KeyItems.count}", Ff4Palette.YELLOW),
-        )
+    private fun keyItemLines(
+        wram: ByteArray,
+        locations: List<Pair<String, String>>,
+        seen: Set<String>,
+    ): List<TrackerLine> {
+        val out = mutableListOf<TrackerLine>()
+        out += TrackerLine("PAGE 1 / 2   KEY ITEM CHECKS", Ff4Palette.WHITE)
+        out += TrackerLine("", Ff4Palette.WHITE)
+
         if (locations.isEmpty()) {
-            out += TrackerLine("(no spoiler beside this seed; showing items)", Ff4Palette.GREY)
-            for (entry in Ff4KeyItems.entries) {
-                val done = Ff4KeyItems.isFound(wram, entry.index)
-                out += TrackerLine(
-                    "${if (done) "*" else "-"} ${entry.label}",
-                    if (done) Ff4Palette.WHITE else Ff4Palette.GREY,
-                )
-            }
+            out += TrackerLine("This seed has no key-item data saved.", Ff4Palette.YELLOW)
+            out += TrackerLine("(Regenerate the seed, or drop a", Ff4Palette.YELLOW)
+            out += TrackerLine(" .spoiler.txt beside the ROM.)", Ff4Palette.YELLOW)
             return out
         }
+
+        val held = Ff4KeyItems.entries.filter { Ff4KeyItems.isFound(wram, it.index) }
+            .map { it.name }.toSet()
+        var checked = 0
         for ((item, place) in locations) {
             val entry = Ff4KeyItems.entryFor(item)
-            val done = entry != null && Ff4KeyItems.isFound(wram, entry.index)
+            // The engine's "have I been there" flag decides it. The others only cover
+            // what it does not track: the free starting item, and an item already held
+            // or seen (the bag drops traded items).
+            val done = (entry != null && Ff4KeyItems.isFound(wram, entry.index)) ||
+                Ff4Spoiler.isStartingItem(place) ||
+                Ff4KeyItems.normalise(item) in seen ||
+                Ff4KeyItems.normalise(item) in held
+            if (done) checked++
             out += TrackerLine(
-                "${if (done) "*" else "-"} ${place.take(34)}",
+                "${if (done) "*" else "-"} ${place.take(38)}",
                 if (done) Ff4Palette.WHITE else Ff4Palette.GREY,
             )
         }
+        out += TrackerLine("", Ff4Palette.WHITE)
+        out += TrackerLine(" $checked / ${locations.size} checked", Ff4Palette.WHITE)
+        out += TrackerLine(" * = check done.", Ff4Palette.GREY)
+        out += TrackerLine(" Where each item is stays in the spoiler.", Ff4Palette.GREY)
         return out
     }
 
     private fun checkLines(wram: ByteArray, checks: List<Ff4Checks.Check>): List<TrackerLine> {
         val out = mutableListOf<TrackerLine>()
+        out += TrackerLine("PAGE 2 / 2   CHECKS", Ff4Palette.WHITE)
+        out += TrackerLine("", Ff4Palette.WHITE)
         if (checks.isEmpty()) {
-            out += TrackerLine("CHECKS", Ff4Palette.YELLOW)
             out += TrackerLine("(no checks database found)", Ff4Palette.GREY)
             out += TrackerLine("switches: ${Ff4KeyItems.switchesSet(wram)} / ${Ff4KeyItems.SWITCH_BITS}", Ff4Palette.PEACH)
             return out
         }
         val progress = Ff4Checks.progress(checks, wram, Ff4KeyItems.SWITCHES_OFFSET)
-        out += TrackerLine("CHECKS   ${progress.opened} / ${progress.total}", Ff4Palette.YELLOW)
+        out += TrackerLine("TOTAL   ${progress.opened} / ${progress.total}", Ff4Palette.WHITE)
         for (world in listOf("Overworld", "Underworld", "Moon")) {
             val (opened, total) = progress.byWorld[world] ?: continue
-            out += TrackerLine("%-11s %3d / %3d".format(world, opened, total), Ff4Palette.WHITE)
+            out += TrackerLine("  %-11s %3d / %3d".format(world, opened, total), Ff4Palette.WHITE)
         }
+        out += TrackerLine("", Ff4Palette.WHITE)
         out += TrackerLine("BY AREA  (most remaining first)", Ff4Palette.PEACH)
         for ((area, opened, total) in progress.byArea.take(14)) {
-            out += TrackerLine("%-22s %3d / %3d".format(area.take(22), opened, total), Ff4Palette.GREY)
+            out += TrackerLine("  %-22s %3d / %3d".format(area.take(22), opened, total), Ff4Palette.GREY)
         }
         return out
     }
 
     /**
-     * A question with a couple of answers, in an FF4 window.
-     *
-     * Used for leaving the app, which the app itself confirms rather than quitting on
-     * a stray cancel. The options reuse the menu widget, so the cursor, the highlight
-     * and the controller behaviour are the ones everywhere else.
+     * A modal text field: the prompt, the value being typed, and a caret. The app
+     * asks for names this way, so the desktop does too rather than inventing them.
+     */
+    fun textInput(width: Int, height: Int, title: String, prompt: String, value: String): Ff4DrawList {
+        val list = Ff4DrawList()
+        val line = metrics.lineHeightPx(scale.textSmallPx).toFloat()
+        val ascent = metrics.ascentPx(scale.textSmallPx).toFloat()
+        val boxWidth = minOf((width * 0.7f), width - Ff4ScreenLayout.defaultEdgeInsetPx(scale) * 2)
+        // Four lines: title, prompt, the value, and the keys.
+        val boxHeight = pad * 2 + line * 4 + scale.unit * 2
+        val box = centreBox(width, height, boxWidth, boxHeight)
+        Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
+
+        var y = box.top + pad
+        list.text(title, box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.YELLOW)
+        y += line
+        list.text(prompt, box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.WHITE)
+        y += line + scale.unit
+        list.text(value + "_", box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.YELLOW)
+        y += line
+        list.text("Enter  Accept      Esc  Cancel", box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.GREY)
+        return list
+    }
+
+    /**
+     * A question with a couple of answers, in an FF4 window - used for leaving the
+     * app, resetting the core and exiting to sessions, as the app does.
      */
     fun confirmDialog(
         width: Int,
@@ -285,11 +325,8 @@ class ScreenRenderer(
             (widest + pad * 2).toFloat(),
             width - Ff4ScreenLayout.defaultEdgeInsetPx(scale) * 2,
         )
-        // Derived from the terms used to place the content below, not from an
-        // approximation of them. The previous version reserved `pad + line * n` for the
-        // heading but consumed `pad + ascent + line * n`, so the window was short by
-        // one ascent and the last option's row hung below the border.
         val menuHeight = Ff4MenuLayout.contentHeightPx(rows, scale, metrics)
+        // Derived from the terms used to place the content below.
         val boxHeight = pad + ascent + line * (messageLines.size + 1) + menuHeight + pad
         val box = centreBox(width, height, boxWidth, boxHeight)
         Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
@@ -305,32 +342,6 @@ class ScreenRenderer(
             rows, scale, metrics, box.width - pad * 2, selected,
             topPx = y, leftPx = box.left + pad, list = list,
         )
-        return list
-    }
-
-    /**
-     * A modal text field: the prompt, the value being typed, and a caret. The app
-     * asks for names this way, so the desktop does too rather than inventing them.
-     */
-    fun textInput(width: Int, height: Int, title: String, prompt: String, value: String): Ff4DrawList {
-        val list = Ff4DrawList()
-        val line = metrics.lineHeightPx(scale.textSmallPx).toFloat()
-        val ascent = metrics.ascentPx(scale.textSmallPx).toFloat()
-        val boxWidth = minOf((width * 0.7f), width - Ff4ScreenLayout.defaultEdgeInsetPx(scale) * 2)
-        // Four lines: title, prompt, the value, and the keys.
-        val boxHeight = pad * 2 + line * 4 + scale.unit * 2
-        val box = centreBox(width, height, boxWidth, boxHeight)
-        Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
-
-        var y = box.top + pad
-        list.text(title, box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.YELLOW)
-        y += line
-        list.text(prompt, box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.WHITE)
-        y += line + scale.unit
-        // The value and a caret, on their own line, in the window's blue.
-        list.text(value + "_", box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.YELLOW)
-        y += line
-        list.text("Enter  Accept      Esc  Cancel", box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.GREY)
         return list
     }
 

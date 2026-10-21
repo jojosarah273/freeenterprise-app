@@ -43,6 +43,15 @@ object Ff4Spoiler {
         return out
     }
 
+    /**
+     * True when this location is the seed's free starting item. The engine prints a
+     * "Starting item" row only when the item is handed over at the start, so the row
+     * *is* the rule - and it cannot be read from the bag, since the Package is
+     * delivered away minutes later.
+     */
+    fun isStartingItem(location: String): Boolean =
+        location.lowercase().replace(" ", "").replace("_", "") == "startingitem"
+
     /** The locations the tracker shows: placeholders like "(not available)" dropped. */
     fun usableKeyItemLocations(text: String): List<Pair<String, String>> =
         keyItemLocations(text).filterNot { (_, place) ->

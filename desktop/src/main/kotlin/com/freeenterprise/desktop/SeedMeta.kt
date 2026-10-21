@@ -125,6 +125,38 @@ object SeedMeta {
         }
     }
 
+    /** The key items this seed has been seen to hold. */
+    fun seenItems(rom: File): Set<String> {
+        val file = fileFor(rom)
+        if (!file.isFile) return emptySet()
+        return try {
+            val array = JSONObject(file.readText()).optJSONArray("seen_key_items") ?: return emptySet()
+            (0 until array.length()).map { array.optString(it) }.toSet()
+        } catch (t: Throwable) {
+            emptySet()
+        }
+    }
+
+    /** Adds [items] to the seed's remembered set; returns true when it changed. */
+    fun addSeenItems(rom: File, items: Collection<String>): Boolean {
+        val file = fileFor(rom)
+        if (!file.isFile || items.isEmpty()) return false
+        return try {
+            val json = JSONObject(file.readText())
+            val existing = json.optJSONArray("seen_key_items")
+                ?.let { arr -> (0 until arr.length()).map { arr.optString(it) } }
+                ?.toMutableSet() ?: mutableSetOf()
+            val before = existing.size
+            existing.addAll(items)
+            if (existing.size == before) return false
+            json.put("seen_key_items", JSONArray().apply { existing.forEach { put(it) } })
+            file.writeText(json.toString(2))
+            true
+        } catch (t: Throwable) {
+            false
+        }
+    }
+
     /** The flags string the seed was generated with, if it was recorded. */
     fun flags(rom: File): String {
         val file = fileFor(rom)

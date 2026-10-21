@@ -2,6 +2,7 @@ package com.freeenterprise.desktop
 
 import com.freeenterprise.app.emulator.EmulatorBridge.Button
 import com.freeenterprise.ff4.Ff4Checks
+import com.freeenterprise.ff4.Ff4KeyItems
 import com.freeenterprise.ff4.Ff4MenuItem
 import com.freeenterprise.ff4.Ff4MenuModel
 import com.freeenterprise.ff4.Ff4Palette
@@ -277,6 +278,16 @@ private fun renameSeed(rom: File, newName: String) {
     }
 }
 
+/**
+ * Remember the key items the engine says are found, so the tracker keeps them ticked
+ * after the game takes them away (the Package, the traded Rat Tail and Pan) - the
+ * same memory the app keeps in the seed's metadata.
+ */
+private fun rememberSeenItems(rom: File, wram: ByteArray) {
+    val found = Ff4KeyItems.entries.filter { Ff4KeyItems.isFound(wram, it.index) }.map { it.name }
+    if (found.isNotEmpty()) SeedMeta.addSeenItems(rom, found)
+}
+
 /** Keep a row index inside a list that may have shrunk after a page change. */
 private fun List<Any>.coerceSelection(index: Int): Int =
     if (isEmpty()) 0 else index.coerceIn(0, size - 1)
@@ -349,6 +360,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     // Start from the command line's flags, so --flags still works for scripts.
     runCatching { flagUi.editor.addAll(config.flags.split(" ").filter { it.isNotBlank() }) }
     var trackerLocations = emptyList<Pair<String, String>>()
+    /** Key items seen at any point, so a traded item stays ticked (as the app does). */
+    var seenItems = emptySet<String>()
 
     val ui = UiState()
     var session: GameSession? = null
@@ -573,7 +586,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                         renderer.pauseMenu(width, height, pauseModel.items, pauseModel.selected, "PAUSED"),
                     )
                     Overlay.TRACKER -> canvas.draw(
-                        renderer.tracker(width, height, ui.trackerPage, ui.wram, trackerLocations, checks),
+                        renderer.tracker(width, height, ui.trackerPage, ui.wram, trackerLocations, checks, seenItems),
                     )
                     Overlay.NONE -> Unit
                 }
@@ -635,6 +648,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         currentRom = rom
         ui.trackerPage = 0
         trackerLocations = spoilerLocationsFor(rom)
+        seenItems = SeedMeta.keyItems(rom).map { Ff4KeyItems.normalise(it.first) }.toSet()
         playingSince = System.currentTimeMillis()
         ui.message = "playing ${rom.name}"
         val loop = Thread {
@@ -647,7 +661,11 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     } else {
                         Thread.sleep(16)
                     }
-                    if (ui.overlay == Overlay.TRACKER) ui.wram = session?.readWram() ?: ByteArray(0x800)
+                    if (ui.overlay == Overlay.TRACKER) {
+                        ui.wram = session?.readWram() ?: ByteArray(0x800)
+                        currentRom?.let { rememberSeenItems(it, ui.wram) }
+                        currentRom?.let { seenItems = SeedMeta.seenItems(it) }
+                    }
                     // A menu being up means the game must not see the pad.
                     pad.menuOpen = ui.screen != Screen.PLAYING || ui.overlay != Overlay.NONE
                     pad.tick()
@@ -994,7 +1012,9 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 ) { typed -> seedName = typed.trim().ifBlank { seedName } }
                 compose()
             }
-            3 -> startGeneration(seedName.ifBlank { "SEED%04d".format(System.currentTimeMillis() % 10000) })
+            // Blank means "random": the engine invents an alphanumeric seed, the same
+            // way the app's Generate screen does when no name is typed.
+            3 -> startGeneration(seedName)
             else -> { ui.screen = Screen.LIBRARY; libraryModel.reset(libraryItems()) }
         }
         compose()
@@ -1241,10 +1261,10 @@ private fun runRomHeadless(config: Config, metrics: AwtTextMetrics) {
             when (variant) {
                 "game-pause" -> canvas.draw(renderer.pauseMenu(width, height, pauseItems(false, false), 0, "PAUSED"))
                 "game-tracker" -> canvas.draw(
-                    renderer.tracker(width, height, 0, wram, spoilerLocationsFor(File(rom)), loadChecks(config.checksFile)),
+                    renderer.tracker(width, height, 0, wram, spoilerLocationsFor(File(rom)), loadChecks(config.checksFile), emptySet()),
                 )
                 "game-checks" -> canvas.draw(
-                    renderer.tracker(width, height, 1, wram, emptyList(), loadChecks(config.checksFile)),
+                    renderer.tracker(width, height, 1, wram, emptyList(), loadChecks(config.checksFile), emptySet()),
                 )
             }
             canvas.writePng(File(config.export ?: File("build/ff4shots"), "$variant.png"))

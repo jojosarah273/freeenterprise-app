@@ -24,7 +24,10 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 | Reset Core, confirmed | same, confirmed | same |
 | Exit to sessions, confirmed ("Leave the game? Your battery save is written to FF4_FE first.") | same, same wording | same |
 | On-screen pad (touch), PAD toggle | none (desktop has no touch; controller + keyboard) | n/a |
-| Tracker: key-item page then checks page, L2 opens | Two pages, `Tab` opens, Left/Right pages | same |
+| Tracker page 1: "PAGE 1 / 2 KEY ITEM CHECKS", locations with ticks, "N / M checked", legend | same, same wording | same |
+| Tracker page 1 ticks the engine's found flags, the free starting item, and items held or seen | same | same |
+| Tracker remembers seen key items in `seen_key_items` so traded items stay ticked | same | same |
+| Tracker page 2: "PAGE 2 / 2 CHECKS", TOTAL, by world, "BY AREA (most remaining first)" | same, same wording | same |
 | Exit asks first | Exit asks first | same |
 | In-game shortcut hint window | removed (you asked; the app has none) | same |
 
@@ -61,6 +64,7 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 | Android 0.1.25 | Linux | State |
 | --- | --- | --- |
 | Generate screen: Choose Preset, Choose Flags, Seed, Generate Seed, Back | same rows | same |
+| Seed left blank gets the engine's random alphanumeric code (e.g. ELS5JYMQY9) | same | same |
 | Seed name typed by the user | typed in an FF4 window (keyboard) | same |
 | Progress window with phases, new seeds/regenerates | same, from the engine's progress file | same |
 | Flags canonicalised and validated by the engine | same (`check_flags`, debounced) | same |
@@ -109,6 +113,56 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 5. Rows Android has and the desktop does not: Check for updates, Settings.
 6. "Save Flagset" is offered when saving from a session; Android also offers it from
    the Generate screen.
+
+## Where to take the project
+
+The audit is the contract. Everything below is measured against it.
+
+### What stands in the way now
+
+1. **Five functional gaps**: Manage Save, engine updates on the desktop, the base ROM
+   picker with validation, the app version in the status line, and the
+   updates/settings rows.
+2. **Two implementations of the same flow.** The UI model is shared, but the *flow* -
+   which screen follows which, what each row does - still lives twice: once in Kotlin
+   for Android, once for the desktop. That is where the drift keeps coming from.
+3. **Audio** only works when the host offers a 32 kHz stereo line.
+4. **Distribution**: no bundled runtime, no updater, no packaged build people can
+   install.
+
+### The plan
+
+**1. Move the flows into the core (the structural fix).** Define each screen as data:
+rows with an id, a label, a value, and an action id; and one small state machine per
+flow (main menu, sessions, generation, editor, presets, pause menu). Both platforms
+then execute the *same* definitions - Android rendering them with views, the desktop
+with the draw list. This is the single change that stops new divergence, because a new
+row or a changed action would exist once.
+
+**2. Close the five gaps**, in that order of cheapness: app version in the status line;
+Manage Save (copy/delete a seed's `.srm` and `.state`); base ROM picker with the MD5
+check the app already uses; engine updates (an engine bundle zip, downloaded and
+unpacked into `engine/python_ext`, verified — the same shape as Android's silent
+engine update); then optional rows for updates/settings on the desktop (file-swap
+updater and a settings screen with the same options).
+
+**3. Audio done properly**: request the core's rate, and resample to whatever the host
+provides, so it works on every machine instead of silently running muted.
+
+**4. Ship it**: an AppImage (or a `.tar.gz` with a bundled JRE) containing the runtime,
+`libretro.so`, the engine and the font/icon assets; `FF4_FE` beside it; an updater that
+replaces the app files and applies engine updates in place without a package manager.
+
+**5. Keep it honest**: run the audit as a checklist before each build, alongside
+`scripts/selftest.sh`; add an invariant for anything that has regressed once.
+
+### What "as good as 0.1.25" would then mean
+
+Not more features - *no surprises*. Every screen reads the same, every row does the
+same thing, the same seed generates the same ROM, saves and states live in the same
+place, and the tracker says the same numbers. The Android build is the reference
+implementation; the desktop should be indistinguishable in use, and the audit is how we
+prove it rather than assert it.
 
 ## Changes made in this pass
 
