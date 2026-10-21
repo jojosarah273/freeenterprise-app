@@ -33,6 +33,8 @@ cp app/src/main/python/fe_bridge.py "$STAGE/engine/fe_bridge.py"
 # the check list, so tracker page two works in a packaged build
 mkdir -p "$STAGE/engine/assets"
 cp app/src/main/assets/spec/checks.json "$STAGE/engine/assets/checks.json"
+cp app/src/main/assets/spec/ui_spec.json "$STAGE/engine/assets/ui_spec.json"
+cp app/src/main/assets/presets/presets.json "$STAGE/engine/assets/presets.json"
 
 cat > "$STAGE/FreeEnterprise" <<'LAUNCHER'
 #!/usr/bin/env bash

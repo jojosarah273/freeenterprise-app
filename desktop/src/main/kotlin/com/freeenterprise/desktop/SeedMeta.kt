@@ -76,6 +76,47 @@ object SeedMeta {
         }
     }
 
+    /** The parts of the metadata the session list shows. */
+    data class Summary(
+        val name: String,
+        val seed: String,
+        val flags: String,
+        val verification: List<String>,
+        val lastPlayed: Long,
+    )
+
+    fun summary(rom: File): Summary {
+        val file = fileFor(rom)
+        if (!file.isFile) {
+            return Summary(rom.nameWithoutExtension, "", "", emptyList(), rom.lastModified())
+        }
+        return try {
+            val o = JSONObject(file.readText())
+            val verification = o.optJSONArray("verification")
+                ?.let { arr -> (0 until arr.length()).map { arr.optString(it) } }.orEmpty()
+            Summary(
+                name = o.optString("name").ifBlank { rom.nameWithoutExtension },
+                seed = o.optString("seed"),
+                flags = o.optString("flags"),
+                verification = verification,
+                lastPlayed = o.optLong("last_played", o.optLong("created", rom.lastModified())),
+            )
+        } catch (t: Throwable) {
+            Summary(rom.nameWithoutExtension, "", "", emptyList(), rom.lastModified())
+        }
+    }
+
+    /** Record that a seed was played, as the app does. */
+    fun touchLastPlayed(rom: File) {
+        val file = fileFor(rom)
+        if (!file.isFile) return
+        runCatching {
+            val o = JSONObject(file.readText())
+            o.put("last_played", System.currentTimeMillis())
+            file.writeText(o.toString(2))
+        }
+    }
+
     /** The flags string the seed was generated with, if it was recorded. */
     fun flags(rom: File): String {
         val file = fileFor(rom)

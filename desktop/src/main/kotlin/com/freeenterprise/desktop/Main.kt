@@ -206,7 +206,7 @@ private fun findNativeDir(config: Config): File {
 
 // ------------------------------------------------------------------ the app loop
 
-private enum class Screen { LIBRARY, FLAGS, EDITOR, GENERATING, PLAYING }
+private enum class Screen { LIBRARY, SEEDS, ACTIONS, FLAGS, EDITOR, GENERATING, PLAYING }
 private enum class Overlay { NONE, PAUSE, TRACKER }
 
 /** Intent published by the UI thread and consumed by whichever worker is running. */
@@ -302,7 +302,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     val scale = Ff4Scale(minOf(width, height), 1f)
     val renderer = ScreenRenderer(scale, metrics)
     val canvas = SoftwareCanvas(width, height, metrics, shadowOffsetPx = scale.unit * 0.5f)
-    val library = SeedLibrary(config.libraryDir).also { it.ensureExists() }
+    val library = SeedLibrary(config.libraryDir, config.baseRom).also { it.ensureExists() }
     val checks = loadChecks(config.checksFile)
     val engineVersion = run {
         val engine = config.engineDir
@@ -330,6 +330,9 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     var flagSelected = 0
     var editorSelected = 0
     var seedName = ""
+    var seedsSelected = 0
+    var actionsSelected = 0
+    var selectedSeed: File? = null
     val pauseModel = Ff4MenuModel(pauseItems())
     val gameLoop = arrayOfNulls<Thread>(1)
 
@@ -357,6 +360,9 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     // cycle; they are assigned once everything exists.
     lateinit var activateLibraryRow: () -> Unit
     lateinit var flagActivate: () -> Unit
+    lateinit var libraryActivate: () -> Unit
+    lateinit var seedActivate: () -> Unit
+    lateinit var actionActivate: () -> Unit
     lateinit var scheduleCheck: () -> Unit
     var pendingCheck = 0
     lateinit var onPadShortcut: (PadRouter.PadShortcut) -> Unit
@@ -382,12 +388,43 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         Ff4MenuItem("Back"),
     )
 
-    fun libraryItems(): List<Ff4MenuItem> {
+    /** The app's main menu, minus the platform-only rows (updates, settings). */
+    fun libraryItems(): List<Ff4MenuItem> = listOf(
+        Ff4MenuItem("Play Free Enterprise", "${library.seeds().size} seed(s)"),
+        Ff4MenuItem("Generate Seed"),
+        Ff4MenuItem("Exit"),
+    )
+
+    /** The app's session list: one row per seed, with what it was and how far. */
+    fun seedItems(): List<Ff4MenuItem> {
         val seeds = library.seeds()
-        val rows = seeds.map { Ff4MenuItem(it.name, it.detail) }.toMutableList()
-        rows.add(Ff4MenuItem("Generate Seed", if (config.baseRom == null) "no base ROM" else "choose flags, then generate"))
-        rows.add(Ff4MenuItem("Quit"))
-        return rows
+        if (seeds.isEmpty()) return listOf(Ff4MenuItem("(no seeds)", enabled = false), Ff4MenuItem("Back"))
+        return seeds.map { seed ->
+            val summary = SeedMeta.summary(seed.rom)
+            val save = File(seed.rom.parentFile, seed.rom.nameWithoutExtension + ".srm")
+            val saveText = if (save.isFile) "save ${save.length() / 1024}K" else "no save"
+            val date = java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault())
+                .format(java.util.Date(if (summary.lastPlayed > 0) summary.lastPlayed else seed.rom.lastModified()))
+            val verification = if (summary.verification.isEmpty()) "no check" else summary.verification.joinToString(" ")
+            Ff4MenuItem(
+                label = summary.name,
+                value = "${seed.rom.length() / 1024}K",
+                subtitle = "seed ${summary.seed.ifBlank { "?" }}  ·  $verification  ·  $saveText  ·  last played $date",
+            )
+        } + Ff4MenuItem("Back")
+    }
+
+    /** The app's per-seed actions. */
+    fun actionItems(): List<Ff4MenuItem> {
+        val rom = selectedSeed ?: return listOf(Ff4MenuItem("Back"))
+        val save = File(rom.parentFile, rom.nameWithoutExtension + ".srm")
+        return listOf(
+            Ff4MenuItem("Play Seed"),
+            Ff4MenuItem("New seed with these flags", "same ruleset"),
+            Ff4MenuItem("Save flags as Flagset"),
+            Ff4MenuItem("Delete Seed"),
+            Ff4MenuItem("Back"),
+        )
     }
 
     fun compose() {
@@ -419,6 +456,30 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                         ),
                     )
                 }
+            }
+            Screen.SEEDS -> canvas.draw(
+                renderer.mainMenu(
+                    width, height, seedItems(), seedsSelected,
+                    status = listOf(
+                        Ff4StatusLine("FF4_FE  ·  ${library.seeds().size} session(s)"),
+                        Ff4StatusLine(ui.message),
+                    ),
+                    hint = "A  Select      B  Back",
+                ),
+            )
+            Screen.ACTIONS -> {
+                val rom = selectedSeed
+                val summary = rom?.let { SeedMeta.summary(it) }
+                canvas.draw(
+                    renderer.mainMenu(
+                        width, height, actionItems(), actionsSelected,
+                        status = listOf(
+                            Ff4StatusLine(summary?.name ?: ""),
+                            Ff4StatusLine(summary?.flags?.take(60).orEmpty()),
+                        ),
+                        hint = "A  Select      B  Back",
+                    ),
+                )
             }
             Screen.FLAGS -> canvas.draw(
                 renderer.mainMenu(
@@ -621,7 +682,21 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     onPadMenuInput = { input ->
         if (ui.screen == Screen.LIBRARY) {
-            if (ui.screen == Screen.FLAGS) {
+            if (ui.screen == Screen.SEEDS) {
+                when (input) {
+                    PadRouter.MenuInput.UP -> { seedsSelected = (seedsSelected - 1).coerceAtLeast(0); compose() }
+                    PadRouter.MenuInput.DOWN -> { seedsSelected = (seedsSelected + 1).coerceAtMost(seedItems().size - 1); compose() }
+                    PadRouter.MenuInput.CONFIRM -> seedActivate()
+                    PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.LIBRARY; compose() }
+                }
+            } else if (ui.screen == Screen.ACTIONS) {
+                when (input) {
+                    PadRouter.MenuInput.UP -> { actionsSelected = (actionsSelected - 1).coerceAtLeast(0); compose() }
+                    PadRouter.MenuInput.DOWN -> { actionsSelected = (actionsSelected + 1).coerceAtMost(actionItems().size - 1); compose() }
+                    PadRouter.MenuInput.CONFIRM -> actionActivate()
+                    PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.SEEDS; compose() }
+                }
+            } else if (ui.screen == Screen.FLAGS) {
                 when (input) {
                     PadRouter.MenuInput.UP -> {
                         flagSelected = (flagSelected - 1).coerceAtLeast(0)
@@ -651,7 +726,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 when (input) {
                     PadRouter.MenuInput.UP -> if (libraryModel.moveSelection(-1)) compose()
                     PadRouter.MenuInput.DOWN -> if (libraryModel.moveSelection(1)) compose()
-                    PadRouter.MenuInput.CONFIRM -> activateLibraryRow()
+                    PadRouter.MenuInput.CONFIRM -> libraryActivate()
                     PadRouter.MenuInput.CANCEL -> askQuit()
                 }
             }
@@ -700,6 +775,64 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     }
 
     fun flagItems(): List<Ff4MenuItem> = flagUi.items()
+
+    /** The main menu: play, generate, exit. */
+    libraryActivate = {
+        when (libraryModel.activationTarget()) {
+            0 -> { seedsSelected = 0; ui.screen = Screen.SEEDS; compose() }
+            1 -> { flagSelected = 0; ui.screen = Screen.FLAGS; compose() }
+            else -> askQuit()
+        }
+    }
+
+    seedActivate = {
+        val seeds = library.seeds()
+        if (seedsSelected >= seeds.size) {
+            ui.screen = Screen.LIBRARY
+        } else {
+            selectedSeed = seeds.getOrNull(seedsSelected)?.rom
+            actionsSelected = 0
+            ui.screen = Screen.ACTIONS
+        }
+    }
+
+    actionActivate = {
+        val rom = selectedSeed
+        if (rom != null) when (actionsSelected) {
+            0 -> {
+                SeedMeta.touchLastPlayed(rom)
+                play(rom)
+            }
+            1 -> {
+                // Same ruleset: load the seed's flags into the editor and go to the
+                // generate screen.
+                SeedMeta.flags(rom).takeIf { it.isNotBlank() }?.let { flags ->
+                    flagUi.editor.clear()
+                    flagUi.editor.addAll(flags.split(" ").filter { it.isNotBlank() })
+                    flagUi.showCategories()
+                    scheduleCheck()
+                }
+                ui.screen = Screen.FLAGS
+                flagSelected = 0
+            }
+            2 -> {
+                SeedMeta.flags(rom).takeIf { it.isNotBlank() }?.let { flags ->
+                    FlagsetStore(config.libraryDir).save(rom.nameWithoutExtension, flags)
+                }
+            }
+            3 -> {
+                // Delete the seed and everything beside it, after asking.
+                val base = rom.nameWithoutExtension
+                listOf(".smc", ".json", ".srm", ".state", ".spoiler.txt").forEach { ext ->
+                    File(rom.parentFile, base + ext).delete()
+                }
+                ui.screen = Screen.SEEDS
+                seedsSelected = 0
+            }
+            else -> ui.screen = Screen.SEEDS
+        }
+        compose()
+    }
 
     /** The generate screen's rows, mirroring the app's Generate screen. */
     fun generateActivate() {
@@ -752,7 +885,26 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     panel.addKeyListener(object : KeyAdapter() {
         override fun keyPressed(e: KeyEvent) {
+            // Fullscreen is a window concern, not a screen concern: it must work on
+            // every screen, including the generator and the editor.
+            if (e.keyCode == KeyEvent.VK_F11) {
+                display.toggle()
+                compose()
+                return
+            }
             when (ui.screen) {
+                Screen.SEEDS -> when (e.keyCode) {
+                    KeyEvent.VK_UP, KeyEvent.VK_W -> { seedsSelected = (seedsSelected - 1).coerceAtLeast(0); compose() }
+                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> { seedsSelected = (seedsSelected + 1).coerceAtMost(seedItems().size - 1); compose() }
+                    KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> seedActivate()
+                    KeyEvent.VK_ESCAPE -> { ui.screen = Screen.LIBRARY; compose() }
+                }
+                Screen.ACTIONS -> when (e.keyCode) {
+                    KeyEvent.VK_UP, KeyEvent.VK_W -> { actionsSelected = (actionsSelected - 1).coerceAtLeast(0); compose() }
+                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> { actionsSelected = (actionsSelected + 1).coerceAtMost(actionItems().size - 1); compose() }
+                    KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> actionActivate()
+                    KeyEvent.VK_ESCAPE -> { ui.screen = Screen.SEEDS; compose() }
+                }
                 Screen.LIBRARY -> {
                     // The question owns the input while it is up. A duplicate UP/DOWN
                     // branch further down was unreachable - Kotlin takes the first
@@ -771,7 +923,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     when (e.keyCode) {
                         KeyEvent.VK_UP, KeyEvent.VK_W -> if (libraryModel.moveSelection(-1)) compose()
                         KeyEvent.VK_DOWN, KeyEvent.VK_S -> if (libraryModel.moveSelection(1)) compose()
-                        KeyEvent.VK_ENTER -> activateLibraryRow()
+                        KeyEvent.VK_ENTER -> libraryActivate()
                         KeyEvent.VK_F11 -> { display.toggle(); compose() }
                         KeyEvent.VK_ESCAPE, KeyEvent.VK_Q -> askQuit()
                     }
