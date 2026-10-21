@@ -44,8 +44,14 @@ class ScreenRenderer(
         for (box in boxes.all) Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
 
         var statusBaseline = boxes.status.top + pad + metrics.ascentPx(scale.textSmallPx)
+        val statusRoom = boxes.status.width - pad * 2
         for (line in status) {
-            list.text(line.text, boxes.status.left + pad, statusBaseline, scale.textSmallPx, line.color)
+            // A long flagset must not run out of its window: the app's status
+            // TextViews ellipsize, and so does this.
+            list.text(
+                Ff4MenuLayout.ellipsize(line.text, statusRoom, scale.textSmallPx, metrics),
+                boxes.status.left + pad, statusBaseline, scale.textSmallPx, line.color,
+            )
             statusBaseline += metrics.lineHeightPx(scale.textSmallPx)
         }
 
