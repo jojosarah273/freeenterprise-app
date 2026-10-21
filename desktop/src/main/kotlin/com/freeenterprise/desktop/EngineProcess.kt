@@ -25,6 +25,8 @@ class EngineProcess(
         val flags: String,
         val verification: String,
         val seconds: Double,
+        /** The private spoiler, kept beside the ROM: the tracker reads locations from it. */
+        val spoiler: File?,
     )
 
     class EngineError(message: String) : Exception(message)
@@ -97,6 +99,17 @@ class EngineProcess(
         val rom = File(path)
         if (!rom.isFile) throw EngineError("the engine reported success but wrote no ROM: $path")
 
+        // Keep the spoiler next to the ROM. The app does the same, and the tracker
+        // needs it to say *where* a check is without saying which item is there.
+        val spoilerText = json.optString("private_spoiler")
+        val spoiler = if (spoilerText.isNotBlank()) {
+            File(rom.parentFile, rom.nameWithoutExtension + ".spoiler.txt").also {
+                runCatching { it.writeText(spoilerText) }
+            }
+        } else {
+            null
+        }
+
         return Result(
             rom = rom,
             seed = json.optString("seed", seed),
@@ -105,6 +118,7 @@ class EngineProcess(
                 ?.let { arr -> (0 until arr.length()).joinToString(" ") { arr.optString(it) } }
                 .orEmpty(),
             seconds = json.optDouble("seconds", 0.0),
+            spoiler = spoiler,
         )
     }
 

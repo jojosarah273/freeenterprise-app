@@ -30,6 +30,9 @@ cp desktop/native/build/libretro.so desktop/native/build/libff4emu.so "$STAGE/na
 cp desktop/native/build/libff4input.so "$STAGE/native/"
 cp -r app/src/main/assets/python_ext "$STAGE/engine/python_ext"
 cp app/src/main/python/fe_bridge.py "$STAGE/engine/fe_bridge.py"
+# the check list, so tracker page two works in a packaged build
+mkdir -p "$STAGE/engine/assets"
+cp app/src/main/assets/spec/checks.json "$STAGE/engine/assets/checks.json"
 
 cat > "$STAGE/FreeEnterprise" <<'LAUNCHER'
 #!/usr/bin/env bash

@@ -1,5 +1,6 @@
 package com.freeenterprise.desktop
 
+import com.freeenterprise.ff4.Ff4Checks
 import com.freeenterprise.ff4.Ff4DrawList
 import com.freeenterprise.ff4.Ff4KeyItems
 import com.freeenterprise.ff4.Ff4MenuItem
@@ -137,22 +138,38 @@ class ScreenRenderer(
         return list
     }
 
-    /** The tracker, over the game: what the engine says has been checked. */
-    fun tracker(width: Int, height: Int, wram: ByteArray): Ff4DrawList {
+    /**
+     * The dimming layer behind a modal window: translucent black, so whatever is
+     * underneath stays visible but clearly out of play - the same idea as the overlay
+     * the app dims its menus with.
+     */
+    fun scrim(width: Int, height: Int): Ff4DrawList {
+        val list = Ff4DrawList()
+        list.fill(Ff4Rect(0f, 0f, width.toFloat(), height.toFloat()), 0xCC000000.toInt())
+        return list
+    }
+
+    /**
+     * The tracker, over the game: two pages, as the app has.
+     *
+     * Page one lists the seed's key-item *locations* with their check state - never
+     * which item is there, so the page cannot spoil the seed. Page two counts the
+     * treasure checks by world and area. The locations come from the spoiler beside
+     * the ROM; without one, the page falls back to listing the engine's items.
+     */
+    fun tracker(
+        width: Int,
+        height: Int,
+        page: Int,
+        wram: ByteArray,
+        locations: List<Pair<String, String>>,
+        checks: List<Ff4Checks.Check>,
+    ): Ff4DrawList {
         val list = Ff4DrawList()
         val line = metrics.lineHeightPx(scale.textSmallPx).toFloat()
+        val lines = if (page == 0) keyItemLines(wram, locations) else checkLines(wram, checks)
 
-        val heading = "KEY ITEM CHECKS  ${Ff4KeyItems.foundCount(wram)} / ${Ff4KeyItems.count}"
-        val itemLines = Ff4KeyItems.entries.map { entry ->
-            "${if (Ff4KeyItems.isFound(wram, entry.index)) "*" else "-"} ${entry.label}"
-        }
-        val footer = "treasure switches  ${Ff4KeyItems.switchesSet(wram)} / ${Ff4KeyItems.SWITCH_BITS}"
-        val lines = listOf(heading) + itemLines + listOf("", footer)
-
-        // Widest line wins: a fraction of the screen clipped the longest item names
-        // when the screen was small, and a fractional width would clip them again on
-        // a narrow display.
-        val widest = lines.maxOf { metrics.widthPx(it, scale.textSmallPx) }
+        val widest = lines.maxOf { metrics.widthPx(it.text, scale.textSmallPx) }
         val boxWidth = minOf(
             (widest + pad * 2).toFloat(),
             width - Ff4ScreenLayout.defaultEdgeInsetPx(scale) * 2,
@@ -162,34 +179,108 @@ class ScreenRenderer(
         Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
 
         var y = box.top + pad + metrics.ascentPx(scale.textSmallPx)
-        for ((index, text) in lines.withIndex()) {
-            if (text.isNotEmpty()) {
-                list.text(
-                    text, box.left + pad, y, scale.textSmallPx,
-                    when (index) {
-                        0 -> Ff4Palette.YELLOW
-                        lines.size - 1 -> Ff4Palette.PEACH
-                        else -> if (itemLines.getOrNull(index - 1)?.startsWith("*") == true) {
-                            Ff4Palette.WHITE
-                        } else {
-                            Ff4Palette.GREY
-                        }
-                    },
-                )
-            }
+        for (row in lines) {
+            list.text(row.text, box.left + pad, y, scale.textSmallPx, row.color)
             y += line
         }
         return list
     }
 
+    private data class TrackerLine(val text: String, val color: Int)
+
+    private fun keyItemLines(wram: ByteArray, locations: List<Pair<String, String>>): List<TrackerLine> {
+        val found = Ff4KeyItems.foundCount(wram)
+        val out = mutableListOf(
+            TrackerLine("KEY ITEM CHECKS   $found / ${Ff4KeyItems.count}", Ff4Palette.YELLOW),
+        )
+        if (locations.isEmpty()) {
+            out += TrackerLine("(no spoiler beside this seed; showing items)", Ff4Palette.GREY)
+            for (entry in Ff4KeyItems.entries) {
+                val done = Ff4KeyItems.isFound(wram, entry.index)
+                out += TrackerLine(
+                    "${if (done) "*" else "-"} ${entry.label}",
+                    if (done) Ff4Palette.WHITE else Ff4Palette.GREY,
+                )
+            }
+            return out
+        }
+        for ((item, place) in locations) {
+            val entry = Ff4KeyItems.entryFor(item)
+            val done = entry != null && Ff4KeyItems.isFound(wram, entry.index)
+            out += TrackerLine(
+                "${if (done) "*" else "-"} ${place.take(34)}",
+                if (done) Ff4Palette.WHITE else Ff4Palette.GREY,
+            )
+        }
+        return out
+    }
+
+    private fun checkLines(wram: ByteArray, checks: List<Ff4Checks.Check>): List<TrackerLine> {
+        val out = mutableListOf<TrackerLine>()
+        if (checks.isEmpty()) {
+            out += TrackerLine("CHECKS", Ff4Palette.YELLOW)
+            out += TrackerLine("(no checks database found)", Ff4Palette.GREY)
+            out += TrackerLine("switches: ${Ff4KeyItems.switchesSet(wram)} / ${Ff4KeyItems.SWITCH_BITS}", Ff4Palette.PEACH)
+            return out
+        }
+        val progress = Ff4Checks.progress(checks, wram, Ff4KeyItems.SWITCHES_OFFSET)
+        out += TrackerLine("CHECKS   ${progress.opened} / ${progress.total}", Ff4Palette.YELLOW)
+        for (world in listOf("Overworld", "Underworld", "Moon")) {
+            val (opened, total) = progress.byWorld[world] ?: continue
+            out += TrackerLine("%-11s %3d / %3d".format(world, opened, total), Ff4Palette.WHITE)
+        }
+        out += TrackerLine("BY AREA  (most remaining first)", Ff4Palette.PEACH)
+        for ((area, opened, total) in progress.byArea.take(14)) {
+            out += TrackerLine("%-22s %3d / %3d".format(area.take(22), opened, total), Ff4Palette.GREY)
+        }
+        return out
+    }
+
     /**
-     * The dimming layer behind a modal window: translucent black, so whatever is
-     * underneath is still visible but clearly out of play - the same idea as the
-     * overlay the app dims its menus with.
+     * A question with a couple of answers, in an FF4 window.
+     *
+     * Used for leaving the app, which the app itself confirms rather than quitting on
+     * a stray cancel. The options reuse the menu widget, so the cursor, the highlight
+     * and the controller behaviour are the ones everywhere else.
      */
-    fun scrim(width: Int, height: Int): Ff4DrawList {
+    fun confirmDialog(
+        width: Int,
+        height: Int,
+        title: String,
+        message: String,
+        options: List<String>,
+        selected: Int,
+    ): Ff4DrawList {
         val list = Ff4DrawList()
-        list.fill(Ff4Rect(0f, 0f, width.toFloat(), height.toFloat()), SCRIM_COLOR)
+        val line = metrics.lineHeightPx(scale.textSmallPx).toFloat()
+        val messageLines = message.split("\n")
+        val rows = options.map { Ff4MenuItem(it) }
+
+        val widest = maxOf(
+            metrics.widthPx(title, scale.textSmallPx),
+            messageLines.maxOf { metrics.widthPx(it, scale.textSmallPx) },
+            options.maxOf { metrics.widthPx(it, scale.textSmallPx) },
+        )
+        val boxWidth = minOf(
+            (widest + pad * 2).toFloat(),
+            width - Ff4ScreenLayout.defaultEdgeInsetPx(scale) * 2,
+        )
+        val boxHeight = pad * 2 + line * (messageLines.size + 1) +
+            Ff4MenuLayout.contentHeightPx(rows, scale, metrics)
+        val box = centreBox(width, height, boxWidth, boxHeight)
+        Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
+
+        var y = box.top + pad + metrics.ascentPx(scale.textSmallPx)
+        list.text(title, box.left + pad, y, scale.textSmallPx, Ff4Palette.YELLOW)
+        y += line
+        for (part in messageLines) {
+            list.text(part, box.left + pad, y + metrics.ascentPx(scale.textSmallPx), scale.textSmallPx, Ff4Palette.WHITE)
+            y += line
+        }
+        Ff4MenuLayout.emit(
+            rows, scale, metrics, box.width - pad * 2, selected,
+            topPx = y, leftPx = box.left + pad, list = list,
+        )
         return list
     }
 

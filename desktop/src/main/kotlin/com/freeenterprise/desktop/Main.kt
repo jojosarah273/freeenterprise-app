@@ -1,10 +1,12 @@
 package com.freeenterprise.desktop
 
 import com.freeenterprise.app.emulator.EmulatorBridge.Button
+import com.freeenterprise.ff4.Ff4Checks
 import com.freeenterprise.ff4.Ff4MenuItem
 import com.freeenterprise.ff4.Ff4MenuModel
 import com.freeenterprise.ff4.Ff4Palette
 import com.freeenterprise.ff4.Ff4Scale
+import com.freeenterprise.ff4.Ff4Spoiler
 import java.awt.Graphics
 import java.awt.Toolkit
 import java.awt.event.KeyAdapter
@@ -65,6 +67,7 @@ data class Config(
     val flags: String,
     val frames: Int,
     val export: File?,
+    val checksFile: File?,
     val nativeDir: File?,
     /** Drives a scripted pad instead of SDL, so the pad path can be checked here. */
     val fakePad: Boolean,
@@ -87,6 +90,7 @@ data class Config(
             var frames = 0
             var export: String? = null
             var native: String? = null
+            var checks: String? = null
             var fakePad = false
             var windowed = false
             var quitAfter = 0
@@ -106,6 +110,7 @@ data class Config(
                     "--frames" -> frames = args.getOrNull(++i)?.toIntOrNull() ?: 0
                     "--export" -> export = args.getOrNull(++i)
                     "--native" -> native = args.getOrNull(++i)
+                    "--checks" -> checks = args.getOrNull(++i)
                     "--fake-pad" -> fakePad = true
                     "--windowed" -> windowed = true
                     "--quit-after" -> quitAfter = args.getOrNull(++i)?.toIntOrNull() ?: 0
@@ -142,6 +147,12 @@ data class Config(
                 // Null unless asked for: a default value here made the export branch
                 // always win, so the application itself could never start.
                 export = export?.let { File(it) },
+                checksFile = checks?.let { File(it) } ?: firstExisting(
+                    "app/src/main/assets/spec/checks.json",
+                    "../app/src/main/assets/spec/checks.json",
+                    "engine/assets/checks.json",
+                    "assets/checks.json",
+                ),
                 nativeDir = native?.let { File(it) },
                 fakePad = fakePad,
                 windowed = windowed,
@@ -182,6 +193,11 @@ private class UiState {
     @Volatile var wram: ByteArray = ByteArray(0x800)
     @Volatile var progress: EngineProcess.Progress = EngineProcess.Progress(0, "Starting engine", "")
     @Volatile var message: String = ""
+    /** Which tracker page is showing; the app has two. */
+    @Volatile var trackerPage: Int = 0
+    /** Asking "leave Free Enterprise?", as the app does before it exits. */
+    @Volatile var confirmingQuit: Boolean = false
+    @Volatile var confirmChoice: Int = 1   // default to Cancel
     /** Polled on the UI thread, read by the emulator loop. */
     @Volatile var padMask: Int = 0
     @Volatile var padStatus: String = "pad: none (keyboard)"
@@ -209,6 +225,32 @@ private class PadWiring(
     fun tick() = router.update(mask())
 }
 
+/** The check list, from the generated database. Empty if it cannot be read. */
+private fun loadChecks(file: File?): List<Ff4Checks.Check> {
+    if (file == null || !file.isFile) return emptyList()
+    return try {
+        val array = org.json.JSONArray(file.readText())
+        (0 until array.length()).map { i ->
+            val o = array.getJSONObject(i)
+            Ff4Checks.Check(o.getInt("f"), o.getString("w"), o.getString("a"), o.optString("d"))
+        }
+    } catch (t: Throwable) {
+        System.err.println("could not read ${file.path}: ${t.message}")
+        emptyList()
+    }
+}
+
+/** The key-item locations recorded beside a seed, if it has a spoiler. */
+private fun spoilerLocationsFor(rom: File): List<Pair<String, String>> {
+    val spoiler = File(rom.parentFile, rom.nameWithoutExtension + ".spoiler.txt")
+    if (!spoiler.isFile) return emptyList()
+    return try {
+        Ff4Spoiler.usableKeyItemLocations(spoiler.readText())
+    } catch (t: Throwable) {
+        emptyList()
+    }
+}
+
 /** A scripted pad, for checking the input path on a machine with no controller. */
 private fun fakePadMask(elapsedMillis: Long): Int {
     fun mask(vararg ids: Int) = ids.fold(0) { acc, id -> acc or (1 shl id) }
@@ -228,6 +270,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     val renderer = ScreenRenderer(scale, metrics)
     val canvas = SoftwareCanvas(width, height, metrics, shadowOffsetPx = scale.unit * 0.5f)
     val library = SeedLibrary(config.libraryDir).also { it.ensureExists() }
+    val checks = loadChecks(config.checksFile)
+    var trackerLocations = emptyList<Pair<String, String>>()
 
     val ui = UiState()
     var session: GameSession? = null
@@ -262,6 +306,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     lateinit var onPadShortcut: (PadRouter.PadShortcut) -> Unit
     lateinit var onPadMenuInput: (PadRouter.MenuInput) -> Unit
     lateinit var quit: (Int) -> Unit
+    lateinit var askQuit: () -> Unit
     var quitting = false
     val pad = PadWiring(
         mask = { ui.padMask },
@@ -283,16 +328,30 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     fun compose() {
         canvas.clear(Ff4Palette.BLACK)
         when (ui.screen) {
-            Screen.LIBRARY -> canvas.draw(
-                renderer.mainMenu(
-                    width, height, libraryModel.items, libraryModel.selected,
-                    status = listOf(
-                        "Free Enterprise  ${config.baseRom?.name ?: "no base ROM"}",
-                        ui.message.ifBlank { "${library.seeds().size} seed(s)  ·  ${ui.padStatus}" },
+            Screen.LIBRARY -> {
+                canvas.draw(
+                    renderer.mainMenu(
+                        width, height, libraryModel.items, libraryModel.selected,
+                        status = listOf(
+                            "Free Enterprise  ${config.baseRom?.name ?: "no base ROM"}",
+                            ui.message.ifBlank { "${library.seeds().size} seed(s)  ·  ${ui.padStatus}" },
+                        ),
+                        hint = "Up/Down  Move      Enter  Select      Esc  Quit",
                     ),
-                    hint = "Up/Down  Move      Enter  Select      Esc  Quit",
-                ),
-            )
+                )
+                if (ui.confirmingQuit) {
+                    canvas.draw(renderer.scrim(width, height))
+                    canvas.draw(
+                        renderer.confirmDialog(
+                            width, height,
+                            "Quit",
+                            "Leave Free Enterprise?\nYour seeds and saves stay in ${config.libraryDir.path}.",
+                            listOf("Quit", "Cancel"),
+                            ui.confirmChoice,
+                        ),
+                    )
+                }
+            }
             Screen.GENERATING -> {
                 // The library stays visible underneath, dimmed, as it does on Android:
                 // the modal darkens the screen rather than blacking it out.
@@ -322,7 +381,9 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     Overlay.PAUSE -> canvas.draw(
                         renderer.pauseMenu(width, height, pauseModel.items, pauseModel.selected, "PAUSED"),
                     )
-                    Overlay.TRACKER -> canvas.draw(renderer.tracker(width, height, ui.wram))
+                    Overlay.TRACKER -> canvas.draw(
+                        renderer.tracker(width, height, ui.trackerPage, ui.wram, trackerLocations, checks),
+                    )
                     Overlay.NONE -> Unit
                 }
                 if (hintVisible(ui.overlay, playingSince)) {
@@ -368,6 +429,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             return
         }
         ui.screen = Screen.PLAYING
+        ui.trackerPage = 0
+        trackerLocations = spoilerLocationsFor(rom)
         playingSince = System.currentTimeMillis()
         ui.message = "playing ${rom.name}"
         val loop = Thread {
@@ -432,9 +495,25 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             when {
                 index < seeds.size -> play(seeds[index].rom)
                 index == seeds.size -> startGeneration("SEED%04d".format(System.currentTimeMillis() % 10000))
-                else -> quit(0)
+                else -> askQuit()
             }
         }
+    }
+
+    fun answerQuit() {
+        if (ui.confirmChoice == 0) {
+            quit(0)
+        } else {
+            ui.confirmingQuit = false
+            compose()
+        }
+    }
+
+    /** Leaving is deliberate, so it is asked about - as leaving a game is. */
+    askQuit = {
+        ui.confirmingQuit = true
+        ui.confirmChoice = 1   // default to Cancel, so a stray press does not quit
+        compose()
     }
 
     onPadShortcut = { shortcut ->
@@ -455,8 +534,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             when (input) {
                 PadRouter.MenuInput.UP -> if (libraryModel.moveSelection(-1)) compose()
                 PadRouter.MenuInput.DOWN -> if (libraryModel.moveSelection(1)) compose()
-                PadRouter.MenuInput.CONFIRM -> activateLibraryRow()
-                PadRouter.MenuInput.CANCEL -> quit(0)
+                PadRouter.MenuInput.CONFIRM -> if (ui.confirmingQuit) answerQuit() else activateLibraryRow()
+                PadRouter.MenuInput.CANCEL -> if (ui.confirmingQuit) ui.confirmingQuit = false else askQuit()
             }
         } else {
             when (input) {
@@ -508,9 +587,13 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 Screen.LIBRARY -> when (e.keyCode) {
                     KeyEvent.VK_UP, KeyEvent.VK_W -> if (libraryModel.moveSelection(-1)) compose()
                     KeyEvent.VK_DOWN, KeyEvent.VK_S -> if (libraryModel.moveSelection(1)) compose()
-                    KeyEvent.VK_ENTER -> activateLibraryRow()
+                    KeyEvent.VK_ENTER -> if (ui.confirmingQuit) answerQuit() else activateLibraryRow()
+                    KeyEvent.VK_UP, KeyEvent.VK_DOWN -> if (ui.confirmingQuit) {
+                        ui.confirmChoice = if (ui.confirmChoice == 0) 1 else 0
+                        compose()
+                    }
                     KeyEvent.VK_F11 -> { display.toggle(); compose() }
-                    KeyEvent.VK_ESCAPE, KeyEvent.VK_Q -> quit(0)
+                    KeyEvent.VK_ESCAPE, KeyEvent.VK_Q -> if (ui.confirmingQuit) ui.confirmingQuit = false else askQuit()
                 }
                 Screen.PLAYING -> {
                     if (ui.overlay != Overlay.NONE) {
@@ -584,12 +667,17 @@ private fun runRomHeadless(config: Config, metrics: AwtTextMetrics) {
         val picture = gameRect(width, height, session.width, session.height)
         val wram = session.readWram()
 
-        for (variant in listOf("game", "game-pause", "game-tracker")) {
+        for (variant in listOf("game", "game-pause", "game-tracker", "game-checks")) {
             canvas.clear(Ff4Palette.BLACK)
             canvas.drawGameFrame(session.image(), picture)
             when (variant) {
                 "game-pause" -> canvas.draw(renderer.pauseMenu(width, height, pauseItems(), 0, "PAUSED"))
-                "game-tracker" -> canvas.draw(renderer.tracker(width, height, wram))
+                "game-tracker" -> canvas.draw(
+                    renderer.tracker(width, height, 0, wram, spoilerLocationsFor(File(rom)), loadChecks(config.checksFile)),
+                )
+                "game-checks" -> canvas.draw(
+                    renderer.tracker(width, height, 1, wram, emptyList(), loadChecks(config.checksFile)),
+                )
             }
             canvas.writePng(File(config.export ?: File("build/ff4shots"), "$variant.png"))
         }
@@ -703,7 +791,7 @@ private fun hintVisible(overlay: Overlay, playingSince: Long): Boolean =
 
 private fun inGameHint(overlay: Overlay, padConnected: Boolean): String = when (overlay) {
     Overlay.PAUSE -> "Up/Down  Move      Enter  Select      Esc  Close"
-    Overlay.TRACKER -> "Tab  Close      Esc  Close"
+    Overlay.TRACKER -> "Left/Right  Page      Tab  Close"
     Overlay.NONE -> buildString {
         append("Tab  Tracker      Esc  Menu      F11  Window      F  Fast-forward")
         if (padConnected) append("      Pad: L2 Tracker   R2 Fast-forward")
@@ -773,6 +861,8 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
 
     println("loading $rom")
     val session = GameSession(rom, findNativeDir(config), config.workDir)
+    val checks = loadChecks(config.checksFile)
+    val trackerLocations = spoilerLocationsFor(File(rom))
     val playingSince = System.currentTimeMillis()
     var lastHint = false
     val pause = Ff4MenuModel(pauseItems())
@@ -832,7 +922,9 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
         canvas.drawGameFrame(session.image(), gameRect(width, height, session.width, session.height))
         when (ui.overlay) {
             Overlay.PAUSE -> canvas.draw(renderer.pauseMenu(width, height, pause.items, pause.selected, "PAUSED"))
-            Overlay.TRACKER -> canvas.draw(renderer.tracker(width, height, ui.wram))
+            Overlay.TRACKER -> canvas.draw(
+                renderer.tracker(width, height, ui.trackerPage, ui.wram, trackerLocations, checks),
+            )
             Overlay.NONE -> Unit
         }
         val showHint = hintVisible(ui.overlay, playingSince)
@@ -888,6 +980,11 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
                         else -> quit()
                     }
                     KeyEvent.VK_ESCAPE, KeyEvent.VK_TAB -> ui.overlay = Overlay.NONE
+                    KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT ->
+                        if (ui.overlay == Overlay.TRACKER) {
+                            ui.trackerPage = 1 - ui.trackerPage
+                            compose()
+                        }
                 }
                 return
             }
