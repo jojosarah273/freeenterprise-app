@@ -342,7 +342,12 @@ def check_flags(flag_string):
     try:
         _ensure_env()
         from FreeEnt import flags as flagmod
-        flagset = flagmod.FlagSet(flag_string)
+        # Same sanitisation as generate(), so the editor shows the same verdict the
+        # generation would reach.
+        cleaned = json.loads(sanitize_flags(flag_string))
+        if cleaned.get('status') != 'ok':
+            return json.dumps(cleaned)
+        flagset = flagmod.FlagSet(cleaned['flags'])
         log = flagmod.FlagLogic().fix(flagset)
         has_error = any(entry[0] == 'error' for entry in log)
         return json.dumps({
@@ -407,6 +412,14 @@ def generate(flags, seed, metaconfig_json, rom_path, out_dir, cache_dir, progres
     """
     try:
         _ensure_env()
+        # Sanitise here rather than only in the Android UI: the desktop client and the
+        # command line must accept exactly the same flag strings the app does, or a
+        # flagset that works on the phone silently fails elsewhere. sanitize_flags is
+        # idempotent, so a caller that already sanitised loses nothing.
+        cleaned = json.loads(sanitize_flags(flags))
+        if cleaned.get('status') != 'ok':
+            return json.dumps(cleaned)
+        flags = cleaned['flags']
         set_progress_path(progress_path)
         if progress_path:
             _install_progress_hook()

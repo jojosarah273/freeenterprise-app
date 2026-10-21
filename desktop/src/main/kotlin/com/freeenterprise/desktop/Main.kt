@@ -294,6 +294,15 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     val canvas = SoftwareCanvas(width, height, metrics, shadowOffsetPx = scale.unit * 0.5f)
     val library = SeedLibrary(config.libraryDir).also { it.ensureExists() }
     val checks = loadChecks(config.checksFile)
+    val engineVersion = run {
+        val engine = config.engineDir
+        val bridge = config.bridgeFile
+        if (engine != null && bridge != null) {
+            EngineProcess(engine, bridge, config.baseRom ?: File("none"), File(config.workDir, "cache")).version()
+        } else {
+            ""
+        }
+    }
     val flagUi = FlagUi(
         sections = SpecLoader.uiSpec(config.uiSpecFile),
         presets = SpecLoader.presets(config.presetsFile),
@@ -379,7 +388,10 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     renderer.mainMenu(
                         width, height, libraryModel.items, libraryModel.selected,
                         status = listOf(
-                            Ff4StatusLine("Free Enterprise  ${config.baseRom?.name ?: "no base ROM"}"),
+                            Ff4StatusLine(
+                                "Free Enterprise  " + engineVersion.ifBlank { "engine not found" } +
+                                    (if (config.baseRom == null) "  ·  no base ROM" else ""),
+                            ),
                             Ff4StatusLine(ui.message.ifBlank { "${library.seeds().size} seed(s)  ·  ${ui.padStatus}" }),
                         ),
                         hint = "Up/Down  Move      Enter  Select      Esc  Quit",
@@ -422,7 +434,10 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     renderer.mainMenu(
                         width, height, libraryModel.items, libraryModel.selected,
                         status = listOf(
-                            Ff4StatusLine("Free Enterprise  ${config.baseRom?.name ?: "no base ROM"}"),
+                            Ff4StatusLine(
+                                "Free Enterprise  " + engineVersion.ifBlank { "engine not found" } +
+                                    (if (config.baseRom == null) "  ·  no base ROM" else ""),
+                            ),
                             Ff4StatusLine("generating…"),
                         ),
                         hint = "Please wait",

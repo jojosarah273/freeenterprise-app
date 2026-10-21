@@ -122,6 +122,22 @@ class EngineProcess(
         )
     }
 
+    /**
+     * The engine's version string, e.g. "4.7.0.Gale". The app shows this in its main
+     * menu, so the desktop does too - it is how you know which engine you are on.
+     */
+    fun version(): String {
+        val command = listOf(python(), bridgeFile.absolutePath, "--ext", engineDir.absolutePath, "version")
+        return try {
+            val process = ProcessBuilder(command).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader().readText()
+            process.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)
+            JSONObject(output.trim().lines().last()).optString("version")
+        } catch (t: Throwable) {
+            ""
+        }
+    }
+
     data class Check(
         val canonical: String,
         val binary: String,
