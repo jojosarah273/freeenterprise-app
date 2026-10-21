@@ -10,6 +10,8 @@ data class Ff4MenuItem(
     val subtitle: CharSequence? = null,
     /** Asset names drawn after the subtitle, e.g. the seed's verification icons. */
     val icons: List<String> = emptyList(),
+    /** Text drawn after the icons, so they can sit mid-line. */
+    val subtitleAfter: CharSequence? = null,
 )
 
 /**

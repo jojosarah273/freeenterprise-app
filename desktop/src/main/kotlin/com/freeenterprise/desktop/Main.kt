@@ -474,10 +474,12 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             Ff4MenuItem(
                 label = summary.name,
                 value = "${seed.rom.length() / 1024}K",
-                subtitle = "seed ${summary.seed.ifBlank { "?" }}  ·  $saveText  ·  last played $date",
+                // Order as the app shows it: seed value, icons, save, last played.
+                subtitle = "seed ${summary.seed.ifBlank { "?" }}  ·",
                 // The app draws the seed's checksum tiles as the game's item icons.
                 // Just the tile names: Assets.icon adds the checksum/ prefix.
                 icons = summary.verification,
+                subtitleAfter = "·  $saveText  ·  last played $date",
             )
         } + Ff4MenuItem("Back")
     }

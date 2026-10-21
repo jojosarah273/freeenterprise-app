@@ -21,6 +21,8 @@ data class Ff4MenuRow(
     val value: Ff4TextRun?,
     val subtitle: Ff4TextRun?,
     val icons: List<String> = emptyList(),
+    /** Text that follows the icons on the same line. */
+    val subtitleAfter: Ff4TextRun? = null,
 )
 
 object Ff4MenuLayout {
@@ -115,8 +117,11 @@ object Ff4MenuLayout {
             // Icons follow the subtitle, so the text leaves them room.
             val valueRight = if (valueWidth > 0f) leftPx + widthPx - pad - valueWidth
                              else leftPx + widthPx - pad
-            val iconRoom = item.icons.size * metrics.lineHeightPx(scale.textSmallPx) * 1.35f
-            val subtitleRoom = (valueRight - labelX - iconRoom - cursorGap).coerceAtLeast(0f)
+            val smallSize = scale.textSmallPx
+            val iconRoom = item.icons.size * smallSize * 1.35f
+            val afterText = item.subtitleAfter?.takeIf { it.isNotBlank() }
+            val afterRoom = afterText?.let { metrics.widthPx(it, smallSize).toFloat() } ?: 0f
+            val subtitleRoom = (valueRight - labelX - iconRoom - afterRoom - cursorGap).coerceAtLeast(0f)
             val subtitle = item.subtitle?.takeIf { it.isNotBlank() }?.let {
                 Ff4TextRun(
                     text = ellipsize(it.toString(), subtitleRoom, scale.textSmallPx, metrics),
@@ -124,6 +129,23 @@ object Ff4MenuLayout {
                     baselineY = blockTop + metrics.lineHeightPx(labelSize) +
                         metrics.ascentPx(scale.textSmallPx),
                     sizePx = scale.textSmallPx,
+                    color = Ff4Palette.GREY,
+                )
+            }
+
+            // Where the text after the icons begins: past the subtitle, the icons and
+            // the small gaps between them.
+            val subtitleWidth = subtitle?.let { metrics.widthPx(it.text, it.sizePx).toFloat() } ?: 0f
+            val afterX = labelX + subtitleWidth +
+                (if (subtitle != null && item.icons.isNotEmpty()) smallSize * 0.4f else 0f) +
+                iconRoom +
+                (if (afterText != null && item.icons.isNotEmpty()) smallSize * 0.4f else 0f)
+            val subtitleAfter = afterText?.let {
+                Ff4TextRun(
+                    text = ellipsize(it.toString(), (valueRight - afterX).coerceAtLeast(0f), smallSize, metrics),
+                    x = afterX,
+                    baselineY = blockTop + metrics.lineHeightPx(labelSize) + metrics.ascentPx(smallSize),
+                    sizePx = smallSize,
                     color = Ff4Palette.GREY,
                 )
             }
@@ -150,7 +172,7 @@ object Ff4MenuLayout {
                 null
             }
 
-            out.add(Ff4MenuRow(index, bounds, isSelected, cursor, label, value, subtitle, item.icons))
+            out.add(Ff4MenuRow(index, bounds, isSelected, cursor, label, value, subtitle, item.icons, subtitleAfter))
             y += height
         }
         return out
@@ -229,6 +251,9 @@ object Ff4MenuLayout {
                 list.image(key, Ff4Rect(x, sub.baselineY + dy2 - size, x + size, sub.baselineY + dy2))
                 x += size + size * 0.35f
             }
+            row.subtitleAfter?.let {
+                list.text(it.text, it.x, it.baselineY + dy2, it.sizePx, it.color)
+            }
         }
         row.value?.let { list.text(it.text, it.x, it.baselineY + dy, it.sizePx, it.color, it.align) }
     }
@@ -262,6 +287,9 @@ object Ff4MenuLayout {
                 for (key in row.icons) {
                     list.image(key, Ff4Rect(x, sub.baselineY - size, x + size, sub.baselineY))
                     x += size * 1.35f
+                }
+                row.subtitleAfter?.let {
+                    list.text(it.text, it.x, it.baselineY, it.sizePx, it.color)
                 }
             }
             row.value?.let {
