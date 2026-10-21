@@ -253,6 +253,7 @@ class ScreenRenderer(
     ): Ff4DrawList {
         val list = Ff4DrawList()
         val line = metrics.lineHeightPx(scale.textSmallPx).toFloat()
+        val ascent = metrics.ascentPx(scale.textSmallPx).toFloat()
         val messageLines = message.split("\n")
         val rows = options.map { Ff4MenuItem(it) }
 
@@ -265,16 +266,20 @@ class ScreenRenderer(
             (widest + pad * 2).toFloat(),
             width - Ff4ScreenLayout.defaultEdgeInsetPx(scale) * 2,
         )
-        val boxHeight = pad * 2 + line * (messageLines.size + 1) +
-            Ff4MenuLayout.contentHeightPx(rows, scale, metrics)
+        // Derived from the terms used to place the content below, not from an
+        // approximation of them. The previous version reserved `pad + line * n` for the
+        // heading but consumed `pad + ascent + line * n`, so the window was short by
+        // one ascent and the last option's row hung below the border.
+        val menuHeight = Ff4MenuLayout.contentHeightPx(rows, scale, metrics)
+        val boxHeight = pad + ascent + line * (messageLines.size + 1) + menuHeight + pad
         val box = centreBox(width, height, boxWidth, boxHeight)
         Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
 
-        var y = box.top + pad + metrics.ascentPx(scale.textSmallPx)
-        list.text(title, box.left + pad, y, scale.textSmallPx, Ff4Palette.YELLOW)
+        var y = box.top + pad
+        list.text(title, box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.YELLOW)
         y += line
         for (part in messageLines) {
-            list.text(part, box.left + pad, y + metrics.ascentPx(scale.textSmallPx), scale.textSmallPx, Ff4Palette.WHITE)
+            list.text(part, box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.WHITE)
             y += line
         }
         Ff4MenuLayout.emit(

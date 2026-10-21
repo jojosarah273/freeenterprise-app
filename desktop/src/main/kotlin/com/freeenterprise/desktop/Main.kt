@@ -531,11 +531,22 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     onPadMenuInput = { input ->
         if (ui.screen == Screen.LIBRARY) {
-            when (input) {
-                PadRouter.MenuInput.UP -> if (libraryModel.moveSelection(-1)) compose()
-                PadRouter.MenuInput.DOWN -> if (libraryModel.moveSelection(1)) compose()
-                PadRouter.MenuInput.CONFIRM -> if (ui.confirmingQuit) answerQuit() else activateLibraryRow()
-                PadRouter.MenuInput.CANCEL -> if (ui.confirmingQuit) ui.confirmingQuit = false else askQuit()
+            if (ui.confirmingQuit) {
+                when (input) {
+                    PadRouter.MenuInput.UP, PadRouter.MenuInput.DOWN -> {
+                        ui.confirmChoice = 1 - ui.confirmChoice
+                        compose()
+                    }
+                    PadRouter.MenuInput.CONFIRM -> answerQuit()
+                    PadRouter.MenuInput.CANCEL -> { ui.confirmingQuit = false; compose() }
+                }
+            } else {
+                when (input) {
+                    PadRouter.MenuInput.UP -> if (libraryModel.moveSelection(-1)) compose()
+                    PadRouter.MenuInput.DOWN -> if (libraryModel.moveSelection(1)) compose()
+                    PadRouter.MenuInput.CONFIRM -> activateLibraryRow()
+                    PadRouter.MenuInput.CANCEL -> askQuit()
+                }
             }
         } else {
             when (input) {
@@ -584,16 +595,28 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     panel.addKeyListener(object : KeyAdapter() {
         override fun keyPressed(e: KeyEvent) {
             when (ui.screen) {
-                Screen.LIBRARY -> when (e.keyCode) {
-                    KeyEvent.VK_UP, KeyEvent.VK_W -> if (libraryModel.moveSelection(-1)) compose()
-                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> if (libraryModel.moveSelection(1)) compose()
-                    KeyEvent.VK_ENTER -> if (ui.confirmingQuit) answerQuit() else activateLibraryRow()
-                    KeyEvent.VK_UP, KeyEvent.VK_DOWN -> if (ui.confirmingQuit) {
-                        ui.confirmChoice = if (ui.confirmChoice == 0) 1 else 0
-                        compose()
+                Screen.LIBRARY -> {
+                    // The question owns the input while it is up. A duplicate UP/DOWN
+                    // branch further down was unreachable - Kotlin takes the first
+                    // match - which is why the cursor kept moving the menu underneath.
+                    if (ui.confirmingQuit) {
+                        when (e.keyCode) {
+                            KeyEvent.VK_UP, KeyEvent.VK_W, KeyEvent.VK_DOWN, KeyEvent.VK_S -> {
+                                ui.confirmChoice = 1 - ui.confirmChoice
+                                compose()
+                            }
+                            KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> answerQuit()
+                            KeyEvent.VK_ESCAPE, KeyEvent.VK_Q -> { ui.confirmingQuit = false; compose() }
+                        }
+                        return
                     }
-                    KeyEvent.VK_F11 -> { display.toggle(); compose() }
-                    KeyEvent.VK_ESCAPE, KeyEvent.VK_Q -> if (ui.confirmingQuit) ui.confirmingQuit = false else askQuit()
+                    when (e.keyCode) {
+                        KeyEvent.VK_UP, KeyEvent.VK_W -> if (libraryModel.moveSelection(-1)) compose()
+                        KeyEvent.VK_DOWN, KeyEvent.VK_S -> if (libraryModel.moveSelection(1)) compose()
+                        KeyEvent.VK_ENTER -> activateLibraryRow()
+                        KeyEvent.VK_F11 -> { display.toggle(); compose() }
+                        KeyEvent.VK_ESCAPE, KeyEvent.VK_Q -> askQuit()
+                    }
                 }
                 Screen.PLAYING -> {
                     if (ui.overlay != Overlay.NONE) {
@@ -713,6 +736,28 @@ private fun exportScreens(out: File, metrics: AwtTextMetrics) {
             ),
         )
         canvas.writePng(File(out, "generating-$progress.png"))
+    }
+    // The quit confirmation, so its geometry can be measured rather than guessed.
+    for (choice in listOf(0, 1)) {
+        canvas.clear(Ff4Palette.BLACK)
+        canvas.draw(
+            renderer.mainMenu(
+                width, height, menuItems(), 0,
+                status = listOf("Free Enterprise 4.7.0.Gale", "3 seed(s) ready"),
+                hint = "A  Select      B  Exit",
+            ),
+        )
+        canvas.draw(renderer.scrim(width, height))
+        canvas.draw(
+            renderer.confirmDialog(
+                width, height,
+                "Quit",
+                "Leave Free Enterprise?\nYour seeds and saves stay in /tmp/library.",
+                listOf("Quit", "Cancel"),
+                choice,
+            ),
+        )
+        canvas.writePng(File(out, "confirm-dialog-$choice.png"))
     }
     println("wrote screen images to ${out.absolutePath}")
 }
