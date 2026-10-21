@@ -50,7 +50,7 @@ fun main(args: Array<String>) {
             runGenerateHeadless(config, metrics)
         config.rom != null && config.export != null ->
             runRomHeadless(config, metrics)
-        config.rom != null -> runGame(config.rom, config, metrics)
+        config.rom != null -> runApp(config, metrics)
         config.export != null -> exportScreens(config.export, metrics)
         else -> runApp(config, metrics)
     }
@@ -1135,11 +1135,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                         when (e.keyCode) {
                             KeyEvent.VK_UP -> if (pauseModel.moveSelection(-1)) compose()
                             KeyEvent.VK_DOWN -> if (pauseModel.moveSelection(1)) compose()
-                            KeyEvent.VK_ENTER -> when (pauseModel.activationTarget()) {
-                                0 -> ui.overlay = Overlay.NONE
-                                1 -> ui.overlay = Overlay.TRACKER
-                                3 -> openLibrary()
-                            }
+                            KeyEvent.VK_ENTER -> pauseModel.activationTarget()?.let { pauseActivate(it) }
                             KeyEvent.VK_ESCAPE, KeyEvent.VK_TAB -> ui.overlay = Overlay.NONE
                         }
                         return
@@ -1197,6 +1193,9 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     })
 
     openLibrary()
+    // A seed named on the command line is played straight away, but through the same
+    // screen and pause logic as one chosen from the list - the app has one way to play.
+    config.rom?.let { play(resolveRom(config, it)) }
 }
 
 // ------------------------------------------------------------------ headless runs
@@ -1507,204 +1506,4 @@ private class Display(
         apply()
         return fullscreen
     }
-}
-
-/** Plays one ROM fullscreen, with no library around it. */
-private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
-    val screen = Toolkit.getDefaultToolkit().screenSize
-    val width = screen.width
-    val height = screen.height
-    val scale = Ff4Scale(minOf(width, height), 1f)
-    val renderer = ScreenRenderer(scale, metrics)
-    val canvas = SoftwareCanvas(width, height, metrics, shadowOffsetPx = scale.unit * 0.5f)
-
-    println("loading $rom")
-    val session = GameSession(resolveRom(config, rom).absoluteFile.path, findNativeDir(config), config.workDir)
-    val checks = loadChecks(config.checksFile)
-    val trackerLocations = spoilerLocationsFor(File(rom))
-    val playingSince = System.currentTimeMillis()
-    var lastHint = false
-    val pause = Ff4MenuModel(pauseItems(false, false))
-    val ui = UiState()
-    val gamepad = if (config.fakePad) null else Gamepad(findNativeDir(config))
-    val padStartedAt = System.currentTimeMillis()
-    val padTimer = javax.swing.Timer(8) {
-        ui.padMask = if (config.fakePad) {
-            fakePadMask(System.currentTimeMillis() - padStartedAt)
-        } else {
-            gamepad?.poll() ?: 0
-        }
-    }.apply { start() }
-
-    val panel = gamePanel(canvas)
-    val frame = gameFrame("Free Enterprise - dev build", panel)
-    val display = Display(frame, screen, startFullscreen = !config.windowed)
-
-    /** Filled in once the emulator thread exists; stopGame needs it. */
-    val loopRef = arrayOfNulls<Thread>(1)
-    var quitting = false
-
-    /**
-     * Stops the emulator loop and waits for it, because closing the session while
-     * `retro_run` is executing frees the core underneath the running frame - which is
-     * a segfault, not an exception. The loop notices the interrupt between frames.
-     */
-    fun stopGame() {
-        val loop = loopRef[0]
-        if (loop != null) {
-            loop.interrupt()
-            try {
-                loop.join(2000)
-            } catch (_: InterruptedException) {
-            }
-            if (loop.isAlive) {
-                System.err.println("emulator thread did not stop; leaving the core alone rather than crashing")
-                return
-            }
-            loopRef[0] = null
-        }
-        session.close()
-    }
-
-    fun quit(code: Int = 0) {
-        if (quitting) return
-        quitting = true
-        padTimer?.stop()
-        stopGame()
-        gamepad?.close()
-        closeCleanly(frame)
-        exitOffEventThread(code)
-    }
-
-    fun compose() {
-        canvas.clear(Ff4Palette.BLACK)
-        canvas.drawGameFrame(session.image(), gameRect(width, height, session.width, session.height))
-        when (ui.overlay) {
-            Overlay.PAUSE -> canvas.draw(renderer.pauseMenu(width, height, pause.items, pause.selected, "PAUSED"))
-            Overlay.TRACKER -> canvas.draw(
-                renderer.tracker(width, height, ui.trackerPage, ui.wram, trackerLocations, checks),
-            )
-            Overlay.NONE -> Unit
-        }
-        val showHint = hintVisible(ui.overlay, playingSince)
-        if (showHint != lastHint) {
-            // Only in smoke-test mode: useful when checking the timing, noise otherwise.
-            if (config.quitAfter > 0 || config.fakePad) {
-                println("hint visible=$showHint  elapsed=${System.currentTimeMillis() - playingSince}ms  overlay=${ui.overlay}")
-            }
-            lastHint = showHint
-        }
-        if (showHint) {
-            canvas.draw(renderer.hintBar(width, height, inGameHint(ui.overlay, gamepad?.connected == true)))
-        }
-        panel.repaint()
-    }
-
-    val pad = PadWiring(
-        mask = { ui.padMask },
-        sendButton = { id, down -> session.setButton(id, down) },
-        onShortcut = { shortcut ->
-            when (shortcut) {
-                PadRouter.PadShortcut.TOGGLE_MENU ->
-                    ui.overlay = if (ui.overlay == Overlay.PAUSE) Overlay.NONE else Overlay.PAUSE
-                PadRouter.PadShortcut.TOGGLE_TRACKER ->
-                    ui.overlay = if (ui.overlay == Overlay.TRACKER) Overlay.NONE else Overlay.TRACKER
-                PadRouter.PadShortcut.FAST_FORWARD_ON -> session.fastForward = true
-                PadRouter.PadShortcut.FAST_FORWARD_OFF -> session.fastForward = false
-            }
-        },
-        onMenuInput = { input ->
-            when (input) {
-                PadRouter.MenuInput.UP -> if (pause.moveSelection(-1)) compose()
-                PadRouter.MenuInput.DOWN -> if (pause.moveSelection(1)) compose()
-                PadRouter.MenuInput.CONFIRM -> when (pause.activationTarget()) {
-                    0 -> ui.overlay = Overlay.NONE
-                    1 -> ui.overlay = Overlay.TRACKER
-                    else -> quit()
-                }
-                PadRouter.MenuInput.CANCEL -> ui.overlay = Overlay.NONE
-            }
-        },
-    )
-
-    panel.addKeyListener(object : KeyAdapter() {
-        override fun keyPressed(e: KeyEvent) {
-            if (ui.overlay != Overlay.NONE) {
-                when (e.keyCode) {
-                    KeyEvent.VK_UP -> if (pause.moveSelection(-1)) compose()
-                    KeyEvent.VK_DOWN -> if (pause.moveSelection(1)) compose()
-                    KeyEvent.VK_ENTER -> when (pause.activationTarget()) {
-                        0 -> ui.overlay = Overlay.NONE
-                        1 -> ui.overlay = Overlay.TRACKER
-                        else -> quit()
-                    }
-                    KeyEvent.VK_ESCAPE, KeyEvent.VK_TAB -> ui.overlay = Overlay.NONE
-                    KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT ->
-                        if (ui.overlay == Overlay.TRACKER) {
-                            ui.trackerPage = 1 - ui.trackerPage
-                            compose()
-                        }
-                }
-                return
-            }
-            when (e.keyCode) {
-                KeyEvent.VK_ESCAPE -> ui.overlay = Overlay.PAUSE
-                KeyEvent.VK_TAB -> ui.overlay = Overlay.TRACKER
-                KeyEvent.VK_F11 -> { display.toggle(); compose() }
-                KeyEvent.VK_F -> session.fastForward = !session.fastForward
-                KeyEvent.VK_F5 -> println(
-                    if (session.saveState(GameSession.stateFile(File(rom).absolutePath))) {
-                        "state saved beside the seed"
-                    } else {
-                        "could not save the state"
-                    },
-                )
-                KeyEvent.VK_F9 -> println(
-                    if (session.loadState(GameSession.stateFile(File(rom).absolutePath))) {
-                        "state loaded"
-                    } else {
-                        "no state saved yet"
-                    },
-                )
-                else -> keyToButton(e.keyCode)?.let { session.setButton(it, true) }
-            }
-        }
-
-        override fun keyReleased(e: KeyEvent) {
-            keyToButton(e.keyCode)?.let { session.setButton(it, false) }
-        }
-    })
-
-    frame.addWindowListener(object : java.awt.event.WindowAdapter() {
-        override fun windowClosing(e: java.awt.event.WindowEvent) = quit()
-    })
-
-    display.apply()
-    panel.requestFocusInWindow()
-
-    Runtime.getRuntime().addShutdownHook(Thread {
-        // No Swing work here: see exitOffEventThread.
-        stopGame()
-    })
-
-    if (config.quitAfter > 0) {
-        javax.swing.Timer(config.quitAfter * 1000) { quit() }.apply { isRepeats = false }.start()
-    }
-
-    val loop = Thread {
-        try {
-            while (!Thread.currentThread().isInterrupted) {
-                if (ui.overlay == Overlay.NONE) session.step() else Thread.sleep(16)
-                if (ui.overlay == Overlay.TRACKER) ui.wram = session.readWram()
-                pad.menuOpen = ui.overlay != Overlay.NONE
-                pad.tick()
-                compose()
-            }
-        } catch (t: Throwable) {
-            System.err.println("emulator loop stopped: ${t.message}")
-        }
-    }
-    loop.isDaemon = true
-    loopRef[0] = loop
-    loop.start()
 }
