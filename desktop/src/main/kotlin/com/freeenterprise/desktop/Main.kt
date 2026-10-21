@@ -206,7 +206,7 @@ private fun findNativeDir(config: Config): File {
 
 // ------------------------------------------------------------------ the app loop
 
-private enum class Screen { LIBRARY, SEEDS, ACTIONS, FLAGS, EDITOR, GENERATING, PLAYING }
+private enum class Screen { LIBRARY, SEEDS, ACTIONS, FLAGS, EDITOR, PRESETS, GENERATING, PLAYING }
 private enum class Overlay { NONE, PAUSE, TRACKER }
 
 /** Intent published by the UI thread and consumed by whichever worker is running. */
@@ -361,6 +361,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     lateinit var activateLibraryRow: () -> Unit
     lateinit var flagActivate: () -> Unit
     lateinit var libraryActivate: () -> Unit
+    lateinit var presetActivate: () -> Unit
+    lateinit var generateActivate: () -> Unit
     lateinit var seedActivate: () -> Unit
     lateinit var actionActivate: () -> Unit
     lateinit var scheduleCheck: () -> Unit
@@ -491,13 +493,20 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             Screen.EDITOR -> {
                 canvas.draw(
                     renderer.mainMenu(
-                        width, height, flagUi.items(), editorSelected,
+                        width, height, flagUi.items(), flagUi.selection,
                         status = flagUi.status(),
                         hint = "",
                     ),
                 )
-                canvas.draw(renderer.hintBox(width, height, flagUi.hintLines(editorSelected)))
+                canvas.draw(renderer.hintBox(width, height, flagUi.hintLines()))
             }
+            Screen.PRESETS -> canvas.draw(
+                renderer.mainMenu(
+                    width, height, flagUi.items(), flagUi.selection,
+                    status = flagUi.status(),
+                    hint = flagUi.hint(),
+                ),
+            )
             Screen.GENERATING -> {
                 // The library stays visible underneath, dimmed, as it does on Android:
                 // the modal darkens the screen rather than blacking it out.
@@ -696,22 +705,35 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     PadRouter.MenuInput.CONFIRM -> actionActivate()
                     PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.SEEDS; compose() }
                 }
-            } else if (ui.screen == Screen.FLAGS) {
+            } else if (ui.screen == Screen.EDITOR) {
                 when (input) {
-                    PadRouter.MenuInput.UP -> {
-                        flagSelected = (flagSelected - 1).coerceAtLeast(0)
-                        compose()
-                    }
-                    PadRouter.MenuInput.DOWN -> {
-                        flagSelected = (flagSelected + 1).coerceAtMost(flagUi.items().size - 1)
-                        compose()
-                    }
+                    PadRouter.MenuInput.UP -> { flagUi.moveSelection(-1); compose() }
+                    PadRouter.MenuInput.DOWN -> { flagUi.moveSelection(1); compose() }
                     PadRouter.MenuInput.CONFIRM -> flagActivate()
                     PadRouter.MenuInput.CANCEL -> {
-                        if (flagUi.back()) { ui.screen = Screen.FLAGS; flagSelected = 0 }
-                        editorSelected = flagUi.items().coerceSelection(editorSelected)
+                        if (flagUi.back() == FlagUi.Action.CLOSE_EDITOR) ui.screen = Screen.FLAGS
                         compose()
                     }
+                }
+            } else if (ui.screen == Screen.PRESETS) {
+                when (input) {
+                    PadRouter.MenuInput.UP -> { flagUi.moveSelection(-1); compose() }
+                    PadRouter.MenuInput.DOWN -> { flagUi.moveSelection(1); compose() }
+                    PadRouter.MenuInput.CONFIRM -> presetActivate()
+                    PadRouter.MenuInput.CANCEL -> {
+                        if (flagUi.back() == FlagUi.Action.CLOSE_PRESETS) {
+                            flagUi.closeBrowser()
+                            ui.screen = Screen.FLAGS
+                        }
+                        compose()
+                    }
+                }
+            } else if (ui.screen == Screen.FLAGS) {
+                when (input) {
+                    PadRouter.MenuInput.UP -> { flagSelected = (flagSelected - 1).coerceAtLeast(0); compose() }
+                    PadRouter.MenuInput.DOWN -> { flagSelected = (flagSelected + 1).coerceAtMost(generateMenuItems().size - 1); compose() }
+                    PadRouter.MenuInput.CONFIRM -> generateActivate()
+                    PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.LIBRARY; compose() }
                 }
             } else if (ui.confirmingQuit) {
                 when (input) {
@@ -835,15 +857,12 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     }
 
     /** The generate screen's rows, mirroring the app's Generate screen. */
-    fun generateActivate() {
+    generateActivate = {
         when (flagSelected) {
-            0 -> { flagUi.openPresets(); ui.screen = Screen.EDITOR; editorSelected = 0 }
-            1 -> { flagUi.showCategories(); ui.screen = Screen.EDITOR; editorSelected = 0 }
+            0 -> { flagUi.openPresets(); ui.screen = Screen.PRESETS }
+            1 -> { flagUi.showCategories(); ui.screen = Screen.EDITOR }
             2 -> seedName = "SEED%04d".format(System.currentTimeMillis() % 10000)
-            3 -> {
-                startGeneration(seedName.ifBlank { "SEED%04d".format(System.currentTimeMillis() % 10000) })
-                return
-            }
+            3 -> startGeneration(seedName.ifBlank { "SEED%04d".format(System.currentTimeMillis() % 10000) })
             else -> { ui.screen = Screen.LIBRARY; libraryModel.reset(libraryItems()) }
         }
         compose()
@@ -851,9 +870,17 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     /** The flag editor: three levels, exactly as the app's editor. */
     flagActivate = {
-        flagUi.activate(editorSelected)
+        flagUi.activate(flagUi.selection)
         scheduleCheck()
-        editorSelected = flagUi.items().coerceSelection(editorSelected)
+        compose()
+    }
+
+    presetActivate = {
+        if (flagUi.activate(flagUi.selection) == FlagUi.Action.CLOSE_PRESETS) {
+            flagUi.closeBrowser()
+            ui.screen = Screen.FLAGS
+            scheduleCheck()
+        }
         compose()
     }
 
@@ -965,12 +992,23 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     KeyEvent.VK_ESCAPE -> { ui.screen = Screen.LIBRARY; libraryModel.reset(libraryItems()); compose() }
                 }
                 Screen.EDITOR -> when (e.keyCode) {
-                    KeyEvent.VK_UP, KeyEvent.VK_W -> { editorSelected = (editorSelected - 1).coerceAtLeast(0); compose() }
-                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> { editorSelected = (editorSelected + 1).coerceAtMost(flagUi.items().size - 1); compose() }
+                    KeyEvent.VK_UP, KeyEvent.VK_W -> { flagUi.moveSelection(-1); compose() }
+                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> { flagUi.moveSelection(1); compose() }
                     KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> flagActivate()
                     KeyEvent.VK_ESCAPE -> {
-                        if (flagUi.back()) { ui.screen = Screen.FLAGS; flagSelected = 0 }
-                        editorSelected = flagUi.items().coerceSelection(editorSelected)
+                        if (flagUi.back() == FlagUi.Action.CLOSE_EDITOR) ui.screen = Screen.FLAGS
+                        compose()
+                    }
+                }
+                Screen.PRESETS -> when (e.keyCode) {
+                    KeyEvent.VK_UP, KeyEvent.VK_W -> { flagUi.moveSelection(-1); compose() }
+                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> { flagUi.moveSelection(1); compose() }
+                    KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> presetActivate()
+                    KeyEvent.VK_ESCAPE -> {
+                        if (flagUi.back() == FlagUi.Action.CLOSE_PRESETS) {
+                            flagUi.closeBrowser()
+                            ui.screen = Screen.FLAGS
+                        }
                         compose()
                     }
                 }
@@ -1127,7 +1165,7 @@ private fun exportScreens(out: File, metrics: AwtTextMetrics) {
                 status = flagUi.status(), hint = "",
             ),
         )
-        canvas.draw(renderer.hintBox(width, height, flagUi.hintLines(0)))
+        canvas.draw(renderer.hintBox(width, height, flagUi.hintLines()))
         canvas.writePng(File(out, "$name.png"))
     }
     println("wrote screen images to ${out.absolutePath}")
