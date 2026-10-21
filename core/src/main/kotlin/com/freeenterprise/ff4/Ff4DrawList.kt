@@ -26,6 +26,9 @@ sealed interface Ff4Op {
     /** Draw [sprite] scaled into [rect]. */
     data class Sprite(val sprite: Ff4Sprite, val rect: Ff4Rect) : Ff4Op
 
+    /** Draw the image named [key] into [rect]. Keys are platform asset names. */
+    data class Image(val key: String, val rect: Ff4Rect) : Ff4Op
+
     /** Clip everything after this to [rect], the way a ScrollView clips its content. */
     data class Clip(val rect: Ff4Rect) : Ff4Op
 
@@ -83,6 +86,8 @@ class Ff4DrawList {
     }
 
     fun sprite(sprite: Ff4Sprite, rect: Ff4Rect) { ops.add(Ff4Op.Sprite(sprite, rect)) }
+
+    fun image(key: String, rect: Ff4Rect) { ops.add(Ff4Op.Image(key, rect)) }
 
     fun clip(rect: Ff4Rect) { ops.add(Ff4Op.Clip(rect)) }
 

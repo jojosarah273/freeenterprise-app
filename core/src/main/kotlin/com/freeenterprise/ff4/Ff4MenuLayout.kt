@@ -20,6 +20,7 @@ data class Ff4MenuRow(
     /** Right-aligned value, when the row has one. */
     val value: Ff4TextRun?,
     val subtitle: Ff4TextRun?,
+    val icons: List<String> = emptyList(),
 )
 
 object Ff4MenuLayout {
@@ -142,7 +143,7 @@ object Ff4MenuLayout {
                 null
             }
 
-            out.add(Ff4MenuRow(index, bounds, isSelected, cursor, label, value, subtitle))
+            out.add(Ff4MenuRow(index, bounds, isSelected, cursor, label, value, subtitle, item.icons))
             y += height
         }
         return out
@@ -190,7 +191,7 @@ object Ff4MenuLayout {
             val top = row.bounds.top - offset
             if (top + (row.bounds.bottom - row.bounds.top) < 0f) continue
             if (top > maxHeightPx) break
-            emitRow(row, topPx + top, list)
+            emitRow(row, topPx + top, list, metrics)
         }
         list.resetClip()
         return minOf(total, maxHeightPx)
@@ -206,12 +207,23 @@ object Ff4MenuLayout {
     }
 
     /** Draw one laid-out row at [y], keeping the layout's own positions otherwise. */
-    private fun emitRow(row: Ff4MenuRow, y: Float, list: Ff4DrawList) {
+    private fun emitRow(row: Ff4MenuRow, y: Float, list: Ff4DrawList, metrics: Ff4TextMetrics) {
         val dy = y - row.bounds.top
         if (row.selected) list.fill(row.bounds.translated(0f, dy), Ff4Palette.BLUE_SELECTED)
         row.cursor?.let { list.sprite(Ff4Sprite.CURSOR, it.translated(0f, dy)) }
         list.text(row.label.text, row.label.x, row.label.baselineY + dy, row.label.sizePx, row.label.color)
-        row.subtitle?.let { list.text(it.text, it.x, it.baselineY + dy, it.sizePx, it.color) }
+        row.subtitle?.let { sub ->
+            val dy2 = dy
+            val size = sub.sizePx
+            var x = sub.x
+            // Icons first, so a long subtitle cannot push them off the row.
+            for (key in row.icons) {
+                list.image(key, Ff4Rect(x, sub.baselineY + dy2 - size, x + size, sub.baselineY + dy2))
+                x += size + size * 0.35f
+            }
+            val textX = if (row.icons.isEmpty()) sub.x else x + size * 0.4f
+            list.text(sub.text, textX, sub.baselineY + dy2, sub.sizePx, sub.color)
+        }
         row.value?.let { list.text(it.text, it.x, it.baselineY + dy, it.sizePx, it.color, it.align) }
     }
 
@@ -237,8 +249,15 @@ object Ff4MenuLayout {
         }
         for (row in layout) {
             list.text(row.label.text, row.label.x, row.label.baselineY, row.label.sizePx, row.label.color)
-            row.subtitle?.let {
-                list.text(it.text, it.x, it.baselineY, it.sizePx, it.color)
+            row.subtitle?.let { sub ->
+                val size = sub.sizePx
+                var x = sub.x
+                for (key in row.icons) {
+                    list.image(key, Ff4Rect(x, sub.baselineY - size, x + size, sub.baselineY))
+                    x += size * 1.35f
+                }
+                val textX = if (row.icons.isEmpty()) sub.x else x + size * 0.4f
+                list.text(sub.text, textX, sub.baselineY, sub.sizePx, sub.color)
             }
             row.value?.let {
                 list.text(it.text, it.x, it.baselineY, it.sizePx, it.color, it.align)

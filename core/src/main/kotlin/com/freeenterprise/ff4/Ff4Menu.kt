@@ -8,6 +8,8 @@ data class Ff4MenuItem(
     /** Extra left padding, in SNES pixels, for rows nested under a heading. */
     val indent: Int = 0,
     val subtitle: CharSequence? = null,
+    /** Asset names drawn after the subtitle, e.g. the seed's verification icons. */
+    val icons: List<String> = emptyList(),
 )
 
 /**

@@ -249,6 +249,29 @@ private class PadWiring(
     fun tick() = router.update(mask())
 }
 
+/**
+ * Rename a seed and everything stored beside it, as the app's Rename Seed does:
+ * the ROM, its metadata, battery save, state and spoiler all take the new name.
+ */
+private fun renameSeed(rom: File, newName: String) {
+    if (newName.isBlank() || newName == rom.nameWithoutExtension) return
+    val clean = newName.replace(Regex("[^A-Za-z0-9 _.-]"), "").trim()
+    if (clean.isBlank()) return
+    val target = File(rom.parentFile, clean + ".smc")
+    if (target.exists()) return
+    for (ext in listOf(".smc", ".json", ".srm", ".state", ".spoiler.txt")) {
+        val from = File(rom.parentFile, rom.nameWithoutExtension + ext)
+        if (from.isFile) from.renameTo(File(rom.parentFile, clean + ext))
+    }
+    // The metadata's own name follows the file, so the session list shows it.
+    val meta = File(rom.parentFile, clean + ".json")
+    runCatching {
+        val json = org.json.JSONObject(meta.readText())
+        json.put("name", clean)
+        meta.writeText(json.toString(2))
+    }
+}
+
 /** Keep a row index inside a list that may have shrunk after a page change. */
 private fun List<Any>.coerceSelection(index: Int): Int =
     if (isEmpty()) 0 else index.coerceIn(0, size - 1)
@@ -333,6 +356,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     var seedsSelected = 0
     var actionsSelected = 0
     var selectedSeed: File? = null
+    /** A modal text field; while it is up it owns the keyboard. */
+    var textInput: TextInput? = null
     val pauseModel = Ff4MenuModel(pauseItems())
     val gameLoop = arrayOfNulls<Thread>(1)
 
@@ -407,11 +432,13 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             val saveText = if (save.isFile) "save ${save.length() / 1024}K" else "no save"
             val date = java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault())
                 .format(java.util.Date(if (summary.lastPlayed > 0) summary.lastPlayed else seed.rom.lastModified()))
-            val verification = if (summary.verification.isEmpty()) "no check" else summary.verification.joinToString(" ")
             Ff4MenuItem(
                 label = summary.name,
                 value = "${seed.rom.length() / 1024}K",
-                subtitle = "seed ${summary.seed.ifBlank { "?" }}  ·  $verification  ·  $saveText  ·  last played $date",
+                subtitle = "seed ${summary.seed.ifBlank { "?" }}  ·  $saveText  ·  last played $date",
+                // The app draws the seed's checksum tiles as the game's item icons.
+                // Just the tile names: Assets.icon adds the checksum/ prefix.
+                icons = summary.verification,
             )
         } + Ff4MenuItem("Back")
     }
@@ -424,6 +451,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             Ff4MenuItem("Play Seed"),
             Ff4MenuItem("New seed with these flags", "same ruleset"),
             Ff4MenuItem("Save flags as Flagset"),
+            Ff4MenuItem("Rename Seed", rom.nameWithoutExtension),
             Ff4MenuItem("Delete Seed"),
             Ff4MenuItem("Back"),
         )
@@ -545,6 +573,12 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     Overlay.NONE -> Unit
                 }
             }
+        }
+        textInput?.let { input ->
+            canvas.draw(renderer.scrim(width, height))
+            canvas.draw(
+                renderer.textInput(width, height, input.title, input.prompt, input.value),
+            )
         }
         panel.repaint()
     }
@@ -693,7 +727,9 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     }
 
     onPadMenuInput = { input ->
-        if (ui.screen == Screen.LIBRARY) {
+        if (textInput != null) {
+            // The field owns the keyboard; the pad must not move the menu under it.
+        } else if (ui.screen == Screen.LIBRARY) {
             if (ui.screen == Screen.SEEDS) {
                 when (input) {
                     PadRouter.MenuInput.UP -> { seedsSelected = (seedsSelected - 1).coerceAtLeast(0); compose() }
@@ -841,11 +877,25 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 flagSelected = 0
             }
             2 -> {
-                SeedMeta.flags(rom).takeIf { it.isNotBlank() }?.let { flags ->
-                    FlagsetStore(config.libraryDir).save(rom.nameWithoutExtension, flags)
+                val flags = SeedMeta.flags(rom).ifBlank { flagUi.editor.flagsText() }
+                if (flags.isNotBlank()) {
+                    textInput = TextInput(
+                        "Save Flagset",
+                        "Name this flagset",
+                        rom.nameWithoutExtension,
+                    ) { typed ->
+                        FlagsetStore(config.libraryDir).save(typed.trim().ifBlank { rom.nameWithoutExtension }, flags)
+                    }
                 }
             }
             3 -> {
+                textInput = TextInput(
+                    "Rename Seed",
+                    "New name for this seed",
+                    rom.nameWithoutExtension,
+                ) { typed -> renameSeed(rom, typed.trim()) }
+            }
+            4 -> {
                 // Delete the seed and everything beside it, after asking.
                 val base = rom.nameWithoutExtension
                 listOf(".smc", ".json", ".srm", ".state", ".spoiler.txt").forEach { ext ->
@@ -864,7 +914,14 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         when (flagSelected) {
             0 -> { flagUi.openPresets(); ui.screen = Screen.PRESETS }
             1 -> { flagUi.showCategories(); ui.screen = Screen.EDITOR }
-            2 -> seedName = "SEED%04d".format(System.currentTimeMillis() % 10000)
+            2 -> {
+                textInput = TextInput(
+                    "Seed name",
+                    "Type a name for this seed",
+                    seedName,
+                ) { typed -> seedName = typed.trim().ifBlank { seedName } }
+                compose()
+            }
             3 -> startGeneration(seedName.ifBlank { "SEED%04d".format(System.currentTimeMillis() % 10000) })
             else -> { ui.screen = Screen.LIBRARY; libraryModel.reset(libraryItems()) }
         }
@@ -919,6 +976,26 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             // every screen, including the generator and the editor.
             if (e.keyCode == KeyEvent.VK_F11) {
                 display.toggle()
+                compose()
+                return
+            }
+            // A text field owns the keyboard while it is up: typing must not also
+            // move the menu underneath.
+            textInput?.let { input ->
+                when (e.keyCode) {
+                    KeyEvent.VK_ENTER -> {
+                        textInput = null
+                        input.onAccept(input.value)
+                    }
+                    KeyEvent.VK_ESCAPE -> textInput = null
+                    KeyEvent.VK_BACK_SPACE -> input.value = input.value.dropLast(1)
+                    else -> {
+                        val ch = e.keyChar
+                        if (!ch.isISOControl() && (ch.isLetterOrDigit() || ch in " _-.")) {
+                            input.value += ch
+                        }
+                    }
+                }
                 compose()
                 return
             }
@@ -1253,6 +1330,14 @@ private fun inGameHint(overlay: Overlay, padConnected: Boolean): String = when (
         if (padConnected) append("      Pad: L2 Tracker   R2 Fast-forward")
     }
 }
+
+/** A modal text field: the app asks for a seed name and a flagset name this way. */
+private class TextInput(
+    val title: String,
+    val prompt: String,
+    var value: String,
+    val onAccept: (String) -> Unit,
+)
 
 /** The picture surface: the canvas, scaled to whatever size the window is. */
 internal fun gamePanel(canvas: SoftwareCanvas) = object : JPanel() {

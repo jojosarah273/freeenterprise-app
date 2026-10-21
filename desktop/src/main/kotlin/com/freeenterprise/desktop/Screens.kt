@@ -308,6 +308,32 @@ class ScreenRenderer(
         return list
     }
 
+    /**
+     * A modal text field: the prompt, the value being typed, and a caret. The app
+     * asks for names this way, so the desktop does too rather than inventing them.
+     */
+    fun textInput(width: Int, height: Int, title: String, prompt: String, value: String): Ff4DrawList {
+        val list = Ff4DrawList()
+        val line = metrics.lineHeightPx(scale.textSmallPx).toFloat()
+        val ascent = metrics.ascentPx(scale.textSmallPx).toFloat()
+        val boxWidth = minOf((width * 0.7f), width - Ff4ScreenLayout.defaultEdgeInsetPx(scale) * 2)
+        // Four lines: title, prompt, the value, and the keys.
+        val boxHeight = pad * 2 + line * 4 + scale.unit * 2
+        val box = centreBox(width, height, boxWidth, boxHeight)
+        Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
+
+        var y = box.top + pad
+        list.text(title, box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.YELLOW)
+        y += line
+        list.text(prompt, box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.WHITE)
+        y += line + scale.unit
+        // The value and a caret, on their own line, in the window's blue.
+        list.text(value + "_", box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.YELLOW)
+        y += line
+        list.text("Enter  Accept      Esc  Cancel", box.left + pad, y + ascent, scale.textSmallPx, Ff4Palette.GREY)
+        return list
+    }
+
     /** The modal window shown while a seed is generated or an engine is updated. */
     fun progressOverlay(
         width: Int,

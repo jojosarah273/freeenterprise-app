@@ -46,7 +46,7 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 | Android 0.1.25 | Linux | State |
 | --- | --- | --- |
 | Row label is the seed's name | the seed's name (fixed: was the file name) | same |
-| Row shows **verification icons** (checksum item sprites) | verification **words** | **missing** (icons) |
+| Row shows **verification icons** (checksum item sprites) | the same four icons, from the app's own `checksum-*.png` | same |
 | Row shows seed, save size, last played | same, as a subtitle | same |
 | Actions: Play Seed, Manage Save, New seed with these flags, Save flags as Flagset, Rename Seed, Delete Seed, Back | Play Seed, New seed with these flags, Save flags as Flagset, Delete Seed, Back | missing Manage Save, Rename |
 
@@ -55,7 +55,7 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 | Android 0.1.25 | Linux | State |
 | --- | --- | --- |
 | Generate screen: Choose Preset, Choose Flags, Seed, Generate Seed, Back | same rows | same |
-| Seed name typed by the user | assigned (`SEEDnnnn`) | **differs** (no text input) |
+| Seed name typed by the user | typed in an FF4 window (keyboard) | same |
 | Progress window with phases, new seeds/regenerates | same, from the engine's progress file | same |
 | Flags canonicalised and validated by the engine | same (`check_flags`, debounced) | same |
 | Old (4.6-era) flags translated with a note | translated, but no note shown | differs |
@@ -80,7 +80,7 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 | Category pages with descriptions | same | same |
 | Apply returns to Generate | same (fixed: used to land in the editor) | same |
 | Save flagsets, delete with confirmation | same | same |
-| Flagset named by the user | named from its flags (`Kmain+Cvanilla`) | **differs** (no text input) |
+| Flagset named by the user | typed in an FF4 window when saving from a session | same |
 
 ## Data
 
@@ -96,10 +96,21 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 
 ## Known differences, in priority order
 
-1. **Verification icons** in the session list (Android draws the checksum item sprites).
-2. **Text input** for a seed's name and a flagset's name (Android prompts).
-3. **Manage Save / Rename Seed** rows on a session.
-4. **Engine updates** on the desktop.
-5. **Base ROM picker** with validation.
-6. **App version** in the status line, alongside the engine version.
-7. Rows Android has and the desktop does not: Check for updates, Settings.
+1. **Manage Save** on a session (save slot management).
+2. **Engine updates** on the desktop (Android swaps its engine silently).
+3. **Base ROM picker** with MD5 validation.
+4. **App version** in the status line, alongside the engine version.
+5. Rows Android has and the desktop does not: Check for updates, Settings.
+6. "Save Flagset" is offered when saving from a session; Android also offers it from
+   the Generate screen.
+
+## Changes made in this pass
+
+* **Verification icons** in the session list, drawn from the app's
+  `assets/checksum/checksum-<tile>.png` set through a new image draw op.
+* **A text field** for naming: the seed on the Generate screen, a flagset when saving,
+  and a seed when renaming. Keyboard only, Enter accepts, Esc cancels, and it owns the
+  keyboard while open.
+* **Rename Seed** on a session, renaming the ROM and every file stored beside it.
+* Lists are clipped and scrolled like the app's ScrollView (selection always visible).
+* Menus pause the emulator; fast-forward toggles on F and R2.

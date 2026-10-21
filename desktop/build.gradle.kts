@@ -44,6 +44,7 @@ application {
 val ff4Assets = tasks.register<Copy>("copyFf4Assets") {
     from(rootProject.file("app/src/main/assets/fonts/ff4.ttf")) { into("fonts") }
     from(rootProject.file("app/src/main/assets/ff4/pointer.png")) { into("ff4") }
+    from(rootProject.file("app/src/main/assets/checksum")) { into("checksum") }
     into(layout.buildDirectory.dir("generated/ff4resources"))
 }
 sourceSets["main"].resources.srcDir(layout.buildDirectory.dir("generated/ff4resources"))

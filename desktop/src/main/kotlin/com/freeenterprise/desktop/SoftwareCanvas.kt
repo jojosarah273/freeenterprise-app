@@ -65,6 +65,16 @@ class SoftwareCanvas(
                 is Ff4Op.Stroke -> stroke(op.rect, op.widthPx, op.color)
                 is Ff4Op.Text -> text(op.run)
                 is Ff4Op.Sprite -> sprite(op)
+                is Ff4Op.Image -> Assets.icon(op.key)?.let { image ->
+                    g.drawImage(
+                        image,
+                        op.rect.left.roundToInt(),
+                        op.rect.top.roundToInt(),
+                        op.rect.width.roundToInt(),
+                        op.rect.height.roundToInt(),
+                        null,
+                    )
+                }
                 is Ff4Op.Clip -> g.clip = java.awt.Rectangle(
                     op.rect.left.roundToInt(),
                     op.rect.top.roundToInt(),
