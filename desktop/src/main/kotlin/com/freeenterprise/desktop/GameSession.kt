@@ -39,6 +39,11 @@ class GameSession(
     private val audioBytes = ByteArray(8192 * 2 * 2)
     private val frameNanos = (1_000_000_000.0 / 60.0988).toLong()
 
+    private companion object {
+        /** Frames per displayed frame while fast-forward is held. */
+        const val FAST_FORWARD_FRAMES = 4
+    }
+
     private val savePath: String
 
     init {
@@ -67,10 +72,17 @@ class GameSession(
         line = openAudio(32000)
     }
 
-    /** Steps one frame, then publishes the picture and drains the audio. */
+    /**
+     * Run more frames than we display. The audio device still paces us, so holding
+     * this runs the game faster rather than dropping frames.
+     */
+    var fastForward: Boolean = false
+
+    /** Steps one frame (or [frames] while fast-forwarding), then publishes the picture. */
     fun step() {
         val started = System.nanoTime()
-        EmulatorBridge.nativeRun()
+        val count = if (fastForward) FAST_FORWARD_FRAMES else 1
+        repeat(count) { EmulatorBridge.nativeRun() }
         refreshFrame()
         pumpAudio()
         if (line == null) {

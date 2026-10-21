@@ -24,7 +24,7 @@ CXXFLAGS  := -std=gnu++17 -O2 $(COREFLAGS) $(INCFLAGS)
 CORE_OBJS := $(SOURCES_CXX:$(CORE_DIR)/%.cpp=$(OUT)/core/%.o)
 C_OBJS    := $(SOURCES_C:$(CORE_DIR)/%.c=$(OUT)/corec/%.o)
 
-all: $(OUT)/libretro.so $(OUT)/libff4emu.so
+all: $(OUT)/libretro.so $(OUT)/libff4emu.so $(OUT)/libff4input.so
 
 # The core is a shared library here so the bridge can dlopen it, exactly as it does
 # from the APK's native library directory.
@@ -34,6 +34,12 @@ $(OUT)/libretro.so: $(CORE_OBJS) $(C_OBJS)
 $(OUT)/libff4emu.so: $(CORE_DIR)/ff4emu.cpp
 	@mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) $(JNI_INC) -shared -I$(CURDIR)/shim -o $@ $< -ldl -lpthread
+
+# Controller input. Compiled against the SDL2 headers for its constants, but
+# dlopen'ing the library, so SDL2 is not a hard dependency of the application.
+$(OUT)/libff4input.so: ff4input.cpp
+	@mkdir -p $(OUT)
+	$(CXX) $(CXXFLAGS) $(JNI_INC) -I/usr/include -shared -o $@ $< -ldl
 
 $(OUT)/core/%.o: $(CORE_DIR)/%.cpp
 	@mkdir -p $(dir $@)

@@ -27,6 +27,7 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE/native" "$STAGE/engine"
 cp -r desktop/build/install/freeenterprise "$STAGE/runtime"
 cp desktop/native/build/libretro.so desktop/native/build/libff4emu.so "$STAGE/native/"
+cp desktop/native/build/libff4input.so "$STAGE/native/"
 cp -r app/src/main/assets/python_ext "$STAGE/engine/python_ext"
 cp app/src/main/python/fe_bridge.py "$STAGE/engine/fe_bridge.py"
 
@@ -67,6 +68,11 @@ app, with the same emulator bridge and core sources, on Linux.
 
 Keys: arrows are the d-pad, X/Z are A/B, S/D are Y/X, Enter is Start, Q/W are L/R,
 Tab opens the tracker, Esc opens the pause menu.
+
+Controller (SDL2, detected automatically; the mapping database means most pads work):
+A confirms, B cancels, the left stick drives the menus, Start opens our menu,
+L2 opens the tracker, and R2 fast-forwards while held. SDL2 is loaded at runtime, so
+a machine without it simply falls back to the keyboard.
 
 Requires **JDK 17+** (`java -version`) and, for generation, **your own FF2 (US)
 v1.0/v1.1 ROM** — pass `--base-rom /path/to/ff2.smc` or put it at

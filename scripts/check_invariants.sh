@@ -48,6 +48,7 @@ has    app/build.gradle.kts 'versionNameSuffix = "-dev"'  "and says so in the ve
 
 echo "Desktop build"
 has    scripts/make_linux_test_build.sh 'python_ext'                       "the Linux build ships the engine"
+has    desktop/native/Makefile        'libff4input.so'                   "controller support is built"
 has    desktop/native/Makefile        'Makefile.common'                  "the Linux core shares the Android source list"
 has    desktop/native/Makefile        'ff4emu.cpp'                       "and reuses the Android bridge file"
 has    desktop/native/shim/android/log.h '__android_log_print'           "with only a log shim for Linux"

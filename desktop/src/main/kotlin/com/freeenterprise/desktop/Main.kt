@@ -66,6 +66,8 @@ data class Config(
     val frames: Int,
     val export: File?,
     val nativeDir: File?,
+    /** Drives a scripted pad instead of SDL, so the pad path can be checked here. */
+    val fakePad: Boolean,
     val help: Boolean,
 ) {
     companion object {
@@ -81,6 +83,7 @@ data class Config(
             var frames = 0
             var export: String? = null
             var native: String? = null
+            var fakePad = false
             var help = false
 
             var i = 0
@@ -97,6 +100,7 @@ data class Config(
                     "--frames" -> frames = args.getOrNull(++i)?.toIntOrNull() ?: 0
                     "--export" -> export = args.getOrNull(++i)
                     "--native" -> native = args.getOrNull(++i)
+                    "--fake-pad" -> fakePad = true
                     "--help", "-h" -> help = true
                     else -> System.err.println("unknown argument: ${args[i]}")
                 }
@@ -131,6 +135,7 @@ data class Config(
                 // always win, so the application itself could never start.
                 export = export?.let { File(it) },
                 nativeDir = native?.let { File(it) },
+                fakePad = fakePad,
                 help = help,
             )
         }
@@ -167,6 +172,42 @@ private class UiState {
     @Volatile var wram: ByteArray = ByteArray(0x800)
     @Volatile var progress: EngineProcess.Progress = EngineProcess.Progress(0, "Starting engine", "")
     @Volatile var message: String = ""
+    /** Polled on the UI thread, read by the emulator loop. */
+    @Volatile var padMask: Int = 0
+    @Volatile var padStatus: String = "pad: none (keyboard)"
+}
+
+/**
+ * The controller, wired to the emulator and to our menus.
+ *
+ * SDL wants its event calls on the main thread, so [poll] happens on the UI thread
+ * into a volatile mask and [tick] applies the differences on the emulator thread,
+ * where the core lives.
+ */
+private class PadWiring(
+    private val mask: () -> Int,
+    private val sendButton: (Int, Boolean) -> Unit,
+    private val onShortcut: (PadRouter.PadShortcut) -> Unit,
+    private val onMenuInput: (PadRouter.MenuInput) -> Unit,
+) {
+    private val router = PadRouter(sendButton, onShortcut, onMenuInput)
+
+    var menuOpen: Boolean
+        get() = router.menuOpen
+        set(value) { router.menuOpen = value }
+
+    fun tick() = router.update(mask())
+}
+
+/** A scripted pad, for checking the input path on a machine with no controller. */
+private fun fakePadMask(elapsedMillis: Long): Int {
+    fun mask(vararg ids: Int) = ids.fold(0) { acc, id -> acc or (1 shl id) }
+    return when {
+        elapsedMillis in 1500..2000 -> mask(GamepadMapper.Retro.START)   // open our menu
+        elapsedMillis in 2500..3000 -> mask(GamepadMapper.Retro.DOWN)    // move down
+        elapsedMillis in 3500..4200 -> mask(GamepadMapper.Retro.A)       // confirm: the tracker
+        else -> 0
+    }
 }
 
 private fun runApp(config: Config, metrics: AwtTextMetrics) {
@@ -183,6 +224,38 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     val libraryModel = Ff4MenuModel(emptyList())
     val pauseModel = Ff4MenuModel(pauseItems())
     val gameLoop = arrayOfNulls<Thread>(1)
+
+    // The controller, if the machine has one. SDL wants its event calls on the main
+    // thread, so polling happens here on the UI thread and the emulator loop applies
+    // the differences.
+    val gamepad = if (config.fakePad) null else Gamepad(findNativeDir(config))
+    ui.padStatus = when {
+        config.fakePad -> "pad: scripted (--fake-pad)"
+        gamepad?.connected == true -> "pad: ${gamepad.name}"
+        gamepad?.available == true -> "pad: none attached (keyboard)"
+        else -> "pad: SDL2 not found (keyboard)"
+    }
+    val padStartedAt = System.currentTimeMillis()
+    javax.swing.Timer(8) {
+        ui.padMask = if (config.fakePad) {
+            fakePadMask(System.currentTimeMillis() - padStartedAt)
+        } else {
+            gamepad?.poll() ?: 0
+        }
+    }.start()
+
+    // The emulator loop needs the pad, and the pad needs the screen functions, which
+    // cannot be referenced before they are declared. Forward references break that
+    // cycle; they are assigned once everything exists.
+    lateinit var activateLibraryRow: () -> Unit
+    lateinit var onPadShortcut: (PadRouter.PadShortcut) -> Unit
+    lateinit var onPadMenuInput: (PadRouter.MenuInput) -> Unit
+    val pad = PadWiring(
+        mask = { ui.padMask },
+        sendButton = { id, down -> session?.setButton(id, down) },
+        onShortcut = { onPadShortcut(it) },
+        onMenuInput = { onPadMenuInput(it) },
+    )
 
     val panel = object : JPanel() {
         override fun paintComponent(g: Graphics) {
@@ -207,7 +280,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     width, height, libraryModel.items, libraryModel.selected,
                     status = listOf(
                         "Free Enterprise  ${config.baseRom?.name ?: "no base ROM"}",
-                        ui.message.ifBlank { "${library.seeds().size} seed(s) in ${config.libraryDir.path}" },
+                        ui.message.ifBlank { "${library.seeds().size} seed(s)  ·  ${ui.padStatus}" },
                     ),
                     hint = "Up/Down  Move      Enter  Select      Esc  Quit",
                 ),
@@ -265,6 +338,9 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 while (!Thread.currentThread().isInterrupted) {
                     session?.step()
                     if (ui.overlay == Overlay.TRACKER) ui.wram = session?.readWram() ?: ByteArray(0x800)
+                    // A menu being up means the game must not see the pad.
+                    pad.menuOpen = ui.screen != Screen.PLAYING || ui.overlay != Overlay.NONE
+                    pad.tick()
                     compose()
                 }
             } catch (t: Throwable) {
@@ -311,27 +387,62 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         worker.start()
     }
 
+    /** Runs the row the library cursor is on. Shared by keyboard and pad. */
+    activateLibraryRow = {
+        val index = libraryModel.activationTarget()
+        if (index != null) {
+            val seeds = library.seeds()
+            when {
+                index < seeds.size -> play(seeds[index].rom)
+                index == seeds.size -> startGeneration("SEED%04d".format(System.currentTimeMillis() % 10000))
+                else -> exitProcess(0)
+            }
+        }
+    }
+
+    onPadShortcut = { shortcut ->
+        if (ui.screen == Screen.PLAYING) {
+            when (shortcut) {
+                PadRouter.PadShortcut.TOGGLE_MENU ->
+                    ui.overlay = if (ui.overlay == Overlay.PAUSE) Overlay.NONE else Overlay.PAUSE
+                PadRouter.PadShortcut.TOGGLE_TRACKER ->
+                    ui.overlay = if (ui.overlay == Overlay.TRACKER) Overlay.NONE else Overlay.TRACKER
+                PadRouter.PadShortcut.FAST_FORWARD_ON -> session?.fastForward = true
+                PadRouter.PadShortcut.FAST_FORWARD_OFF -> session?.fastForward = false
+            }
+        }
+    }
+
+    onPadMenuInput = { input ->
+        if (ui.screen == Screen.LIBRARY) {
+            when (input) {
+                PadRouter.MenuInput.UP -> if (libraryModel.moveSelection(-1)) compose()
+                PadRouter.MenuInput.DOWN -> if (libraryModel.moveSelection(1)) compose()
+                PadRouter.MenuInput.CONFIRM -> activateLibraryRow()
+                PadRouter.MenuInput.CANCEL -> exitProcess(0)
+            }
+        } else {
+            when (input) {
+                PadRouter.MenuInput.UP -> if (pauseModel.moveSelection(-1)) compose()
+                PadRouter.MenuInput.DOWN -> if (pauseModel.moveSelection(1)) compose()
+                PadRouter.MenuInput.CONFIRM -> when (pauseModel.activationTarget()) {
+                    0 -> ui.overlay = Overlay.NONE
+                    1 -> ui.overlay = Overlay.TRACKER
+                    3 -> openLibrary()
+                }
+                PadRouter.MenuInput.CANCEL -> ui.overlay = Overlay.NONE
+            }
+        }
+    }
+
     panel.addKeyListener(object : KeyAdapter() {
         override fun keyPressed(e: KeyEvent) {
             when (ui.screen) {
-                Screen.LIBRARY -> {
-                    when (e.keyCode) {
-                        KeyEvent.VK_UP, KeyEvent.VK_W -> if (libraryModel.moveSelection(-1)) compose()
-                        KeyEvent.VK_DOWN, KeyEvent.VK_S -> if (libraryModel.moveSelection(1)) compose()
-                        KeyEvent.VK_ENTER -> {
-                            val index = libraryModel.activationTarget() ?: return
-                            val seeds = library.seeds()
-                            when {
-                                index < seeds.size -> play(seeds[index].rom)
-                                index == seeds.size -> {
-                                    val name = "SEED%04d".format(System.currentTimeMillis() % 10000)
-                                    startGeneration(name)
-                                }
-                                else -> exitProcess(0)
-                            }
-                        }
-                        KeyEvent.VK_ESCAPE, KeyEvent.VK_Q -> exitProcess(0)
-                    }
+                Screen.LIBRARY -> when (e.keyCode) {
+                    KeyEvent.VK_UP, KeyEvent.VK_W -> if (libraryModel.moveSelection(-1)) compose()
+                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> if (libraryModel.moveSelection(1)) compose()
+                    KeyEvent.VK_ENTER -> activateLibraryRow()
+                    KeyEvent.VK_ESCAPE, KeyEvent.VK_Q -> exitProcess(0)
                 }
                 Screen.PLAYING -> {
                     if (ui.overlay != Overlay.NONE) {
@@ -503,6 +614,15 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
     val session = GameSession(rom, findNativeDir(config), config.workDir)
     val pause = Ff4MenuModel(pauseItems())
     val ui = UiState()
+    val gamepad = if (config.fakePad) null else Gamepad(findNativeDir(config))
+    val padStartedAt = System.currentTimeMillis()
+    javax.swing.Timer(8) {
+        ui.padMask = if (config.fakePad) {
+            fakePadMask(System.currentTimeMillis() - padStartedAt)
+        } else {
+            gamepad?.poll() ?: 0
+        }
+    }.start()
 
     val panel = object : JPanel() {
         override fun paintComponent(g: Graphics) {
@@ -556,11 +676,40 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
     frame.graphicsConfiguration.device.setFullScreenWindow(frame)
     panel.requestFocusInWindow()
 
+    val pad = PadWiring(
+        mask = { ui.padMask },
+        sendButton = { id, down -> session.setButton(id, down) },
+        onShortcut = { shortcut ->
+            when (shortcut) {
+                PadRouter.PadShortcut.TOGGLE_MENU ->
+                    ui.overlay = if (ui.overlay == Overlay.PAUSE) Overlay.NONE else Overlay.PAUSE
+                PadRouter.PadShortcut.TOGGLE_TRACKER ->
+                    ui.overlay = if (ui.overlay == Overlay.TRACKER) Overlay.NONE else Overlay.TRACKER
+                PadRouter.PadShortcut.FAST_FORWARD_ON -> session.fastForward = true
+                PadRouter.PadShortcut.FAST_FORWARD_OFF -> session.fastForward = false
+            }
+        },
+        onMenuInput = { input ->
+            when (input) {
+                PadRouter.MenuInput.UP -> if (pause.moveSelection(-1)) compose()
+                PadRouter.MenuInput.DOWN -> if (pause.moveSelection(1)) compose()
+                PadRouter.MenuInput.CONFIRM -> when (pause.activationTarget()) {
+                    0 -> ui.overlay = Overlay.NONE
+                    1 -> ui.overlay = Overlay.TRACKER
+                    else -> exitProcess(0)
+                }
+                PadRouter.MenuInput.CANCEL -> ui.overlay = Overlay.NONE
+            }
+        },
+    )
+
     val loop = Thread {
         try {
             while (!Thread.currentThread().isInterrupted) {
                 session.step()
                 if (ui.overlay == Overlay.TRACKER) ui.wram = session.readWram()
+                pad.menuOpen = ui.overlay != Overlay.NONE
+                pad.tick()
                 compose()
             }
         } catch (t: Throwable) {
