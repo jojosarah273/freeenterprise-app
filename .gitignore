@@ -47,3 +47,7 @@ freeenterprise-engine-*.zip.sha256
 # ff4dump harness
 tools/ff4dump/build/
 tools/ff4dump/ff4dump
+
+# JVM crash reports (native crashes land in the working directory)
+hs_err_pid*.log
+replay_pid*.log

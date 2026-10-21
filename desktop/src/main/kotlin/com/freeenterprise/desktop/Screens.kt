@@ -74,6 +74,30 @@ class ScreenRenderer(
             (height + boxHeight) / 2f,
         )
 
+    /**
+     * The controls, in a window along the bottom.
+     *
+     * The app has always had this box; the desktop build went without it, which left
+     * the in-game shortcuts undiscoverable - you had to read the README to know that
+     * Tab opens the tracker. Same height as the app's hint box, from the same core
+     * layout, so the two interfaces agree.
+     */
+    fun hintBar(width: Int, height: Int, text: String): Ff4DrawList {
+        val list = Ff4DrawList()
+        val inset = Ff4ScreenLayout.defaultEdgeInsetPx(scale)
+        val boxHeight = Ff4ScreenLayout.hintHeightPx(scale, metrics)
+        val box = Ff4Rect(inset, height - inset - boxHeight, width - inset, height - inset)
+        Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
+        list.text(
+            text,
+            box.left + pad,
+            box.top + pad + metrics.ascentPx(scale.textSmallPx),
+            scale.textSmallPx,
+            Ff4Palette.WHITE,
+        )
+        return list
+    }
+
     /** A paused-game menu: the same list widget, in a window over the picture. */
     fun pauseMenu(
         width: Int,

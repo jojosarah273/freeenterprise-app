@@ -133,6 +133,10 @@ work/      saves, save states and the engine cache
 | **F11** | **windowed ⇄ fullscreen** |
 | Esc, then Quit | leave |
 
+The controls also appear in a bar along the bottom of the screen: when a session
+starts, and whenever one of our menus is open. It clears itself after a few seconds
+so it never sits on top of the game's dialogue.
+
 A controller is picked up automatically if one is attached (SDL2; the library's
 mapping database means most pads work). A confirms, B cancels, the stick drives the
 menus, Start opens our menu, L2 opens the tracker, R2 fast-forwards while held.

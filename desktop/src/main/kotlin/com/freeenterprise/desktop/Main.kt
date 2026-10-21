@@ -231,6 +231,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     val ui = UiState()
     var session: GameSession? = null
+    var playingSince = 0L
     val libraryModel = Ff4MenuModel(emptyList())
     val pauseModel = Ff4MenuModel(pauseItems())
     val gameLoop = arrayOfNulls<Thread>(1)
@@ -309,6 +310,9 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     Overlay.TRACKER -> canvas.draw(renderer.tracker(width, height, ui.wram))
                     Overlay.NONE -> Unit
                 }
+                if (hintVisible(ui.overlay, playingSince)) {
+                    canvas.draw(renderer.hintBar(width, height, inGameHint(ui.overlay, gamepad?.connected == true)))
+                }
             }
         }
         panel.repaint()
@@ -349,6 +353,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             return
         }
         ui.screen = Screen.PLAYING
+        playingSince = System.currentTimeMillis()
         ui.message = "playing ${rom.name}"
         val loop = Thread {
             try {
@@ -662,6 +667,32 @@ private fun exitOffEventThread(code: Int) {
     }.start()
 }
 
+/**
+ * What the hint bar says, per context. One place, so the two play loops and the
+ * overlays cannot disagree about the controls.
+ */
+private const val HINT_VISIBLE_MILLIS = 12_000L
+
+/**
+ * Whether to draw the hint bar right now.
+ *
+ * Not always: the game draws its dialogue along the bottom of the screen, so a
+ * permanent bar would sit on top of it. It appears when a session starts - long
+ * enough to read the keys - and whenever one of our menus is open, which is when a
+ * player is looking for the controls anyway.
+ */
+private fun hintVisible(overlay: Overlay, playingSince: Long): Boolean =
+    overlay != Overlay.NONE || System.currentTimeMillis() - playingSince < HINT_VISIBLE_MILLIS
+
+private fun inGameHint(overlay: Overlay, padConnected: Boolean): String = when (overlay) {
+    Overlay.PAUSE -> "Up/Down  Move      Enter  Select      Esc  Close"
+    Overlay.TRACKER -> "Tab  Close      Esc  Close"
+    Overlay.NONE -> buildString {
+        append("Tab  Tracker      Esc  Menu      F11  Window")
+        if (padConnected) append("      Pad: L2 Tracker   R2 Fast-forward")
+    }
+}
+
 /** The picture surface: the canvas, scaled to whatever size the window is. */
 private fun gamePanel(canvas: SoftwareCanvas) = object : JPanel() {
     override fun paintComponent(g: Graphics) {
@@ -720,6 +751,8 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
 
     println("loading $rom")
     val session = GameSession(rom, findNativeDir(config), config.workDir)
+    val playingSince = System.currentTimeMillis()
+    var lastHint = false
     val pause = Ff4MenuModel(pauseItems())
     val ui = UiState()
     val gamepad = if (config.fakePad) null else Gamepad(findNativeDir(config))
@@ -736,12 +769,37 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
     val frame = gameFrame("Free Enterprise - dev build", panel)
     val display = Display(frame, screen, startFullscreen = !config.windowed)
 
+    /** Filled in once the emulator thread exists; stopGame needs it. */
+    val loopRef = arrayOfNulls<Thread>(1)
     var quitting = false
+
+    /**
+     * Stops the emulator loop and waits for it, because closing the session while
+     * `retro_run` is executing frees the core underneath the running frame - which is
+     * a segfault, not an exception. The loop notices the interrupt between frames.
+     */
+    fun stopGame() {
+        val loop = loopRef[0]
+        if (loop != null) {
+            loop.interrupt()
+            try {
+                loop.join(2000)
+            } catch (_: InterruptedException) {
+            }
+            if (loop.isAlive) {
+                System.err.println("emulator thread did not stop; leaving the core alone rather than crashing")
+                return
+            }
+            loopRef[0] = null
+        }
+        session.close()
+    }
+
     fun quit(code: Int = 0) {
         if (quitting) return
         quitting = true
         padTimer?.stop()
-        session.close()
+        stopGame()
         gamepad?.close()
         closeCleanly(frame)
         exitOffEventThread(code)
@@ -754,6 +812,17 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
             Overlay.PAUSE -> canvas.draw(renderer.pauseMenu(width, height, pause.items, pause.selected, "PAUSED"))
             Overlay.TRACKER -> canvas.draw(renderer.tracker(width, height, ui.wram))
             Overlay.NONE -> Unit
+        }
+        val showHint = hintVisible(ui.overlay, playingSince)
+        if (showHint != lastHint) {
+            // Only in smoke-test mode: useful when checking the timing, noise otherwise.
+            if (config.quitAfter > 0 || config.fakePad) {
+                println("hint visible=$showHint  elapsed=${System.currentTimeMillis() - playingSince}ms  overlay=${ui.overlay}")
+            }
+            lastHint = showHint
+        }
+        if (showHint) {
+            canvas.draw(renderer.hintBar(width, height, inGameHint(ui.overlay, gamepad?.connected == true)))
         }
         panel.repaint()
     }
@@ -822,7 +891,7 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
 
     Runtime.getRuntime().addShutdownHook(Thread {
         // No Swing work here: see exitOffEventThread.
-        session.close()
+        stopGame()
     })
 
     if (config.quitAfter > 0) {
@@ -843,5 +912,6 @@ private fun runGame(rom: String, config: Config, metrics: AwtTextMetrics) {
         }
     }
     loop.isDaemon = true
+    loopRef[0] = loop
     loop.start()
 }
