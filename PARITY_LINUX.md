@@ -40,6 +40,8 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 | Cursor remembered per level (categories / section / selector / presets) | same (fixed in this pass) | same |
 | Back goes up a level; the main menu confirms before leaving | same | same |
 | Locked cursor/focus while a modal is up | same | same |
+| Long values and status lines are ellipsized, never wrapped or spilled | same (values, subtitles and status all truncate) | same |
+| Pause window shows a yellow state line ("State: X.state · 32K · Mar 3, 14:00") | same | same |
 
 ## Main menu
 
@@ -55,7 +57,7 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 | --- | --- | --- |
 | Row label is the seed's name; subtitle "seed X · icons · save · last played" | same | same |
 | Seed files are named `<name>.smc` (never the engine's binary-flags name) | same | same |
-| Row shows **verification icons** (checksum item sprites) | the same four icons, from the app's own `checksum-*.png` | same |
+| Row shows **verification icons** (checksum item sprites) | the same four icons, after the seed value, from the app's `checksum-*.png` | same |
 | Row shows seed, save size, last played | same, as a subtitle | same |
 | Actions: Play Seed, Manage Save, New seed with these flags, Save flags as Flagset, Rename Seed, Delete Seed, Back | Play Seed, New seed with these flags, Save flags as Flagset, Delete Seed, Back | missing Manage Save, Rename |
 
@@ -70,6 +72,7 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 | Flags canonicalised and validated by the engine | same (`check_flags`, debounced) | same |
 | Old (4.6-era) flags translated with a note | translated, but no note shown | differs |
 | Writes `<name>.json` beside the ROM | same keys | same |
+| After generating: Play Free Enterprise, Generate Again, Back | the same three rows | same |
 
 ## Flag editor
 
@@ -106,8 +109,7 @@ Legend: **same** = behaves and reads the same; **differs** = works but not ident
 
 ## Known differences, in priority order
 
-1. **Manage Save** on a session (save slot management).
-2. **Engine updates** on the desktop (Android swaps its engine silently).
+1. **Engine updates** on the desktop (Android swaps its engine silently, and can roll back).
 3. **Base ROM picker** with MD5 validation.
 4. **App version** in the status line, alongside the engine version.
 5. Rows Android has and the desktop does not: Check for updates, Settings.

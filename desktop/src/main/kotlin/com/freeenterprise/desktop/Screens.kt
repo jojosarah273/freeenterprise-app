@@ -44,8 +44,14 @@ class ScreenRenderer(
         for (box in boxes.all) Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
 
         var statusBaseline = boxes.status.top + pad + metrics.ascentPx(scale.textSmallPx)
+        val statusRoom = boxes.status.width - pad * 2
         for (line in status) {
-            list.text(line.text, boxes.status.left + pad, statusBaseline, scale.textSmallPx, line.color)
+            // The app's status TextViews ellipsize; a long flagset must not run out of
+            // its window.
+            list.text(
+                Ff4MenuLayout.ellipsize(line.text, statusRoom, scale.textSmallPx, metrics),
+                boxes.status.left + pad, statusBaseline, scale.textSmallPx, line.color,
+            )
             statusBaseline += metrics.lineHeightPx(scale.textSmallPx)
         }
 
@@ -129,12 +135,15 @@ class ScreenRenderer(
         items: List<Ff4MenuItem>,
         selected: Int,
         heading: String,
+        /** One line of state information, shown above the rows as the app does. */
+        stateInfo: String = "",
     ): Ff4DrawList {
         val list = Ff4DrawList()
         val line = metrics.lineHeightPx(scale.textSmallPx).toFloat()
         val boxWidth = width * 0.6f
+        val infoLines = if (stateInfo.isBlank()) 0 else 1
         val boxHeight = Ff4MenuLayout.contentHeightPx(items, scale, metrics) +
-            pad * 2 + line + scale.unit * 2
+            pad * 2 + line * (1 + infoLines) + scale.unit * 2
         val box = centreBox(width, height, boxWidth, boxHeight)
         Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
 
@@ -145,9 +154,20 @@ class ScreenRenderer(
             scale.textSmallPx,
             Ff4Palette.WHITE,
         )
+        var infoY = box.top + pad + line
+        if (infoLines > 0) {
+            list.text(
+                Ff4MenuLayout.ellipsize(stateInfo, box.width - pad * 2, scale.textSmallPx, metrics),
+                box.left + pad,
+                infoY + metrics.ascentPx(scale.textSmallPx),
+                scale.textSmallPx,
+                Ff4Palette.YELLOW,
+            )
+            infoY += line
+        }
         val inner = Ff4Rect(
             box.left + pad,
-            box.top + pad + line + scale.unit * 2,
+            infoY + scale.unit * 2,
             box.right - pad,
             box.bottom - pad,
         )

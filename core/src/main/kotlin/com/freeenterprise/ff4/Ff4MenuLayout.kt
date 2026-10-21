@@ -95,8 +95,12 @@ object Ff4MenuLayout {
             // Trim the label so it cannot run into the right-aligned value. The app's
             // TextView ellipsises inside its weighted column; this is the same thing,
             // measured with the same metrics.
-            val valueWidth = item.value?.takeIf { it.isNotEmpty() }
-                ?.let { metrics.widthPx(it, labelSize).toFloat() } ?: 0f
+            // The value is truncated first, so a long one cannot run out of the row -
+            // the app's value TextView ellipsizes for the same reason.
+            val valueRoom = widthPx - pad * 2
+            val valueText = item.value?.takeIf { it.isNotEmpty() }
+                ?.let { ellipsize(it.toString(), valueRoom, labelSize, metrics) }
+            val valueWidth = valueText?.let { metrics.widthPx(it, labelSize).toFloat() } ?: 0f
             val labelRoom = if (valueWidth > 0f) {
                 leftPx + widthPx - pad - valueWidth - cursorGap - labelX
             } else {
@@ -110,9 +114,12 @@ object Ff4MenuLayout {
                 color = labelColor,
             )
 
+            val valueRight = if (valueWidth > 0f) leftPx + widthPx - pad - valueWidth else leftPx + widthPx - pad
+            val iconRoom = item.icons.size * metrics.lineHeightPx(scale.textSmallPx) * 1.35f
+            val subtitleRoom = (valueRight - labelX - iconRoom - cursorGap).coerceAtLeast(0f)
             val subtitle = item.subtitle?.takeIf { it.isNotBlank() }?.let {
                 Ff4TextRun(
-                    text = it.toString(),
+                    text = ellipsize(it.toString(), subtitleRoom, scale.textSmallPx, metrics),
                     x = labelX,
                     baselineY = blockTop + metrics.lineHeightPx(labelSize) +
                         metrics.ascentPx(scale.textSmallPx),
@@ -121,9 +128,9 @@ object Ff4MenuLayout {
                 )
             }
 
-            val value = item.value?.takeIf { it.isNotEmpty() }?.let {
+            val value = valueText?.let {
                 Ff4TextRun(
-                    text = it.toString(),
+                    text = it,
                     x = leftPx + widthPx - pad,
                     baselineY = blockTop + metrics.ascentPx(labelSize),
                     sizePx = labelSize,
@@ -215,14 +222,14 @@ object Ff4MenuLayout {
         row.subtitle?.let { sub ->
             val dy2 = dy
             val size = sub.sizePx
-            var x = sub.x
-            // Icons first, so a long subtitle cannot push them off the row.
+            // Text first, then its icons. The text was truncated above, so the icons
+            // always fit after it.
+            list.text(sub.text, sub.x, sub.baselineY + dy2, sub.sizePx, sub.color)
+            var x = sub.x + metrics.widthPx(sub.text, sub.sizePx) + size * 0.4f
             for (key in row.icons) {
                 list.image(key, Ff4Rect(x, sub.baselineY + dy2 - size, x + size, sub.baselineY + dy2))
                 x += size + size * 0.35f
             }
-            val textX = if (row.icons.isEmpty()) sub.x else x + size * 0.4f
-            list.text(sub.text, textX, sub.baselineY + dy2, sub.sizePx, sub.color)
         }
         row.value?.let { list.text(it.text, it.x, it.baselineY + dy, it.sizePx, it.color, it.align) }
     }
@@ -251,13 +258,12 @@ object Ff4MenuLayout {
             list.text(row.label.text, row.label.x, row.label.baselineY, row.label.sizePx, row.label.color)
             row.subtitle?.let { sub ->
                 val size = sub.sizePx
-                var x = sub.x
+                list.text(sub.text, sub.x, sub.baselineY, sub.sizePx, sub.color)
+                var x = sub.x + metrics.widthPx(sub.text, sub.sizePx) + size * 0.4f
                 for (key in row.icons) {
                     list.image(key, Ff4Rect(x, sub.baselineY - size, x + size, sub.baselineY))
                     x += size * 1.35f
                 }
-                val textX = if (row.icons.isEmpty()) sub.x else x + size * 0.4f
-                list.text(sub.text, textX, sub.baselineY, sub.sizePx, sub.color)
             }
             row.value?.let {
                 list.text(it.text, it.x, it.baselineY, it.sizePx, it.color, it.align)

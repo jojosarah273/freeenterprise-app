@@ -207,7 +207,7 @@ private fun findNativeDir(config: Config): File {
 
 // ------------------------------------------------------------------ the app loop
 
-private enum class Screen { LIBRARY, SEEDS, ACTIONS, FLAGS, EDITOR, PRESETS, GENERATING, PLAYING }
+private enum class Screen { LIBRARY, SEEDS, ACTIONS, MANAGE_SAVE, DONE, FLAGS, EDITOR, PRESETS, GENERATING, PLAYING }
 private enum class Overlay { NONE, PAUSE, TRACKER }
 
 /** Intent published by the UI thread and consumed by whichever worker is running. */
@@ -286,6 +286,20 @@ private fun renameSeed(rom: File, newName: String) {
 private fun rememberSeenItems(rom: File, wram: ByteArray) {
     val found = Ff4KeyItems.entries.filter { Ff4KeyItems.isFound(wram, it.index) }.map { it.name }
     if (found.isNotEmpty()) SeedMeta.addSeenItems(rom, found)
+}
+
+/** A native file chooser, for exporting and importing a .srm. */
+private fun chooseFile(save: Boolean, suggested: String): File? {
+    val dialog = java.awt.FileDialog(
+        java.awt.Frame(),
+        if (save) "Export save" else "Import save",
+        if (save) java.awt.FileDialog.SAVE else java.awt.FileDialog.LOAD,
+    )
+    dialog.file = suggested
+    dialog.isVisible = true
+    val directory = dialog.directory
+    val file = dialog.file
+    return if (directory != null && file != null) File(directory, file) else null
 }
 
 /** Keep a row index inside a list that may have shrunk after a page change. */
@@ -374,6 +388,9 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     var seedsSelected = 0
     var actionsSelected = 0
     var selectedSeed: File? = null
+    var saveSelected: Int = 0
+    /** The seed the last generation produced, for the completion screen. */
+    var generatedSeed: File? = null
     /** A modal text field; while it is up it owns the keyboard. */
     var textInput: TextInput? = null
     val pauseModel = Ff4MenuModel(pauseItems(false, false))
@@ -406,6 +423,11 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     lateinit var libraryActivate: () -> Unit
     lateinit var presetActivate: () -> Unit
     lateinit var generateActivate: () -> Unit
+    lateinit var stateInfoLine: () -> String
+    lateinit var manageSaveItems: () -> List<Ff4MenuItem>
+    lateinit var doneItems: () -> List<Ff4MenuItem>
+    lateinit var saveActivate: () -> Unit
+    lateinit var doneActivate: () -> Unit
     lateinit var seedActivate: () -> Unit
     lateinit var actionActivate: () -> Unit
     lateinit var scheduleCheck: () -> Unit
@@ -467,6 +489,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         val save = File(rom.parentFile, rom.nameWithoutExtension + ".srm")
         return listOf(
             Ff4MenuItem("Play Seed"),
+            Ff4MenuItem("Manage Save", if (save.isFile) "present" else "none"),
             Ff4MenuItem("New seed with these flags", "same ruleset"),
             Ff4MenuItem("Save flags as Flagset"),
             Ff4MenuItem("Rename Seed", rom.nameWithoutExtension),
@@ -529,6 +552,26 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     ),
                 )
             }
+            Screen.MANAGE_SAVE -> canvas.draw(
+                renderer.mainMenu(
+                    width, height, manageSaveItems(), saveSelected,
+                    status = listOf(
+                        Ff4StatusLine(selectedSeed?.nameWithoutExtension.orEmpty()),
+                        Ff4StatusLine("Save files stay in FF4_FE"),
+                    ),
+                    hint = "A  Select      B  Back",
+                ),
+            )
+            Screen.DONE -> canvas.draw(
+                renderer.mainMenu(
+                    width, height, doneItems(), saveSelected,
+                    status = listOf(
+                        Ff4StatusLine("Seed generated"),
+                        Ff4StatusLine(generatedSeed?.nameWithoutExtension.orEmpty(), Ff4Palette.GREEN),
+                    ),
+                    hint = "A  Select      B  Back",
+                ),
+            )
             Screen.FLAGS -> canvas.draw(
                 renderer.mainMenu(
                     width, height, generateMenuItems(), flagSelected,
@@ -583,7 +626,10 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 }
                 when (ui.overlay) {
                     Overlay.PAUSE -> canvas.draw(
-                        renderer.pauseMenu(width, height, pauseModel.items, pauseModel.selected, "PAUSED"),
+                        renderer.pauseMenu(
+                            width, height, pauseModel.items, pauseModel.selected, "PAUSED",
+                            stateInfo = stateInfoLine(),
+                        ),
                     )
                     Overlay.TRACKER -> canvas.draw(
                         renderer.tracker(width, height, ui.trackerPage, ui.wram, trackerLocations, checks, seenItems),
@@ -705,11 +751,16 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                         ui.progress = it
                         compose()
                     }
+                generatedSeed = result.rom
                 ui.message = "generated ${result.seed} in %.1fs  (${result.verification})".format(result.seconds)
+                openLibrary()
+                saveSelected = 0
+                ui.screen = Screen.DONE
+                compose()
             } catch (t: Throwable) {
                 ui.message = "generation failed: ${t.message}"
+                openLibrary()
             }
-            openLibrary()
         }
         worker.isDaemon = true
         worker.start()
@@ -735,6 +786,20 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         } else {
             ui.confirmingQuit = false
             compose()
+        }
+    }
+
+    /** "State: NAME.state · 12K · Mar 3, 14:00", or a word when there is none. */
+    stateInfoLine = {
+        val file = currentRom?.let { GameSession.stateFile(it.absolutePath) }
+        if (file == null) {
+            ""
+        } else if (!file.isFile) {
+            "No save state yet."
+        } else {
+            val stamped = java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault())
+                .format(java.util.Date(file.lastModified()))
+            "State: ${file.name}  ·  ${file.length() / 1024}K  ·  $stamped"
         }
     }
 
@@ -857,6 +922,20 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                         compose()
                     }
                 }
+            } else if (ui.screen == Screen.MANAGE_SAVE) {
+                when (input) {
+                    PadRouter.MenuInput.UP -> { saveSelected = (saveSelected - 1).coerceAtLeast(0); compose() }
+                    PadRouter.MenuInput.DOWN -> { saveSelected = (saveSelected + 1).coerceAtMost(manageSaveItems().size - 1); compose() }
+                    PadRouter.MenuInput.CONFIRM -> saveActivate()
+                    PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.ACTIONS; compose() }
+                }
+            } else if (ui.screen == Screen.DONE) {
+                when (input) {
+                    PadRouter.MenuInput.UP -> { saveSelected = (saveSelected - 1).coerceAtLeast(0); compose() }
+                    PadRouter.MenuInput.DOWN -> { saveSelected = (saveSelected + 1).coerceAtMost(2); compose() }
+                    PadRouter.MenuInput.CONFIRM -> doneActivate()
+                    PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.LIBRARY; compose() }
+                }
             } else if (ui.screen == Screen.FLAGS) {
                 when (input) {
                     PadRouter.MenuInput.UP -> { flagSelected = (flagSelected - 1).coerceAtLeast(0); compose() }
@@ -945,6 +1024,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             actionsSelected = 0
             ui.screen = Screen.ACTIONS
         }
+        compose()
     }
 
     actionActivate = {
@@ -954,7 +1034,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 SeedMeta.touchLastPlayed(rom)
                 play(rom)
             }
-            1 -> {
+            1 -> { saveSelected = 0; ui.screen = Screen.MANAGE_SAVE }
+            2 -> {
                 // Same ruleset: load the seed's flags into the editor and go to the
                 // generate screen.
                 SeedMeta.flags(rom).takeIf { it.isNotBlank() }?.let { flags ->
@@ -966,7 +1047,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 ui.screen = Screen.FLAGS
                 flagSelected = 0
             }
-            2 -> {
+            3 -> {
                 val flags = SeedMeta.flags(rom).ifBlank { flagUi.editor.flagsText() }
                 if (flags.isNotBlank()) {
                     textInput = TextInput(
@@ -978,25 +1059,89 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     }
                 }
             }
-            3 -> {
+            4 -> {
                 textInput = TextInput(
                     "Rename Seed",
                     "New name for this seed",
                     rom.nameWithoutExtension,
                 ) { typed -> renameSeed(rom, typed.trim()) }
             }
-            4 -> {
-                // Delete the seed and everything beside it, after asking.
-                val base = rom.nameWithoutExtension
-                listOf(".smc", ".json", ".srm", ".state", ".spoiler.txt").forEach { ext ->
-                    File(rom.parentFile, base + ext).delete()
+            5 -> {
+                // Delete after asking, with the app's wording.
+                val name = SeedMeta.summary(rom).name
+                ui.confirmTitle = "Delete session"
+                ui.confirmMessage = "Delete \"$name\", its ROM and its save from FF4_FE?"
+                ui.confirmYes = "Delete"
+                ui.confirmChoice = 1
+                ui.confirmAction = {
+                    val base = rom.nameWithoutExtension
+                    listOf(".smc", ".json", ".srm", ".state", ".spoiler.txt").forEach { ext ->
+                        File(rom.parentFile, base + ext).delete()
+                    }
+                    ui.screen = Screen.SEEDS
+                    seedsSelected = 0
                 }
-                ui.screen = Screen.SEEDS
-                seedsSelected = 0
             }
             else -> ui.screen = Screen.SEEDS
         }
         compose()
+    }
+
+    /** Manage Save, as the app's submenu: export, import, delete. */
+    manageSaveItems = {
+        val rom = selectedSeed
+        val save = rom?.let { File(it.parentFile, it.nameWithoutExtension + ".srm") }
+        if (rom == null || save == null) listOf(Ff4MenuItem("Back")) else listOf(
+            Ff4MenuItem("Export save (.srm)", if (save.isFile) "${save.length() / 1024}K" else "none",
+                enabled = save.isFile),
+            Ff4MenuItem("Import save (.srm)"),
+            Ff4MenuItem("Delete save", if (save.isFile) "present" else "none", enabled = save.isFile),
+            Ff4MenuItem("Back"),
+        )
+    }
+
+    /** The completion screen the app shows after generating. */
+    doneItems = {
+        listOf(
+            Ff4MenuItem("Play Free Enterprise", generatedSeed?.nameWithoutExtension ?: ""),
+            Ff4MenuItem("Generate Again"),
+            Ff4MenuItem("Back"),
+        )
+    }
+
+    /** Manage Save: export, import, delete - the app's four rows minus "Play in-app". */
+    saveActivate = {
+        val rom = selectedSeed
+        val save = rom?.let { File(it.parentFile, it.nameWithoutExtension + ".srm") }
+        if (rom == null || save == null) {
+            ui.screen = Screen.ACTIONS
+        } else when (saveSelected) {
+            0 -> {
+                val target = chooseFile(save = true, suggested = save.name)
+                if (target != null) runCatching { save.copyTo(target, overwrite = true) }
+            }
+            1 -> {
+                val source = chooseFile(save = false, suggested = save.name)
+                if (source != null) runCatching { source.copyTo(save, overwrite = true) }
+            }
+            2 -> {
+                ui.confirmTitle = "Delete save"
+                ui.confirmMessage = "Delete the .srm save for this session?\nThe ROM stays."
+                ui.confirmYes = "Delete"
+                ui.confirmAction = { save.delete() }
+            }
+            else -> ui.screen = Screen.ACTIONS
+        }
+        compose()
+    }
+
+    /** The completion screen: play what was just made, make another, or go back. */
+    doneActivate = {
+        when (saveSelected) {
+            0 -> generatedSeed?.let { play(it) }
+            1 -> startGeneration(seedName)
+            else -> { ui.screen = Screen.LIBRARY; compose() }
+        }
     }
 
     /** The generate screen's rows, mirroring the app's Generate screen. */
@@ -1119,6 +1264,18 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     KeyEvent.VK_UP, KeyEvent.VK_W -> { seedsSelected = (seedsSelected - 1).coerceAtLeast(0); compose() }
                     KeyEvent.VK_DOWN, KeyEvent.VK_S -> { seedsSelected = (seedsSelected + 1).coerceAtMost(seedItems().size - 1); compose() }
                     KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> seedActivate()
+                    KeyEvent.VK_ESCAPE -> { ui.screen = Screen.LIBRARY; compose() }
+                }
+                Screen.MANAGE_SAVE -> when (e.keyCode) {
+                    KeyEvent.VK_UP, KeyEvent.VK_W -> { saveSelected = (saveSelected - 1).coerceAtLeast(0); compose() }
+                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> { saveSelected = (saveSelected + 1).coerceAtMost(manageSaveItems().size - 1); compose() }
+                    KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> saveActivate()
+                    KeyEvent.VK_ESCAPE -> { ui.screen = Screen.ACTIONS; compose() }
+                }
+                Screen.DONE -> when (e.keyCode) {
+                    KeyEvent.VK_UP, KeyEvent.VK_W -> { saveSelected = (saveSelected - 1).coerceAtLeast(0); compose() }
+                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> { saveSelected = (saveSelected + 1).coerceAtMost(3 - 1); compose() }
+                    KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> doneActivate()
                     KeyEvent.VK_ESCAPE -> { ui.screen = Screen.LIBRARY; compose() }
                 }
                 Screen.ACTIONS -> when (e.keyCode) {
