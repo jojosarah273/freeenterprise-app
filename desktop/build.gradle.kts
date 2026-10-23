@@ -50,6 +50,24 @@ val ff4Assets = tasks.register<Copy>("copyFf4Assets") {
 sourceSets["main"].resources.srcDir(layout.buildDirectory.dir("generated/ff4resources"))
 tasks.named("processResources") { dependsOn(ff4Assets) }
 
+// The app version, so the desktop knows what it is running: needed for the status
+// line and for deciding whether a release is newer. Taken from the app module, so
+// there is one number for both platforms.
+val appVersion = providers.provider {
+    Regex("versionName = \"([^\"]+)\"").find(
+        rootProject.file("app/build.gradle.kts").readText()
+    )?.groupValues?.get(1) ?: "0.0.0"
+}
+val writeVersion = tasks.register("writeVersion") {
+    val out = layout.buildDirectory.file("generated/ff4resources/version.txt")
+    outputs.file(out)
+    val version = appVersion
+    doLast {
+        out.get().asFile.apply { parentFile.mkdirs(); writeText(version.get()) }
+    }
+}
+tasks.named("processResources") { dependsOn(writeVersion) }
+
 // The emulator libraries, built by `make -C desktop/native`. Copied next to the
 // application so a distribution can carry them; Main looks here first.
 val copyNativeLibs = tasks.register<Copy>("copyNativeLibs") {

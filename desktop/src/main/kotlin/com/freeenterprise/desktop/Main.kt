@@ -207,7 +207,7 @@ private fun findNativeDir(config: Config): File {
 
 // ------------------------------------------------------------------ the app loop
 
-private enum class Screen { LIBRARY, SEEDS, ACTIONS, MANAGE_SAVE, DONE, FLAGS, EDITOR, PRESETS, GENERATING, PLAYING }
+private enum class Screen { LIBRARY, SEEDS, ACTIONS, MANAGE_SAVE, DONE, UPDATES, FLAGS, EDITOR, PRESETS, GENERATING, PLAYING }
 private enum class Overlay { NONE, PAUSE, TRACKER }
 
 /** Intent published by the UI thread and consumed by whichever worker is running. */
@@ -391,6 +391,20 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     var saveSelected = 0
     /** The seed the last generation produced, for the completion screen. */
     var generatedSeed: File? = null
+    /** The release the update screen is showing, and whether a download is running. */
+    var release: Updater.Release? = null
+    var updateChecked = false
+    var updating = false
+    var updateSelected = 0
+    var updateRows: List<Ff4MenuItem> = emptyList()
+    var updateActions: List<() -> Unit> = emptyList()
+    lateinit var buildUpdateRows: () -> Unit
+    lateinit var openUpdates: () -> Unit
+    lateinit var startEngineUpdate: (Updater.Release) -> Unit
+    lateinit var confirmAppUpdate: (Updater.Release) -> Unit
+    lateinit var startAppUpdate: (Updater.Release) -> Unit
+    /** The installation directory: the parent of FF4_FE. */
+    val installDir: File = config.libraryDir.parentFile ?: File(".")
     /** A modal text field; while it is up it owns the keyboard. */
     var textInput: TextInput? = null
     val pauseModel = Ff4MenuModel(pauseItems(false, false))
@@ -458,6 +472,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     fun libraryItems(): List<Ff4MenuItem> = listOf(
         Ff4MenuItem("Play Free Enterprise", "${library.seeds().size} seed(s)"),
         Ff4MenuItem("Generate Seed"),
+        Ff4MenuItem("Check for updates", "v" + Updater.appVersion()),
         Ff4MenuItem("Exit"),
     )
 
@@ -573,6 +588,32 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     hint = "A  Select      B  Back",
                 ),
             )
+            Screen.UPDATES -> {
+                if (updating) {
+                    canvas.draw(renderer.scrim(width, height))
+                    canvas.draw(
+                        renderer.progressOverlay(
+                            width, height, "DOWNLOADING UPDATE",
+                            ui.progress.percent, ui.progress.stage, ui.progress.detail,
+                        ),
+                    )
+                } else {
+                    canvas.draw(
+                        renderer.mainMenu(
+                            width, height, updateRows, updateSelected,
+                            status = listOf(
+                                Ff4StatusLine("Free Enterprise  v" + Updater.appVersion()),
+                                Ff4StatusLine(
+                                    ui.message.ifBlank {
+                                        "engine " + (Updater.engineInstalledVersion(installDir) ?: "unknown")
+                                    },
+                                ),
+                            ),
+                            hint = "A  Select      B  Back",
+                        ),
+                    )
+                }
+            }
             Screen.FLAGS -> canvas.draw(
                 renderer.mainMenu(
                     width, height, generateMenuItems(), flagSelected,
@@ -990,11 +1031,160 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     fun flagItems(): List<Ff4MenuItem> = flagUi.items()
 
+    /** The update screen: what is newer, rollbacks, and a re-check. */
+    buildUpdateRows = {
+        val current = Updater.appVersion()
+        val engineNow = Updater.engineInstalledVersion(installDir)
+        val rows = mutableListOf<Ff4MenuItem>()
+        val acts = mutableListOf<() -> Unit>()
+        val rel = release
+
+        if (!updateChecked) {
+            rows += Ff4MenuItem("Checking...", enabled = false)
+        } else if (rel != null) {
+            val appNewer = Updater.isNewer(rel.version, current)
+            val engineNewer = rel.engineVersion?.let {
+                Updater.isNewer(it, engineNow ?: "0.0.0")
+            } == true
+
+            if (appNewer && rel.appAsset != null) {
+                rows += Ff4MenuItem("Update app to ${rel.version}", "restart")
+                acts += { confirmAppUpdate(rel) }
+            }
+            if (engineNewer && rel.engineAsset != null) {
+                rows += Ff4MenuItem("Update engine to ${rel.engineVersion}")
+                acts += { startEngineUpdate(rel) }
+            }
+            if (!appNewer && !engineNewer) {
+                rows += Ff4MenuItem("Up to date", "v$current", enabled = false)
+            }
+        }
+
+        if (Updater.canRollBackEngine(installDir)) {
+            rows += Ff4MenuItem("Roll back engine")
+            acts += {
+                runCatching { Updater.rollbackEngine(installDir) }
+                    .onSuccess { ui.message = "engine rolled back to $it" }
+                    .onFailure { ui.message = "rollback failed: ${it.message}" }
+                buildUpdateRows(); compose()
+            }
+        }
+        if (Updater.canRollBackApp(installDir)) {
+            rows += Ff4MenuItem("Roll back the app", "restart")
+            acts += {
+                ui.confirmTitle = "Roll back"
+                ui.confirmMessage = "Restore the previous build?\nThe app will restart."
+                ui.confirmYes = "Roll back"
+                ui.confirmChoice = 1
+                ui.confirmAction = {
+                    runCatching {
+                        Updater.rollbackApp(installDir)
+                        Updater.restart(installDir)
+                    }.onFailure { ui.message = "rollback failed: ${it.message}" }
+                    exitOffEventThread(0)
+                }
+            }
+        }
+
+        rows += Ff4MenuItem("Check again")
+        acts += { openUpdates() }
+        rows += Ff4MenuItem("Back")
+        acts += { ui.screen = Screen.LIBRARY; compose() }
+
+        updateRows = rows
+        updateActions = acts
+    }
+
+    /** Fetches the latest release, then shows what it offers. */
+    openUpdates = {
+        ui.screen = Screen.UPDATES
+        updateChecked = false
+        release = null
+        updateSelected = 0
+        ui.message = ""
+        buildUpdateRows()
+        compose()
+
+        Thread {
+            try {
+                release = Updater.fetchLatest()
+            } catch (t: Throwable) {
+                ui.message = "could not check for updates: ${t.message}"
+            }
+            updateChecked = true
+            buildUpdateRows()
+            compose()
+        }.apply { isDaemon = true }.start()
+    }
+
+    /** Downloads and applies the engine bundle: no restart, it is read per generate. */
+    startEngineUpdate = { rel: Updater.Release ->
+        // The row is only offered when the asset exists.
+        val asset = rel.engineAsset!!
+        updating = true
+        ui.progress = EngineProcess.Progress(0, "Downloading engine", rel.engineVersion.orEmpty())
+        compose()
+        Thread {
+            try {
+                val zip = File(installDir, ".update/engine.zip")
+                Updater.download(asset, zip) { pct ->
+                    ui.progress = EngineProcess.Progress(pct, "Downloading engine", rel.engineVersion.orEmpty())
+                    compose()
+                }
+                val version = Updater.applyEngine(installDir, zip, rel.engineVersion)
+                ui.message = "engine updated to $version"
+            } catch (t: Throwable) {
+                ui.message = "engine update failed: ${t.message}"
+            }
+            updating = false
+            buildUpdateRows()
+            compose()
+        }.apply { isDaemon = true }.start()
+    }
+
+    /** Confirms, then downloads and applies the app build, and restarts into it. */
+    confirmAppUpdate = { rel: Updater.Release ->
+        ui.confirmTitle = "Update"
+        ui.confirmMessage = "Download and install v${rel.version}?\nThe app will restart."
+        ui.confirmYes = "Update"
+        ui.confirmChoice = 1
+        ui.confirmAction = { startAppUpdate(rel) }
+        compose()
+    }
+
+    startAppUpdate = { rel: Updater.Release ->
+        // The row is only offered when the asset exists.
+        val asset = rel.appAsset!!
+        updating = true
+        ui.progress = EngineProcess.Progress(0, "Downloading update", rel.version)
+        compose()
+        Thread {
+            try {
+                val tar = File(installDir, ".update/app.tar.gz")
+                Updater.download(asset, tar) { pct ->
+                    ui.progress = EngineProcess.Progress(pct, "Downloading update", rel.version)
+                    compose()
+                }
+                Updater.applyApp(installDir, tar, rel.appVersionFromAsset)
+                ui.message = "updated to ${rel.version}; restarting"
+                compose()
+                Updater.restart(installDir)
+                exitOffEventThread(0)
+            } catch (t: Throwable) {
+                ui.message = "update failed: ${t.message}"
+                updating = false
+                buildUpdateRows()
+                compose()
+            }
+        }.apply { isDaemon = true }.start()
+    }
+
     /** The main menu: play, generate, exit. */
     libraryActivate = {
         when (libraryModel.activationTarget()) {
             0 -> { seedsSelected = 0; ui.screen = Screen.SEEDS; compose() }
             1 -> { flagSelected = 0; ui.screen = Screen.FLAGS; compose() }
+            2 -> { openUpdates(); }
             else -> askQuit()
         }
     }
@@ -1280,6 +1470,12 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 }
                         else -> keyToButton(e.keyCode)?.let { session?.setButton(it, true) }
                     }
+                }
+                Screen.UPDATES -> when (e.keyCode) {
+                    KeyEvent.VK_UP, KeyEvent.VK_W -> { updateSelected = (updateSelected - 1).coerceAtLeast(0); compose() }
+                    KeyEvent.VK_DOWN, KeyEvent.VK_S -> { updateSelected = (updateSelected + 1).coerceAtMost(updateRows.size - 1); compose() }
+                    KeyEvent.VK_ENTER, KeyEvent.VK_SPACE -> updateActions.getOrNull(updateSelected)?.invoke()
+                    KeyEvent.VK_ESCAPE -> { ui.screen = Screen.LIBRARY; compose() }
                 }
                 Screen.FLAGS -> when (e.keyCode) {
                     KeyEvent.VK_UP, KeyEvent.VK_W -> { flagSelected = (flagSelected - 1).coerceAtLeast(0); compose() }

@@ -12,8 +12,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 OUT_DIR=${1:-"../FE_LINUX_ARCHIVE"}
+# Tor-style naming: the updater finds the Linux build by this pattern, and the
+# version in the name is checked against the release before anything is unpacked.
+VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)
 STAMP=$(date +%Y%m%d-%H%M)
-NAME="freeenterprise-linux-dev-$STAMP"
+NAME="freeenterprise-linux-x86_64-${VERSION}"
 STAGE="build/linux/$NAME"
 
 echo "== building the emulator libraries =="
@@ -26,6 +29,7 @@ echo "== staging $STAGE =="
 rm -rf "$STAGE"
 mkdir -p "$STAGE/native" "$STAGE/engine"
 cp -r desktop/build/install/freeenterprise "$STAGE/runtime"
+printf '%s' "$VERSION" > "$STAGE/runtime/lib/version.txt"
 cp desktop/native/build/libretro.so desktop/native/build/libff4emu.so "$STAGE/native/"
 cp desktop/native/build/libff4input.so "$STAGE/native/"
 cp -r app/src/main/assets/python_ext "$STAGE/engine/python_ext"
