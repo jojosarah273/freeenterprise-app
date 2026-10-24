@@ -508,7 +508,9 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             Ff4MenuItem("Manage Save", if (File(rom.parentFile, rom.nameWithoutExtension + ".srm").isFile) "present" else "none"),
             Ff4MenuItem("New seed with these flags", "same ruleset"),
             Ff4MenuItem("Save flags as Flagset"),
-            Ff4MenuItem("Rename Seed", rom.nameWithoutExtension),
+            // No value: the app's row has none, and a seed's file name can be long
+            // (FF4FE.<seed>.<binary flags>), which drew a row of stray characters.
+            Ff4MenuItem("Rename Seed"),
             Ff4MenuItem("Delete Seed"),
             Ff4MenuItem("Back"),
         )
@@ -571,10 +573,26 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
             Screen.MANAGE_SAVE -> canvas.draw(
                 renderer.mainMenu(
                     width, height, manageSaveItems(), saveSelected,
-                    status = listOf(
-                        Ff4StatusLine(selectedSeed?.nameWithoutExtension.orEmpty()),
-                        Ff4StatusLine("Save files stay in FF4_FE"),
-                    ),
+                    status = run {
+                        val save = selectedSeed?.let {
+                            File(it.parentFile, it.nameWithoutExtension + ".srm")
+                        }
+                        if (save != null && save.isFile) {
+                            listOf(
+                                Ff4StatusLine("Save: ${save.name}"),
+                                Ff4StatusLine(
+                                    "${save.length()} bytes  ·  " +
+                                        java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault())
+                                            .format(java.util.Date(save.lastModified())),
+                                ),
+                            )
+                        } else {
+                            listOf(
+                                Ff4StatusLine("No save file for this session yet."),
+                                Ff4StatusLine("Play it, then import a .srm."),
+                            )
+                        }
+                    },
                     hint = "A  Select      B  Back",
                 ),
             )
@@ -1254,11 +1272,11 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         if (rom == null || save == null) {
             ui.screen = Screen.ACTIONS
         } else when (saveSelected) {
-            0 -> { chooseFile(save = true, suggested = save.name)?.let { target ->
-                runCatching { save.copyTo(target, overwrite = true) }
-            } }
-            1 -> { chooseFile(save = false, suggested = save.name)?.let { source ->
+            0 -> { chooseFile(save = false, suggested = save.name)?.let { source ->
                 runCatching { source.copyTo(save, overwrite = true) }
+            } }
+            1 -> { chooseFile(save = true, suggested = save.name)?.let { target ->
+                runCatching { save.copyTo(target, overwrite = true) }
             } }
             2 -> {
                 ui.confirmTitle = "Delete save"
@@ -1286,18 +1304,21 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     manageSaveItems = {
         val rom = selectedSeed
         val save = rom?.let { File(it.parentFile, it.nameWithoutExtension + ".srm") }
-        if (rom == null || save == null) listOf(Ff4MenuItem("Back")) else listOf(
-            Ff4MenuItem("Export save (.srm)", if (save.isFile) "${save.length() / 1024}K" else "none", enabled = save.isFile),
-            Ff4MenuItem("Import save (.srm)"),
-            Ff4MenuItem("Delete save", if (save.isFile) "present" else "none", enabled = save.isFile),
-            Ff4MenuItem("Back"),
-        )
+        if (rom == null || save == null) listOf(Ff4MenuItem("Back")) else {
+            val hasSave = save.isFile
+            listOf(
+                Ff4MenuItem("Import save (.srm)", if (hasSave) "replace" else ""),
+                Ff4MenuItem("Export save (.srm)", enabled = hasSave),
+                Ff4MenuItem("Delete save", enabled = hasSave),
+                Ff4MenuItem("Back"),
+            )
+        }
     }
 
     /** The completion screen the app shows after generating. */
     doneItems = {
         listOf(
-            Ff4MenuItem("Play Free Enterprise", generatedSeed?.nameWithoutExtension ?: ""),
+            Ff4MenuItem("Play Free Enterprise", "open seeds"),
             Ff4MenuItem("Generate Again"),
             Ff4MenuItem("Back"),
         )
