@@ -47,6 +47,24 @@ fun main(args: Array<String>) {
         return
     }
 
+    // Everything except the headless exports opens a window, so without a display
+    // there is nothing to do but say so. Java's own message for this is a stack
+    // trace from inside AWT, which tells a player nothing.
+    val headless = config.export != null
+    if (!headless) {
+        val display = System.getenv("DISPLAY").orEmpty()
+        val wayland = System.getenv("WAYLAND_DISPLAY").orEmpty()
+        if (display.isBlank() && wayland.isBlank()) {
+            System.err.println("Free Enterprise needs a graphical session, but no display was found.")
+            System.err.println("  DISPLAY is not set (and WAYLAND_DISPLAY is not set either).")
+            System.err.println("  This happens over SSH, in a text console, or in a container")
+            System.err.println("  without a desktop. Run it from your desktop session instead.")
+            System.err.println("  Headless use still works, for example:")
+            System.err.println("    ./FreeEnterprise --generate SEED --flags Kmain --export DIR")
+            exitProcess(2)
+        }
+    }
+
     when {
         config.generate != null && config.export != null ->
             runGenerateHeadless(config, metrics)
