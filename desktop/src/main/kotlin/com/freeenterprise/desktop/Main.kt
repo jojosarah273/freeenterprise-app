@@ -54,11 +54,25 @@ fun main(args: Array<String>) {
     if (!headless) {
         val display = System.getenv("DISPLAY").orEmpty()
         val wayland = System.getenv("WAYLAND_DISPLAY").orEmpty()
-        if (display.isBlank() && wayland.isBlank()) {
-            System.err.println("Free Enterprise needs a graphical session, but no display was found.")
-            System.err.println("  DISPLAY is not set (and WAYLAND_DISPLAY is not set either).")
-            System.err.println("  This happens over SSH, in a text console, or in a container")
-            System.err.println("  without a desktop. Run it from your desktop session instead.")
+        val noSession = display.isBlank() && wayland.isBlank()
+        // A headless-only Java (Debian/Ubuntu's openjdk-*-jre-headless) reports itself
+        // headless even when a display is right there, so the environment alone cannot
+        // tell us. This has bitten real players, because it is the package name that
+        // "JRE only" most suggests.
+        val javaHeadless = try { java.awt.GraphicsEnvironment.isHeadless() } catch (t: Throwable) { true }
+        if (noSession || javaHeadless) {
+            if (noSession) {
+                System.err.println("Free Enterprise needs a graphical session, but no display was found.")
+                System.err.println("  DISPLAY is not set (and WAYLAND_DISPLAY is not set either).")
+                System.err.println("  This happens over SSH, in a text console, or in a container")
+                System.err.println("  without a desktop. Run it from your desktop session instead.")
+            } else {
+                System.err.println("Free Enterprise needs a window, but this Java installation is headless.")
+                System.err.println("  A display is available (DISPLAY=$display), so the runtime itself has no")
+                System.err.println("  windowing support - typically the openjdk-*-jre-headless package.")
+                System.err.println("  Install the full runtime instead:")
+                System.err.println("    sudo apt install openjdk-17-jre      # or your distribution's equivalent")
+            }
             System.err.println("  Headless use still works, for example:")
             System.err.println("    ./FreeEnterprise --generate SEED --flags Kmain --export DIR")
             exitProcess(2)
