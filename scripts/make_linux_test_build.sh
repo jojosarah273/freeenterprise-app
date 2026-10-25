@@ -87,21 +87,58 @@ else
     echo "  Everything except generating a seed works without it."
 fi
 
-exec "$HERE/runtime/bin/freeenterprise" \
-    --native "$HERE/native" \
-    --engine "$HERE/engine/python_ext" \
-    --bridge "$HERE/engine/fe_bridge.py" \
-    --library "${FE_LIBRARY:-$HERE/FF4_FE}" \
-    --work "${FE_WORK:-$HERE/FF4_FE/.work}" \
-    "${extra[@]}" "$@"
+RUNTIME="$HERE/runtime/bin/freeenterprise"
+
+# Unpacking a tarball through Windows, FAT/exFAT or SMB - or copying its contents
+# rather than the archive - drops the exec bit, and this is where it shows up:
+#   FreeEnterprise: line 47: .../runtime/bin/freeenterprise: Permission denied
+# Restore it if we can.
+if [ ! -x "$RUNTIME" ]; then
+    chmod +x "$RUNTIME" 2>/dev/null || true
+fi
+
+# java comes from the machine, not from this build. Say so before the confusing
+# exec error.
+if ! command -v java >/dev/null 2>&1; then
+    echo "Free Enterprise needs a Java 17 or newer runtime (java) on PATH." >&2
+    exit 1
+fi
+
+ARGS=(
+    --native "$HERE/native"
+    --engine "$HERE/engine/python_ext"
+    --bridge "$HERE/engine/fe_bridge.py"
+    --library "${FE_LIBRARY:-$HERE/FF4_FE}"
+    --work "${FE_WORK:-$HERE/FF4_FE/.work}"
+    ${extra[@]+"${extra[@]}"}
+    "$@"
+)
+
+if [ -x "$RUNTIME" ]; then
+    exec "$RUNTIME" "${ARGS[@]}"
+else
+    # Still not executable here (a noexec mount does that). The entry point is a
+    # shell script, so run it through bash: only java needs to be executable.
+    echo "note: starting through bash - the exec bit is missing on this filesystem" >&2
+    exec bash "$RUNTIME" "${ARGS[@]}"
+fi
 LAUNCHER
+chmod +x "$STAGE/FreeEnterprise"
 chmod +x "$STAGE/FreeEnterprise"
 
 cat > "$STAGE/run.sh" <<'WRAPPER'
 #!/usr/bin/env bash
 # Kept for convenience: passes everything through to ./FreeEnterprise, which is the
 # launcher that finds the base ROM and wires up the directories.
-exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/FreeEnterprise" "$@"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LAUNCHER="$HERE/FreeEnterprise"
+# Same exec-bit trouble as the launcher: an unpacked-through-Windows or exFAT copy
+# loses the mode, so fall back to running it with bash.
+if [ -x "$LAUNCHER" ]; then
+    exec "$LAUNCHER" "$@"
+else
+    exec bash "$LAUNCHER" "$@"
+fi
 WRAPPER
 chmod +x "$STAGE/run.sh"
 
