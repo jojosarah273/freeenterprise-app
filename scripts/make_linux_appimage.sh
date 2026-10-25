@@ -53,6 +53,7 @@ fi
 
 mkdir -p "$HERE/FF4_FE"
 
+
 # The base ROM is the player's own; look beside the .AppImage, then in FF4_FE.
 EXTRA=""
 if [ -f "$HERE/ff2.smc" ]; then

@@ -29,6 +29,7 @@ echo "== staging $STAGE =="
 rm -rf "$STAGE"
 mkdir -p "$STAGE/native" "$STAGE/engine"
 cp -r desktop/build/install/freeenterprise "$STAGE/runtime"
+
 printf '%s' "$VERSION" > "$STAGE/runtime/lib/version.txt"
 cp desktop/native/build/libretro.so desktop/native/build/libff4emu.so "$STAGE/native/"
 cp desktop/native/build/libff4input.so "$STAGE/native/"

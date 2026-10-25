@@ -165,8 +165,8 @@ class EngineProcess(
      * menu, so the desktop does too - it is how you know which engine you are on.
      */
     fun version(): String {
-        val command = listOf(python(), bridgeFile.absolutePath, "--ext", engineDir.absolutePath, "version")
         return try {
+            val command = listOf(python(), bridgeFile.absolutePath, "--ext", engineDir.absolutePath, "version")
             val process = ProcessBuilder(command).redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader().readText()
             process.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)
@@ -190,14 +190,15 @@ class EngineProcess(
      * flagset and the same errors.
      */
     fun checkFlags(flags: String): Check {
-        val command = listOf(
-            python(),
-            bridgeFile.absolutePath,
-            "--ext", engineDir.absolutePath,
-            "check",
-            "--flags", flags,
-        )
-        val process = ProcessBuilder(command).redirectErrorStream(false).start()
+        val process = ProcessBuilder(
+            listOf(
+                python(),
+                bridgeFile.absolutePath,
+                "--ext", engineDir.absolutePath,
+                "check",
+                "--flags", flags,
+            ),
+        ).redirectErrorStream(false).start()
         val output = process.inputStream.bufferedReader().readText()
         val stderr = process.errorStream.bufferedReader().readText()
         if (!process.waitFor(90, java.util.concurrent.TimeUnit.SECONDS)) {
