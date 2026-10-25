@@ -132,6 +132,20 @@ platform differs; **missing** = not implemented.
 | --- | --- | --- |
 | Prompts for a seed name, a flagset name, a rename | same, keyboard-only field in an FF4 window; Enter accepts, Esc cancels, it owns the keyboard | same |
 
+## One source of truth for the rows
+
+Every menu's rows are now defined once, in `:core` (`Ff4Rows`): main menu, session
+actions, Manage Save, Generate, the completion screen and the in-game menu. Each
+client maps them to its own menu items and keeps its own actions, because actions are
+genuinely platform-specific (an activity or document picker against a screen or file
+chooser); labels, values, order and enabled state are shared. Core tests assert those
+against the Android wording, so a row cannot gain a value on one platform and not the
+other - which is exactly how "Rename Seed" acquired a long file name, and Manage Save
+drifted in order and values.
+
+Platform values are parameters: the tracker's shortcut key ("L2" / "Tab"), and whether
+the main menu has update and settings rows.
+
 ## Remaining work, in priority order
 
 1. **Engine updates and rollback** (Android swaps its engine silently and can restore

@@ -6,6 +6,7 @@ import com.freeenterprise.ff4.Ff4KeyItems
 import com.freeenterprise.ff4.Ff4MenuItem
 import com.freeenterprise.ff4.Ff4MenuModel
 import com.freeenterprise.ff4.Ff4Palette
+import com.freeenterprise.ff4.Ff4Rows
 import com.freeenterprise.ff4.Ff4Scale
 import com.freeenterprise.ff4.Ff4Spoiler
 import com.freeenterprise.ff4.Ff4StatusLine
@@ -288,6 +289,10 @@ private fun rememberSeenItems(rom: File, wram: ByteArray) {
     if (found.isNotEmpty()) SeedMeta.addSeenItems(rom, found)
 }
 
+/** Shared row definitions, turned into the desktop's menu items. */
+private fun List<com.freeenterprise.ff4.Ff4Row>.toMenuItems(): List<Ff4MenuItem> =
+    map { Ff4MenuItem(it.label, it.value.ifBlank { null }, enabled = it.enabled) }
+
 /** A native file chooser, for exporting and importing a .srm. */
 private fun chooseFile(save: Boolean, suggested: String): File? {
     val dialog = java.awt.FileDialog(
@@ -460,21 +465,18 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     val panel = gamePanel(canvas)
 
     /** The app's Generate screen: preset, flags, seed, generate, back. */
-    fun generateMenuItems(): List<Ff4MenuItem> = listOf(
-        Ff4MenuItem("Choose Preset", flagUi.appliedName),
-        Ff4MenuItem("Choose Flags", if (flagUi.editor.flagsText().isBlank()) "none set" else ""),
-        Ff4MenuItem("Seed", seedName.ifBlank { "random" }),
-        Ff4MenuItem("Generate Seed", if (!flagUi.valid) "fix errors" else ""),
-        Ff4MenuItem("Back"),
-    )
+    fun generateMenuItems(): List<Ff4MenuItem> =
+        Ff4Rows.generate(
+            presetName = flagUi.appliedName,
+            flagsSet = flagUi.editor.flagsText().isNotBlank(),
+            seedName = seedName,
+            valid = flagUi.valid,
+        ).toMenuItems()
 
-    /** The app's main menu, minus the platform-only rows (updates, settings). */
-    fun libraryItems(): List<Ff4MenuItem> = listOf(
-        Ff4MenuItem("Play Free Enterprise", "${library.seeds().size} seed(s)"),
-        Ff4MenuItem("Generate Seed"),
-        Ff4MenuItem("Check for updates", "v" + Updater.appVersion()),
-        Ff4MenuItem("Exit"),
-    )
+    /** The main menu, from the shared definitions (no update/settings rows here). */
+    fun libraryItems(): List<Ff4MenuItem> =
+        Ff4Rows.mainMenu(library.seeds().size, Updater.appVersion(), includeUpdateAndSettings = false)
+            .toMenuItems()
 
     /** The app's session list: one row per seed, with what it was and how far. */
     fun seedItems(): List<Ff4MenuItem> {
@@ -492,28 +494,17 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 // Order as the app shows it: seed value, icons, save, last played.
                 subtitle = "seed ${summary.seed.ifBlank { "?" }}  ·",
                 // The app draws the seed's checksum tiles as the game's item icons.
-                // Just the tile names: Assets.icon adds the checksum/ prefix.
                 icons = summary.verification,
                 subtitleAfter = "·  $saveText  ·  last played $date",
             )
         } + Ff4MenuItem("Back")
     }
 
-    /** The app's per-seed actions. */
+    /** The app's per-seed actions, from the shared definitions. */
     fun actionItems(): List<Ff4MenuItem> {
         val rom = selectedSeed ?: return listOf(Ff4MenuItem("Back"))
-        val save = File(rom.parentFile, rom.nameWithoutExtension + ".srm")
-        return listOf(
-            Ff4MenuItem("Play Seed"),
-            Ff4MenuItem("Manage Save", if (File(rom.parentFile, rom.nameWithoutExtension + ".srm").isFile) "present" else "none"),
-            Ff4MenuItem("New seed with these flags", "same ruleset"),
-            Ff4MenuItem("Save flags as Flagset"),
-            // No value: the app's row has none, and a seed's file name can be long
-            // (FF4FE.<seed>.<binary flags>), which drew a row of stray characters.
-            Ff4MenuItem("Rename Seed"),
-            Ff4MenuItem("Delete Seed"),
-            Ff4MenuItem("Back"),
-        )
+        val hasSave = File(rom.parentFile, rom.nameWithoutExtension + ".srm").isFile
+        return Ff4Rows.sessionActions(hasSave).toMenuItems()
     }
 
     fun compose() {
@@ -1300,29 +1291,15 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     }
 
 
-    /** Manage Save: export, import, delete - the app's rows minus "Play in-app". */
+    /** Manage Save, from the shared definitions. */
     manageSaveItems = {
         val rom = selectedSeed
-        val save = rom?.let { File(it.parentFile, it.nameWithoutExtension + ".srm") }
-        if (rom == null || save == null) listOf(Ff4MenuItem("Back")) else {
-            val hasSave = save.isFile
-            listOf(
-                Ff4MenuItem("Import save (.srm)", if (hasSave) "replace" else ""),
-                Ff4MenuItem("Export save (.srm)", enabled = hasSave),
-                Ff4MenuItem("Delete save", enabled = hasSave),
-                Ff4MenuItem("Back"),
-            )
-        }
+        val hasSave = rom?.let { File(it.parentFile, it.nameWithoutExtension + ".srm").isFile } == true
+        Ff4Rows.manageSave(rom != null && hasSave).toMenuItems()
     }
 
-    /** The completion screen the app shows after generating. */
-    doneItems = {
-        listOf(
-            Ff4MenuItem("Play Free Enterprise", "open seeds"),
-            Ff4MenuItem("Generate Again"),
-            Ff4MenuItem("Back"),
-        )
-    }
+    /** The completion screen, from the shared definitions. */
+    doneItems = { Ff4Rows.completed().toMenuItems() }
 
     /** The flag editor: three levels, exactly as the app's editor. */
     flagActivate = {
@@ -1699,15 +1676,8 @@ private fun menuItems() = listOf(
  * Fast-forward (showing on/off), Checks tracker, Reset Core, Exit to sessions.
  * Built when the menu opens so the values are current.
  */
-private fun pauseItems(hasState: Boolean, fastForward: Boolean) = listOf(
-    Ff4MenuItem("Resume"),
-    Ff4MenuItem("Save State"),
-    Ff4MenuItem("Load State", if (hasState) "load" else "none", enabled = hasState),
-    Ff4MenuItem("Fast-forward", if (fastForward) "on" else "off"),
-    Ff4MenuItem("Checks tracker", "Tab"),
-    Ff4MenuItem("Reset Core"),
-    Ff4MenuItem("Exit to sessions"),
-)
+private fun pauseItems(hasState: Boolean, fastForward: Boolean) =
+    Ff4Rows.pauseMenu(hasState, fastForward, trackerKey = "Tab").toMenuItems()
 
 private fun keyToButton(code: Int): Int? = when (code) {
     KeyEvent.VK_UP -> Button.UP

@@ -16,6 +16,7 @@ import android.widget.TextView
 import android.widget.Toast
 import com.freeenterprise.app.emulator.EmulatorBridge
 import com.freeenterprise.app.emulator.EmulatorSession
+import com.freeenterprise.ff4.Ff4Rows
 import com.freeenterprise.app.ff4ui.FF4Activity
 import com.freeenterprise.app.ff4ui.FF4Menu
 import com.freeenterprise.app.ff4ui.FF4Theme
@@ -418,16 +419,11 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         }
         val menu = FF4Menu(this)
         menu.submit(
-            listOf(
-                FF4Menu.Item("Resume"),
-                FF4Menu.Item("Save State"),
-                FF4Menu.Item("Load State", if (state?.exists() == true) "load" else "none",
-                    enabled = state?.exists() == true),
-                FF4Menu.Item("Fast-forward", if (fastForward) "on" else "off"),
-                FF4Menu.Item("Checks tracker", "L2"),
-                FF4Menu.Item("Reset Core"),
-                FF4Menu.Item("Exit to sessions"),
-            ),
+            Ff4Rows.pauseMenu(
+                    hasState = state?.exists() == true,
+                    fastForward = fastForward,
+                    trackerKey = "L2",
+                ).toMenuItems(),
             pauseIndex,
         ) { index ->
             pauseIndex = index

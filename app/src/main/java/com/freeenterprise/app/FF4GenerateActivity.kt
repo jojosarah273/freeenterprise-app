@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.widget.EditText
+import com.freeenterprise.ff4.Ff4Rows
 import com.freeenterprise.app.ff4ui.FF4Menu
 import com.freeenterprise.app.ff4ui.FF4MenuActivity
 import com.freeenterprise.app.ff4ui.FF4ProgressOverlay
@@ -85,13 +86,12 @@ class FF4GenerateActivity : FF4MenuActivity() {
         val seed = currentSeed()
         val preset = FlagSession.presetName()
         setHint("A  Select      B  Back")
-        submitMenu("generate", listOf(
-                FF4Menu.Item("Choose Preset", preset.ifBlank { "" }),
-                FF4Menu.Item("Choose Flags", if (flags.isBlank()) "none set" else ""),
-                FF4Menu.Item("Seed", seed.ifBlank { "random" }),
-                FF4Menu.Item("Generate Seed", if (lastValid == false) "fix errors" else ""),
-                FF4Menu.Item("Back", ""),
-            )) { i ->
+        submitMenu("generate", Ff4Rows.generate(
+                presetName = preset,
+                flagsSet = flags.isNotBlank(),
+                seedName = seed,
+                valid = lastValid != false,
+            ).toMenuItems()) { i ->
             when (i) {
                 0 -> startActivity(Intent(this, FF4PresetActivity::class.java))
                 1 -> startActivity(
@@ -375,11 +375,7 @@ class FF4GenerateActivity : FF4MenuActivity() {
                 FF4Theme.GREEN
             )
             setHint("A  Select      B  Back")
-            submitMenu("genresult", listOf(
-                    FF4Menu.Item("Play Free Enterprise", "open seeds"),
-                    FF4Menu.Item("Generate Again"),
-                    FF4Menu.Item("Back"),
-                )) { i ->
+            submitMenu("genresult", Ff4Rows.completed().toMenuItems()) { i ->
                 when (i) {
                     0 -> startActivity(Intent(this, FF4PlayActivity::class.java))
                     1 -> { FlagSession.clear(); showMenu() }

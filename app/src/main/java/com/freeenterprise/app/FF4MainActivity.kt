@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import com.freeenterprise.ff4.Ff4Rows
 import com.freeenterprise.app.ff4ui.FF4Dialog
 import com.freeenterprise.app.ff4ui.FF4Menu
 import com.freeenterprise.app.ff4ui.FF4MenuActivity
@@ -154,13 +155,11 @@ class FF4MainActivity : FF4MenuActivity() {
         val statusText = noticeText ?: internetGrantWarning()
         setStatus(statusText, if (noticeText != null) FF4Theme.GREEN else FF4Theme.WHITE)
         setHint("A  Select      B  Exit")
-        submitMenu("main", listOf(
-                FF4Menu.Item("Play Free Enterprise", "$seedCount seed(s)"),
-                FF4Menu.Item("Generate Seed", ""),
-                FF4Menu.Item("Check for updates", "v${BuildConfig.VERSION_NAME}"),
-                FF4Menu.Item("Settings", ""),
-                FF4Menu.Item("Exit", ""),
-            )) { i ->
+        submitMenu("main", Ff4Rows.mainMenu(
+                seedCount,
+                BuildConfig.VERSION_NAME,
+                includeUpdateAndSettings = true,
+            ).toMenuItems()) { i ->
             when (i) {
                 0 -> startActivity(Intent(this, FF4PlayActivity::class.java))
                 1 -> startActivity(Intent(this, FF4GenerateActivity::class.java))
