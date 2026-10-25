@@ -14,8 +14,11 @@ OUT=${1:-"../FE_LINUX_ARCHIVE"}
 TOOL="${APPIMAGETOOL:-/tmp/ait/appimagetool}"
 
 VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)
+STAMP=$(date +%Y%m%d-%H%M)
+COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)
+BUILD="${VERSION}-dev.${STAMP}.${COMMIT}"
 APPDIR="build/linux/appimage/FreeEnterprise.AppDir"
-NAME="freeenterprise-linux-x86_64-${VERSION}.AppImage"
+NAME="freeenterprise-linux-x86_64-${BUILD}.AppImage"
 
 echo "== building the portable tree =="
 ./scripts/make_linux_test_build.sh "$OUT" >/dev/null
@@ -52,6 +55,14 @@ else
 fi
 
 mkdir -p "$HERE/FF4_FE"
+
+# Which build this is, for the app to show (the files are outside the jars).
+if [ -r "$APPDIR/usr/runtime/lib/build.txt" ]; then
+    export FE_BUILD="$(cat "$APPDIR/usr/runtime/lib/build.txt")"
+fi
+if [ -r "$APPDIR/usr/runtime/lib/version.txt" ]; then
+    export FE_VERSION="$(cat "$APPDIR/usr/runtime/lib/version.txt")"
+fi
 
 
 # The base ROM is the player's own; look beside the .AppImage, then in FF4_FE.

@@ -58,7 +58,12 @@ object Updater {
 
         /** An asset name always carries the version, so a mismatched asset is refused. */
         val appVersionFromAsset: String?
-            get() = appAsset?.name?.removeSuffix(".tar.gz")?.substringAfterLast('-')
+            get() = appAsset?.name?.let {
+                // Names carry a build stamp (0.1.25-dev.20261025-1930.abc123), so the
+                // version is the leading dotted number, not the last dash segment.
+                Regex("freeenterprise-linux-[a-z0-9_]+-(\\d+\\.\\d+\\.\\d+)").find(it)
+                    ?.groupValues?.get(1)
+            }
     }
 
     /** Reads the latest release. Public repository: no token needed. */

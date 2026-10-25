@@ -16,7 +16,10 @@ OUT_DIR=${1:-"../FE_LINUX_ARCHIVE"}
 # version in the name is checked against the release before anything is unpacked.
 VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)
 STAMP=$(date +%Y%m%d-%H%M)
-NAME="freeenterprise-linux-x86_64-${VERSION}"
+COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)
+# Everything used to be called "0.1.25", which made builds indistinguishable.
+BUILD="${VERSION}-dev.${STAMP}.${COMMIT}"
+NAME="freeenterprise-linux-x86_64-${BUILD}"
 STAGE="build/linux/$NAME"
 
 echo "== building the emulator libraries =="
@@ -31,6 +34,7 @@ mkdir -p "$STAGE/native" "$STAGE/engine"
 cp -r desktop/build/install/freeenterprise "$STAGE/runtime"
 
 printf '%s' "$VERSION" > "$STAGE/runtime/lib/version.txt"
+printf '%s' "$BUILD"   > "$STAGE/runtime/lib/build.txt"
 cp desktop/native/build/libretro.so desktop/native/build/libff4emu.so "$STAGE/native/"
 cp desktop/native/build/libff4input.so "$STAGE/native/"
 cp -r app/src/main/assets/python_ext "$STAGE/engine/python_ext"
@@ -86,6 +90,15 @@ else
     echo "No base ROM found beside this launcher."
     echo "  Put your FF2 (US) v1.0/v1.1 ROM here as ff2.smc, or pass --base-rom PATH."
     echo "  Everything except generating a seed works without it."
+fi
+
+# Which build this is, for the app to show. The files sit outside the jars, so
+# they travel through the environment rather than the classpath.
+if [ -r "$HERE/runtime/lib/build.txt" ]; then
+    export FE_BUILD="$(cat "$HERE/runtime/lib/build.txt")"
+fi
+if [ -r "$HERE/runtime/lib/version.txt" ]; then
+    export FE_VERSION="$(cat "$HERE/runtime/lib/version.txt")"
 fi
 
 RUNTIME="$HERE/runtime/bin/freeenterprise"

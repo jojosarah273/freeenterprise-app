@@ -534,10 +534,14 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                         width, height, libraryModel.items, libraryModel.selected,
                         status = listOf(
                             Ff4StatusLine(
-                                "Free Enterprise  " + engineVersion.ifBlank { "engine not found" } +
-                                    (if (config.baseRom == null) "  ·  no base ROM" else ""),
+                                AppBuild.id(),
                             ),
-                            Ff4StatusLine(ui.message.ifBlank { "${library.seeds().size} seed(s)  ·  ${ui.padStatus}" }),
+                            Ff4StatusLine(
+                                ui.message.ifBlank {
+                                    "engine " + engineVersion.ifBlank { "?" } +
+                                        "  ·  ${library.seeds().size} seed(s)"
+                                },
+                            ),
                         ),
                         hint = "Up/Down  Move      Enter  Select      Esc  Quit",
                     ),
@@ -673,8 +677,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                         width, height, libraryModel.items, libraryModel.selected,
                         status = listOf(
                             Ff4StatusLine(
-                                "Free Enterprise  " + engineVersion.ifBlank { "engine not found" } +
-                                    (if (config.baseRom == null) "  ·  no base ROM" else ""),
+                                AppBuild.id(),
                             ),
                             Ff4StatusLine("generating…"),
                         ),
@@ -1026,7 +1029,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         }
     }
 
-    val frame = gameFrame("Free Enterprise - dev build", panel)
+    val frame = gameFrame("Free Enterprise ${AppBuild.id()}", panel)
     val display = Display(frame, screen, startFullscreen = !config.windowed)
 
     quit = { code ->
