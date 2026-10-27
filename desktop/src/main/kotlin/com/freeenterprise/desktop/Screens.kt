@@ -37,9 +37,12 @@ class ScreenRenderer(
         selected: Int,
         status: List<com.freeenterprise.ff4.Ff4StatusLine>,
         hint: String,
+        hintLines: Int = 1,
     ): Ff4DrawList {
         val list = Ff4DrawList()
-        val boxes = Ff4ScreenLayout.boxes(width.toFloat(), height.toFloat(), scale, metrics)
+        val boxes = Ff4ScreenLayout.boxes(
+            width.toFloat(), height.toFloat(), scale, metrics, hintLines = hintLines,
+        )
 
         for (box in boxes.all) Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
 
@@ -106,8 +109,10 @@ class ScreenRenderer(
         val inset = Ff4ScreenLayout.defaultEdgeInsetPx(scale)
         val lineHeight = metrics.lineHeightPx(scale.textSmallPx)
         val shown = lines.filter { it.isNotBlank() }.take(3)
-        val boxHeight = (lineHeight * maxOf(1, shown.size) + scale.contentPaddingPx * 2).toFloat()
-        val box = Ff4Rect(inset, height - inset - boxHeight, width - inset, height - inset)
+        // Same function the menu uses, so the two boxes cannot disagree.
+        val box = Ff4ScreenLayout.boxes(
+            width.toFloat(), height.toFloat(), scale, metrics, hintLines = shown.size,
+        ).hint
         Ff4WindowChrome.of(box, scale, dimmed = false)?.emitTo(list)
 
         // Trim to what fits, so nothing runs past the window.

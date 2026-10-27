@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.EditText
 import androidx.activity.result.contract.ActivityResultContracts
+import com.freeenterprise.ff4.Ff4Action
 import com.freeenterprise.ff4.Ff4Rows
 import com.freeenterprise.app.ff4ui.FF4Dialog
 import com.freeenterprise.app.ff4ui.GameIcons
@@ -116,15 +117,17 @@ class FF4PlayActivity : FF4MenuActivity() {
             FF4Theme.WHITE
         )
         setHint("A  Select      B  Back")
-        submitMenu("actions", Ff4Rows.sessionActions(save.exists()).toMenuItems()) { i ->
-            when (i) {
-                0 -> playSeed(rom)
-                1 -> showSaveMenu()
-                2 -> newSeedWithSameFlags(rom)
-                3 -> saveFlagsAsFlagset(rom)
-                4 -> rename(rom)
-                5 -> confirmDelete(rom)
-                6 -> showList()
+        val rows = Ff4Rows.sessionActions(save.exists())
+        submitMenu("actions", rows.toMenuItems()) { i ->
+            when (rows.getOrNull(i)?.action) {
+                Ff4Action.PLAY_SEED -> playSeed(rom)
+                Ff4Action.MANAGE_SAVE -> showSaveMenu()
+                Ff4Action.REGENERATE_SAME_FLAGS -> newSeedWithSameFlags(rom)
+                Ff4Action.SAVE_FLAGSET -> saveFlagsAsFlagset(rom)
+                Ff4Action.RENAME_SEED -> rename(rom)
+                Ff4Action.DELETE_SEED -> confirmDelete(rom)
+                Ff4Action.BACK -> showList()
+                else -> Unit
             }
         }
     }
@@ -171,12 +174,14 @@ class FF4PlayActivity : FF4MenuActivity() {
         )
         setHint("A  Select      B  Back")
         val hasSave = save.exists()
-        submitMenu("save", Ff4Rows.manageSave(hasSave).toMenuItems()) { i ->
-            when (i) {
-                0 -> srmImporter.launch(arrayOf("*/*"))
-                1 -> srmExporter.launch(save.name)
-                2 -> confirmDeleteSave(rom)
-                3 -> showActions()
+        val rows = Ff4Rows.manageSave(hasSave)
+        submitMenu("save", rows.toMenuItems()) { i ->
+            when (rows.getOrNull(i)?.action) {
+                Ff4Action.IMPORT_SAVE -> srmImporter.launch(arrayOf("*/*"))
+                Ff4Action.EXPORT_SAVE -> srmExporter.launch(save.name)
+                Ff4Action.DELETE_SAVE -> confirmDeleteSave(rom)
+                Ff4Action.BACK -> showActions()
+                else -> Unit
             }
         }
     }

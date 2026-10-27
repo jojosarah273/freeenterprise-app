@@ -119,6 +119,35 @@ hasnot "$J/FF4PlayerActivity.kt"   'held.contains(normalise(name))'     "no inve
 has    "$J/RomLibrary.kt"          '"seen_key_items"'                   "metadata stores what was obtained"
 hasnot "$J/Spoiler.kt"             '\\\\\\.{3,}'                          "parser accepts short dot runs"
 
+echo "Menus are defined once, and dispatched by action"
+# Both platforms dispatch the *shared* menus on Ff4Action. Dispatching on a row index
+# is how the desktop Exit row came to check for updates: the platforms offered
+# different rows, so position 2 meant different things. Platform-local menus (the
+# update results, a .srm picker) may still use indices - they exist on one platform.
+A=app/src/main/java/com/freeenterprise/app
+D=desktop/src/main/kotlin/com/freeenterprise/desktop/Main.kt
+has    "$A/FF4MainActivity.kt"     'rows.getOrNull(i)?.action'      "Android main menu: by action"
+has    "$A/FF4PlayActivity.kt"     'rows.getOrNull(i)?.action'      "Android session/save menus: by action"
+has    "$A/FF4GenerateActivity.kt" 'rows.getOrNull(i)?.action'      "Android generate/completed: by action"
+has    "$A/FF4PlayerActivity.kt"   'rows.getOrNull(index)?.action'  "Android pause menu: by action"
+hasnot "$A/FF4MainActivity.kt"     'submitMenu("main", Ff4Rows'     "Android main menu is not index-built inline"
+has    "$D" 'Ff4Action.EXIT_APP'                                  "desktop: Exit quits, whatever its position"
+has    "$D" 'libraryRows().getOrNull(libraryModel.selected)?.action' "desktop main menu: by action"
+has    "$D" 'generateRows().getOrNull(flagSelected)?.action'       "desktop generate: by action"
+has    "$D" 'actionRows().getOrNull(actionsSelected)?.action'      "desktop session actions: by action"
+has    "$D" 'pauseRows().getOrNull(index)?.action'                 "desktop pause menu: by action"
+hasnot "$D" 'when (libraryModel.activationTarget())'              "desktop main menu is not dispatched by index"
+# Rows are built only from the shared definitions, never by a platform.
+owned=0
+for f in "$A"/*.kt "$D" ; do
+    if grep -q 'Ff4Row(' "$f"; then bad "$(basename "$f") builds its own rows instead of using Ff4Rows"; owned=1; fi
+done
+[ "$owned" -eq 0 ] && ok "rows come from Ff4Rows only"
+# The editor's three-line detail box must be reserved by the layout, or it covers the menu.
+has "$D" 'hintLines = detail.size'                                   "editor reserves its detail box height"
+has "core/src/main/kotlin/com/freeenterprise/ff4/Ff4ScreenLayout.kt" 'hintLines: Int = 1' \
+    "the layout takes the hint line count"
+
 echo "Desktop handlers"
 # A lateinit handler whose assignment was deleted by a bulk edit fails only when the
 # row is pressed: "Choose Flags does not load", with no compile error. That is how

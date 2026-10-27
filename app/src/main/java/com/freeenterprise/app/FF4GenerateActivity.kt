@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.widget.EditText
+import com.freeenterprise.ff4.Ff4Action
 import com.freeenterprise.ff4.Ff4Rows
 import com.freeenterprise.app.ff4ui.FF4Menu
 import com.freeenterprise.app.ff4ui.FF4MenuActivity
@@ -86,21 +87,24 @@ class FF4GenerateActivity : FF4MenuActivity() {
         val seed = currentSeed()
         val preset = FlagSession.presetName()
         setHint("A  Select      B  Back")
-        submitMenu("generate", Ff4Rows.generate(
-                presetName = preset,
-                flagsSet = flags.isNotBlank(),
-                seedName = seed,
-                valid = lastValid != false,
-            ).toMenuItems()) { i ->
-            when (i) {
-                0 -> startActivity(Intent(this, FF4PresetActivity::class.java))
-                1 -> startActivity(
+        val rows = Ff4Rows.generate(
+            presetName = preset,
+            flagsSet = flags.isNotBlank(),
+            seedName = seed,
+            valid = lastValid != false,
+        )
+        submitMenu("generate", rows.toMenuItems()) { i ->
+            when (rows.getOrNull(i)?.action) {
+                Ff4Action.CHOOSE_PRESET ->
+                    startActivity(Intent(this, FF4PresetActivity::class.java))
+                Ff4Action.CHOOSE_FLAGS -> startActivity(
                     Intent(this, FF4FlagEditorActivity::class.java)
                         .putExtra("flags", currentFlags())
                 )
-                2 -> editSeed()
-                3 -> generate()
-                4 -> finish()
+                Ff4Action.EDIT_SEED_NAME -> editSeed()
+                Ff4Action.RUN_GENERATION -> generate()
+                Ff4Action.BACK -> finish()
+                else -> Unit
             }
         }
     }
@@ -375,13 +379,16 @@ class FF4GenerateActivity : FF4MenuActivity() {
                 FF4Theme.GREEN
             )
             setHint("A  Select      B  Back")
-            submitMenu("genresult", Ff4Rows.completed().toMenuItems()) { i ->
-                when (i) {
-                    0 -> startActivity(Intent(this, FF4PlayActivity::class.java))
-                    1 -> { FlagSession.clear(); showMenu() }
-                    2 -> finish()
-                }
+        val rows = Ff4Rows.completed()
+        submitMenu("genresult", rows.toMenuItems()) { i ->
+            when (rows.getOrNull(i)?.action) {
+                Ff4Action.OPEN_SEED_LIBRARY ->
+                    startActivity(Intent(this, FF4PlayActivity::class.java))
+                Ff4Action.GENERATE_AGAIN -> { FlagSession.clear(); showMenu() }
+                Ff4Action.BACK -> finish()
+                else -> Unit
             }
+        }
         } catch (e: Exception) {
             setStatus("Generation result error: ${e.message}", FF4Theme.PINK)
         }

@@ -16,6 +16,7 @@ import android.widget.TextView
 import android.widget.Toast
 import com.freeenterprise.app.emulator.EmulatorBridge
 import com.freeenterprise.app.emulator.EmulatorSession
+import com.freeenterprise.ff4.Ff4Action
 import com.freeenterprise.ff4.Ff4Rows
 import com.freeenterprise.app.ff4ui.FF4Activity
 import com.freeenterprise.app.ff4ui.FF4Menu
@@ -418,31 +419,31 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             setPadding(0, 0, 0, dp(6))
         }
         val menu = FF4Menu(this)
-        menu.submit(
-            Ff4Rows.pauseMenu(
-                    hasState = state?.exists() == true,
-                    fastForward = fastForward,
-                    trackerKey = "L2",
-                ).toMenuItems(),
-            pauseIndex,
-        ) { index ->
+        val rows = Ff4Rows.pauseMenu(
+            hasState = state?.exists() == true,
+            fastForward = fastForward,
+            trackerKey = "L2",
+        )
+        menu.submit(rows.toMenuItems(), pauseIndex) { index ->
             pauseIndex = index
-            when (index) {
-                0 -> closePause()
-                1 -> { saveState(); closePause() }   // save, then close (as Load does)
-                2 -> loadState()
-                3 -> { toggleFastForward(); openPause() }   // reopen to refresh the label
-                4 -> { closePause(); toggleTracker() }
-                5 -> confirm(
+            when (rows.getOrNull(index)?.action) {
+                Ff4Action.RESUME -> closePause()
+                Ff4Action.SAVE_STATE -> { saveState(); closePause() }   // save, then close
+                Ff4Action.LOAD_STATE -> loadState()
+                // reopen, so the row shows on/off
+                Ff4Action.TOGGLE_FAST_FORWARD -> { toggleFastForward(); openPause() }
+                Ff4Action.OPEN_TRACKER -> { closePause(); toggleTracker() }
+                Ff4Action.RESET_CORE -> confirm(
                     "Reset core",
                     "Reset the emulator?\nUnsaved progress since the last save state is lost.",
                     "Reset"
                 ) { closePause(); restartSession() }
-                6 -> confirm(
+                Ff4Action.EXIT_TO_SESSIONS -> confirm(
                     "Exit to sessions",
                     "Leave the game?\nYour battery save is written to FF4_FE first.",
                     "Exit"
                 ) { finish() }
+                else -> Unit
             }
         }
         val column = LinearLayout(this).apply {

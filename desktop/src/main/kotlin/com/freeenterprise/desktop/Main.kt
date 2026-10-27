@@ -1,11 +1,13 @@
 package com.freeenterprise.desktop
 
 import com.freeenterprise.app.emulator.EmulatorBridge.Button
+import com.freeenterprise.ff4.Ff4Action
 import com.freeenterprise.ff4.Ff4Checks
 import com.freeenterprise.ff4.Ff4KeyItems
 import com.freeenterprise.ff4.Ff4MenuItem
 import com.freeenterprise.ff4.Ff4MenuModel
 import com.freeenterprise.ff4.Ff4Palette
+import com.freeenterprise.ff4.Ff4Row
 import com.freeenterprise.ff4.Ff4Rows
 import com.freeenterprise.ff4.Ff4Scale
 import com.freeenterprise.ff4.Ff4Spoiler
@@ -496,19 +498,46 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     val panel = gamePanel(canvas)
 
-    /** The app's Generate screen: preset, flags, seed, generate, back. */
-    fun generateMenuItems(): List<Ff4MenuItem> =
-        Ff4Rows.generate(
-            presetName = flagUi.appliedName,
-            flagsSet = flagUi.editor.flagsText().isNotBlank(),
-            seedName = seedName,
-            valid = flagUi.valid,
-        ).toMenuItems()
+    /**
+     * The rows of each shared menu.
+     *
+     * Activation and drawing both come from these, and every activation switches on
+     * Ff4Action rather than a row index: the desktop and Android offer different rows
+     * in places, and position-based dispatch made Exit check for updates here.
+     */
+    fun generateRows(): List<Ff4Row> = Ff4Rows.generate(
+        presetName = flagUi.appliedName,
+        flagsSet = flagUi.editor.flagsText().isNotBlank(),
+        seedName = seedName,
+        valid = flagUi.valid,
+    )
 
-    /** The main menu, from the shared definitions (no update/settings rows here). */
-    fun libraryItems(): List<Ff4MenuItem> =
-        Ff4Rows.mainMenu(library.seeds().size, Updater.appVersion(), includeUpdateAndSettings = false)
-            .toMenuItems()
+    fun generateMenuItems(): List<Ff4MenuItem> = generateRows().toMenuItems()
+
+    /** The main menu, from the shared definitions (updates, but no Settings screen). */
+    fun libraryRows(): List<Ff4Row> =
+        Ff4Rows.mainMenu(library.seeds().size, Updater.appVersion(), includeSettings = false)
+
+    fun libraryItems(): List<Ff4MenuItem> = libraryRows().toMenuItems()
+
+    fun actionRows(): List<Ff4Row> {
+        val rom = selectedSeed ?: return emptyList()
+        return Ff4Rows.sessionActions(File(rom.parentFile, rom.nameWithoutExtension + ".srm").isFile)
+    }
+
+    fun saveRows(): List<Ff4Row> {
+        val rom = selectedSeed
+        val hasSave = rom?.let { File(it.parentFile, it.nameWithoutExtension + ".srm").isFile } == true
+        return Ff4Rows.manageSave(rom != null && hasSave)
+    }
+
+    fun doneRows(): List<Ff4Row> = Ff4Rows.completed()
+
+    fun pauseRows(): List<Ff4Row> = Ff4Rows.pauseMenu(
+        hasState = currentRom?.let { GameSession.stateFile(it.absolutePath).isFile } == true,
+        fastForward = session?.fastForward == true,
+        trackerKey = "Tab",
+    )
 
     /** The app's session list: one row per seed, with what it was and how far. */
     fun seedItems(): List<Ff4MenuItem> {
@@ -534,9 +563,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     /** The app's per-seed actions, from the shared definitions. */
     fun actionItems(): List<Ff4MenuItem> {
-        val rom = selectedSeed ?: return listOf(Ff4MenuItem("Back"))
-        val hasSave = File(rom.parentFile, rom.nameWithoutExtension + ".srm").isFile
-        return Ff4Rows.sessionActions(hasSave).toMenuItems()
+        val rows = actionRows()
+        return if (rows.isEmpty()) listOf(Ff4MenuItem("Back")) else rows.toMenuItems()
     }
 
     fun compose() {
@@ -667,14 +695,19 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 ),
             )
             Screen.EDITOR -> {
+                // Up to three lines (flag, description, keys), so the menu must reserve
+                // that height: while it assumed one line, the box was drawn over the
+                // bottom of the selector window and hid its last rows.
+                val detail = flagUi.hintLines()
                 canvas.draw(
                     renderer.mainMenu(
                         width, height, flagUi.items(), flagUi.selection,
                         status = flagUi.status(),
                         hint = "",
+                        hintLines = detail.size,
                     ),
                 )
-                canvas.draw(renderer.hintBox(width, height, flagUi.hintLines()))
+                canvas.draw(renderer.hintBox(width, height, detail))
             }
             Screen.PRESETS -> canvas.draw(
                 renderer.mainMenu(
@@ -883,22 +916,22 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     /** The app's pause menu rows and what each does. */
     fun pauseActivate(index: Int) {
         val rom = currentRom
-        when (index) {
-            0 -> ui.overlay = Overlay.NONE
-            1 -> {
+        when (pauseRows().getOrNull(index)?.action) {
+            Ff4Action.RESUME -> ui.overlay = Overlay.NONE
+            Ff4Action.SAVE_STATE -> {
                 // Save, then return to the game - as the app does.
                 if (rom != null && session?.saveState(GameSession.stateFile(rom.absolutePath)) == true) {
                     ui.message = "state saved"
                 }
                 ui.overlay = Overlay.NONE
             }
-            2 -> {
+            Ff4Action.LOAD_STATE -> {
                 if (rom != null && session?.loadState(GameSession.stateFile(rom.absolutePath)) == true) {
                     ui.message = "state loaded"
                 }
                 ui.overlay = Overlay.NONE
             }
-            3 -> {
+            Ff4Action.TOGGLE_FAST_FORWARD -> {
                 // Toggle and redraw the menu so the row shows on/off, as the app does.
                 session?.let { it.fastForward = !it.fastForward }
                 pauseModel.reset(pauseItems(
@@ -906,8 +939,8 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     session?.fastForward == true,
                 ), 3)
             }
-            4 -> { ui.overlay = Overlay.TRACKER }
-            5 -> {
+            Ff4Action.OPEN_TRACKER -> { ui.overlay = Overlay.TRACKER }
+            Ff4Action.RESET_CORE -> {
                 ui.confirmTitle = "Reset core"
                 ui.confirmMessage = "Reset the emulator?\nUnsaved progress since the last save state is lost."
                 ui.confirmYes = "Reset"
@@ -918,7 +951,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 }
                 return
             }
-            6 -> {
+            Ff4Action.EXIT_TO_SESSIONS -> {
                 ui.confirmTitle = "Exit to sessions"
                 ui.confirmMessage = "Leave the game?\nYour battery save is written to FF4_FE first."
                 ui.confirmYes = "Exit"
@@ -926,6 +959,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 ui.confirmAction = { openLibrary() }
                 return
             }
+            else -> Unit
         }
         compose()
     }
@@ -1225,11 +1259,12 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     /** The main menu: play, generate, exit. */
     libraryActivate = {
-        when (libraryModel.activationTarget()) {
-            0 -> { seedsSelected = 0; ui.screen = Screen.SEEDS; compose() }
-            1 -> { flagSelected = 0; ui.screen = Screen.FLAGS; compose() }
-            2 -> { openUpdates(); }
-            else -> askQuit()
+        when (libraryRows().getOrNull(libraryModel.selected)?.action) {
+            Ff4Action.PLAY_SEEDS -> { seedsSelected = 0; ui.screen = Screen.SEEDS; compose() }
+            Ff4Action.GENERATE_SEED -> { flagSelected = 0; ui.screen = Screen.FLAGS; compose() }
+            Ff4Action.CHECK_UPDATES -> openUpdates()
+            Ff4Action.EXIT_APP -> askQuit()
+            else -> Unit
         }
     }
 
@@ -1246,10 +1281,10 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     actionActivate = {
         val rom = selectedSeed
-        if (rom != null) when (actionsSelected) {
-            0 -> { SeedMeta.touchLastPlayed(rom); play(rom) }
-            1 -> { saveSelected = 0; ui.screen = Screen.MANAGE_SAVE }
-            2 -> {
+        if (rom != null) when (actionRows().getOrNull(actionsSelected)?.action) {
+            Ff4Action.PLAY_SEED -> { SeedMeta.touchLastPlayed(rom); play(rom) }
+            Ff4Action.MANAGE_SAVE -> { saveSelected = 0; ui.screen = Screen.MANAGE_SAVE }
+            Ff4Action.REGENERATE_SAME_FLAGS -> {
                 // Same ruleset: load the seed's flags into the editor, then generate.
                 SeedMeta.flags(rom).takeIf { it.isNotBlank() }?.let { flags ->
                     flagUi.editor.clear()
@@ -1260,7 +1295,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                 ui.screen = Screen.FLAGS
                 flagSelected = 0
             }
-            3 -> {
+            Ff4Action.SAVE_FLAGSET -> {
                 val flags = SeedMeta.flags(rom).ifBlank { flagUi.editor.flagsText() }
                 if (flags.isNotBlank()) {
                     textInput = TextInput("Save Flagset", "Name this flagset", rom.nameWithoutExtension) { typed ->
@@ -1268,10 +1303,10 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     }
                 }
             }
-            4 -> textInput = TextInput("Rename Seed", "New name for this seed", rom.nameWithoutExtension) { typed ->
-                renameSeed(rom, typed.trim())
-            }
-            5 -> {
+            Ff4Action.RENAME_SEED -> textInput = TextInput(
+                "Rename Seed", "New name for this seed", rom.nameWithoutExtension,
+            ) { typed -> renameSeed(rom, typed.trim()) }
+            Ff4Action.DELETE_SEED -> {
                 // Delete after asking, with the app's wording.
                 val name = SeedMeta.summary(rom).name
                 ui.confirmTitle = "Delete session"
@@ -1297,14 +1332,14 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         val save = rom?.let { File(it.parentFile, it.nameWithoutExtension + ".srm") }
         if (rom == null || save == null) {
             ui.screen = Screen.ACTIONS
-        } else when (saveSelected) {
-            0 -> { chooseFile(save = false, suggested = save.name)?.let { source ->
+        } else when (saveRows().getOrNull(saveSelected)?.action) {
+            Ff4Action.IMPORT_SAVE -> { chooseFile(save = false, suggested = save.name)?.let { source ->
                 runCatching { source.copyTo(save, overwrite = true) }
             } }
-            1 -> { chooseFile(save = true, suggested = save.name)?.let { target ->
+            Ff4Action.EXPORT_SAVE -> { chooseFile(save = true, suggested = save.name)?.let { target ->
                 runCatching { save.copyTo(target, overwrite = true) }
             } }
-            2 -> {
+            Ff4Action.DELETE_SAVE -> {
                 ui.confirmTitle = "Delete save"
                 ui.confirmMessage = "Delete the .srm save for this session?\nThe ROM stays."
                 ui.confirmYes = "Delete"
@@ -1318,9 +1353,9 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
 
     /** The completion screen: play what was just made, make another, or go back. */
     doneActivate = {
-        when (saveSelected) {
-            0 -> generatedSeed?.let { play(it) }
-            1 -> startGeneration(seedName)
+        when (doneRows().getOrNull(saveSelected)?.action) {
+            Ff4Action.OPEN_SEED_LIBRARY -> generatedSeed?.let { play(it) }
+            Ff4Action.GENERATE_AGAIN -> startGeneration(seedName)
             else -> { ui.screen = Screen.LIBRARY; compose() }
         }
     }
@@ -1348,11 +1383,13 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     // UninitializedPropertyAccessException from the event thread and the screen
     // simply did not respond - "Choose Flags does not load".
     generateActivate = {
-        when (flagSelected) {
-            0 -> { flagUi.openPresets(); ui.screen = Screen.PRESETS }
-            1 -> { flagUi.showCategories(); ui.screen = Screen.EDITOR }
-            2 -> seedName = "SEED%04d".format(System.currentTimeMillis() % 10000)
-            3 -> startGeneration(seedName.ifBlank { "SEED%04d".format(System.currentTimeMillis() % 10000) })
+        when (generateRows().getOrNull(flagSelected)?.action) {
+            Ff4Action.CHOOSE_PRESET -> { flagUi.openPresets(); ui.screen = Screen.PRESETS }
+            Ff4Action.CHOOSE_FLAGS -> { flagUi.showCategories(); ui.screen = Screen.EDITOR }
+            Ff4Action.EDIT_SEED_NAME -> seedName = "SEED%04d".format(System.currentTimeMillis() % 10000)
+            Ff4Action.RUN_GENERATION -> startGeneration(
+                seedName.ifBlank { "SEED%04d".format(System.currentTimeMillis() % 10000) },
+            )
             else -> { ui.screen = Screen.LIBRARY; libraryModel.reset(libraryItems()) }
         }
         compose()

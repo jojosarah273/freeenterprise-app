@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import com.freeenterprise.ff4.Ff4Action
 import com.freeenterprise.ff4.Ff4Rows
 import com.freeenterprise.app.ff4ui.FF4Dialog
 import com.freeenterprise.app.ff4ui.FF4Menu
@@ -155,17 +156,18 @@ class FF4MainActivity : FF4MenuActivity() {
         val statusText = noticeText ?: internetGrantWarning()
         setStatus(statusText, if (noticeText != null) FF4Theme.GREEN else FF4Theme.WHITE)
         setHint("A  Select      B  Exit")
-        submitMenu("main", Ff4Rows.mainMenu(
-                seedCount,
-                BuildConfig.VERSION_NAME,
-                includeUpdateAndSettings = true,
-            ).toMenuItems()) { i ->
-            when (i) {
-                0 -> startActivity(Intent(this, FF4PlayActivity::class.java))
-                1 -> startActivity(Intent(this, FF4GenerateActivity::class.java))
-                2 -> checkForUpdates()
-                3 -> showSettings()
-                4 -> confirmQuit()
+        val rows = Ff4Rows.mainMenu(seedCount, BuildConfig.VERSION_NAME)
+        // Dispatch on the row's action, as the desktop does: index matching broke the
+        // desktop the moment its row set differed from this one.
+        submitMenu("main", rows.toMenuItems()) { i ->
+            when (rows.getOrNull(i)?.action) {
+                Ff4Action.PLAY_SEEDS -> startActivity(Intent(this, FF4PlayActivity::class.java))
+                Ff4Action.GENERATE_SEED ->
+                    startActivity(Intent(this, FF4GenerateActivity::class.java))
+                Ff4Action.CHECK_UPDATES -> checkForUpdates()
+                Ff4Action.OPEN_SETTINGS -> showSettings()
+                Ff4Action.EXIT_APP -> confirmQuit()
+                else -> Unit
             }
         }
     }

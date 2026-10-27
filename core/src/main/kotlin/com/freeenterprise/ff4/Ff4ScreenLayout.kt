@@ -33,21 +33,28 @@ object Ff4ScreenLayout {
     fun statusHeightPx(scale: Ff4Scale, metrics: Ff4TextMetrics): Float =
         2f * metrics.lineHeightPx(scale.textSmallPx) + 2f * scale.contentPaddingPx
 
-    fun hintHeightPx(scale: Ff4Scale, metrics: Ff4TextMetrics): Float =
-        metrics.lineHeightPx(scale.textSmallPx).toFloat() + 2f * scale.contentPaddingPx
+    fun hintHeightPx(scale: Ff4Scale, metrics: Ff4TextMetrics, lines: Int = 1): Float =
+        metrics.lineHeightPx(scale.textSmallPx) * maxOf(1, lines) + 2f * scale.contentPaddingPx
 
+    /**
+     * [hintLines] is how many lines the bottom box will show. It has to be known here,
+     * not just where the box is drawn: the editor's detail box is three lines, and
+     * while this always reserved one, the taller box was drawn over the bottom of the
+     * menu window and hid its last rows.
+     */
     fun boxes(
         widthPx: Float,
         heightPx: Float,
         scale: Ff4Scale,
         metrics: Ff4TextMetrics,
         edgeInsetPx: Float = defaultEdgeInsetPx(scale),
+        hintLines: Int = 1,
     ): Ff4ScreenBoxes {
         val gap = gapPx(scale)
         val left = edgeInsetPx
         val right = widthPx - edgeInsetPx
         val statusHeight = statusHeightPx(scale, metrics)
-        val hintHeight = hintHeightPx(scale, metrics)
+        val hintHeight = hintHeightPx(scale, metrics, hintLines)
 
         val status = Ff4Rect(left, edgeInsetPx, right, edgeInsetPx + statusHeight)
         val menuTop = status.bottom + gap

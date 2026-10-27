@@ -12,6 +12,58 @@ class Ff4RowsTest {
 
     private fun rows(list: List<Ff4Row>) = list.map { it.label to it.value }
 
+    private fun actions(list: List<Ff4Row>) = list.map { it.action }
+
+    @Test
+    fun `every menu's actions are pinned, so a reorder cannot change behaviour`() {
+        // Both platforms dispatch on these, so this is the contract that stops the
+        // "Exit checks for updates" class of bug: positions may move, actions may not.
+        assertEquals(
+            listOf(
+                Ff4Action.PLAY_SEEDS, Ff4Action.GENERATE_SEED,
+                Ff4Action.CHECK_UPDATES, Ff4Action.OPEN_SETTINGS, Ff4Action.EXIT_APP,
+            ),
+            actions(Ff4Rows.mainMenu(0, "0.1.25")),
+        )
+        assertEquals(
+            listOf(
+                Ff4Action.PLAY_SEEDS, Ff4Action.GENERATE_SEED,
+                Ff4Action.CHECK_UPDATES, Ff4Action.EXIT_APP,
+            ),
+            actions(Ff4Rows.mainMenu(0, "0.1.25", includeSettings = false)),
+        )
+        assertEquals(
+            listOf(
+                Ff4Action.PLAY_SEED, Ff4Action.MANAGE_SAVE, Ff4Action.REGENERATE_SAME_FLAGS,
+                Ff4Action.SAVE_FLAGSET, Ff4Action.RENAME_SEED, Ff4Action.DELETE_SEED, Ff4Action.BACK,
+            ),
+            actions(Ff4Rows.sessionActions(hasSave = false)),
+        )
+        assertEquals(
+            listOf(Ff4Action.IMPORT_SAVE, Ff4Action.EXPORT_SAVE, Ff4Action.DELETE_SAVE, Ff4Action.BACK),
+            actions(Ff4Rows.manageSave(hasSave = false)),
+        )
+        assertEquals(
+            listOf(
+                Ff4Action.CHOOSE_PRESET, Ff4Action.CHOOSE_FLAGS, Ff4Action.EDIT_SEED_NAME,
+                Ff4Action.RUN_GENERATION, Ff4Action.BACK,
+            ),
+            actions(Ff4Rows.generate("", false, "", true)),
+        )
+        assertEquals(
+            listOf(Ff4Action.OPEN_SEED_LIBRARY, Ff4Action.GENERATE_AGAIN, Ff4Action.BACK),
+            actions(Ff4Rows.completed()),
+        )
+        assertEquals(
+            listOf(
+                Ff4Action.RESUME, Ff4Action.SAVE_STATE, Ff4Action.LOAD_STATE,
+                Ff4Action.TOGGLE_FAST_FORWARD, Ff4Action.OPEN_TRACKER, Ff4Action.RESET_CORE,
+                Ff4Action.EXIT_TO_SESSIONS,
+            ),
+            actions(Ff4Rows.pauseMenu(hasState = false, fastForward = false, trackerKey = "Tab")),
+        )
+    }
+
     @Test
     fun `main menu, Android`() {
         assertEquals(
@@ -22,16 +74,34 @@ class Ff4RowsTest {
                 "Settings" to "",
                 "Exit" to "",
             ),
-            rows(Ff4Rows.mainMenu(3, "0.1.25", includeUpdateAndSettings = true)),
+            rows(Ff4Rows.mainMenu(3, "0.1.25")),
         )
     }
 
     @Test
-    fun `main menu, desktop - no update or settings rows`() {
+    fun `main menu, desktop - updates but no settings`() {
         assertEquals(
-            listOf("Play Free Enterprise" to "1 seed(s)", "Generate Seed" to "", "Exit" to ""),
-            rows(Ff4Rows.mainMenu(1, "0.1.25", includeUpdateAndSettings = false)),
+            listOf(
+                "Play Free Enterprise" to "1 seed(s)",
+                "Generate Seed" to "",
+                "Check for updates" to "v0.1.25",
+                "Exit" to "",
+            ),
+            rows(Ff4Rows.mainMenu(1, "0.1.25", includeSettings = false)),
         )
+    }
+
+    @Test
+    fun `Exit is always the last row, whatever is offered`() {
+        // The desktop bug: Exit sat at index 2 and activation still believed index 2
+        // was "Check for updates", so choosing Exit checked for updates.
+        for (updates in listOf(true, false)) {
+            for (settings in listOf(true, false)) {
+                val rows = Ff4Rows.mainMenu(0, "0.1.25", updates, settings)
+                val last = rows.last().label
+                if (last != "Exit") throw AssertionError("updates=$updates settings=$settings: $last")
+            }
+        }
     }
 
     @Test
