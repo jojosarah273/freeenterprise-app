@@ -115,7 +115,7 @@ has    "$J/RomLibrary.kt"          '"seen_key_items"'                   "metadat
 hasnot "$J/Spoiler.kt"             '\\\\\\.{3,}'                          "parser accepts short dot runs"
 
 echo "Versioning"
-name=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+name=$(sed -n 's/.*versionName = .*"\([0-9][^"]*\)".*/\1/p' app/build.gradle.kts | head -1)
 code=$(grep -oP 'versionCode = \K[0-9]+' app/build.gradle.kts)
 printf '  info versionName %s (versionCode %s)\n' "$name" "$code"
 if [ "${1:-}" != "" ]; then

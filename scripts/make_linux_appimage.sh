@@ -13,7 +13,9 @@ cd "$(dirname "$0")/.."
 OUT=${1:-"../FE_LINUX_ARCHIVE"}
 TOOL="${APPIMAGETOOL:-/tmp/ait/appimagetool}"
 
-VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)
+# versionName may be a literal or a property override with a literal fallback.
+VERSION=$(sed -n 's/.*versionName = .*"\([0-9][^"]*\)".*/\1/p' app/build.gradle.kts | head -1)
+[ -n "$VERSION" ] || { echo "could not read versionName from app/build.gradle.kts" >&2; exit 1; }
 STAMP=$(date +%Y%m%d-%H%M)
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)
 BUILD="${VERSION}-dev.${STAMP}.${COMMIT}"

@@ -14,7 +14,9 @@ cd "$(dirname "$0")/.."
 OUT_DIR=${1:-"../FE_LINUX_ARCHIVE"}
 # Tor-style naming: the updater finds the Linux build by this pattern, and the
 # version in the name is checked against the release before anything is unpacked.
-VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)
+# versionName may be a literal or a property override with a literal fallback.
+VERSION=$(sed -n 's/.*versionName = .*"\([0-9][^"]*\)".*/\1/p' app/build.gradle.kts | head -1)
+[ -n "$VERSION" ] || { echo "could not read versionName from app/build.gradle.kts" >&2; exit 1; }
 STAMP=$(date +%Y%m%d-%H%M)
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)
 # Everything used to be called "0.1.25", which made builds indistinguishable.
