@@ -62,37 +62,10 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # FF2 (US) v1.0 and v1.1, without a copier header.
-MD5_V10=4fa9e542b954dcb954d5ce38188d9d41
-MD5_V11=27d02a4f03e172e029c9b82ac3db79f7
-
-looks_like_base_rom() {
-    local file="$1" md5
-    md5="$(md5sum "$file" | cut -d' ' -f1)"
-    [ "$md5" = "$MD5_V10" ] || [ "$md5" = "$MD5_V11" ] && return 0
-    # Some dumps carry a 512-byte copier header; the ROM itself starts after it.
-    md5="$(tail -c +513 "$file" | md5sum | cut -d' ' -f1)"
-    [ "$md5" = "$MD5_V10" ] || [ "$md5" = "$MD5_V11" ]
-}
-
-find_base_rom() {
-    local candidate
-    for candidate in "$HERE"/FF4_FE/ff2.smc "$HERE"/FF4_FE/ff2.sfc \
-                     "$HERE"/ff2.smc "$HERE"/ff2.sfc "$HERE"/*.smc "$HERE"/*.sfc; do
-        [ -f "$candidate" ] || continue
-        if looks_like_base_rom "$candidate"; then printf '%s\n' "$candidate"; return 0; fi
-    done
-    return 1
-}
-
+# @@ROM_DISCOVERY@@
+announce_base_rom "launcher"
 extra=()
-if base_rom="$(find_base_rom)"; then
-    echo "base ROM: $(basename "$base_rom")"
-    extra+=(--base-rom "$base_rom")
-else
-    echo "No base ROM found beside this launcher."
-    echo "  Put your FF2 (US) v1.0/v1.1 ROM here as ff2.smc, or pass --base-rom PATH."
-    echo "  Everything except generating a seed works without it."
-fi
+[ -n "$BASE_ROM" ] && extra+=(--base-rom "$BASE_ROM")
 
 # Which build this is, for the app to show. The files sit outside the jars, so
 # they travel through the environment rather than the classpath.
@@ -139,6 +112,14 @@ else
     exec bash "$RUNTIME" "${ARGS[@]}"
 fi
 LAUNCHER
+# The ROM discovery is one definition, shared with the AppImage: splice it in at the
+# marker so the two builds cannot drift apart about where the base ROM is.
+awk -v snippet="scripts/rom-discovery.sh" '
+    /^# @@ROM_DISCOVERY@@$/ { while ((getline line < snippet) > 0) print line; close(snippet); next }
+    { print }
+' "$STAGE/FreeEnterprise" > "$STAGE/FreeEnterprise.rom" \
+    && mv "$STAGE/FreeEnterprise.rom" "$STAGE/FreeEnterprise"
+
 chmod +x "$STAGE/FreeEnterprise"
 chmod +x "$STAGE/FreeEnterprise"
 

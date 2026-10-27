@@ -42,7 +42,7 @@ if [ -d "$APPDIR/runtime" ]; then
 fi
 
 cat > "$APPDIR/AppRun" <<'RUN'
-#!/bin/sh
+#!/bin/bash
 # Free Enterprise, from inside an AppImage.
 #
 # APPDIR is the mounted image (read-only). The player's folder lives beside the
@@ -68,12 +68,12 @@ fi
 
 
 # The base ROM is the player's own; look beside the .AppImage, then in FF4_FE.
-EXTRA=""
-if [ -f "$HERE/ff2.smc" ]; then
-    EXTRA="--base-rom $HERE/ff2.smc"
-elif [ -f "$HERE/FF4_FE/ff2.smc" ]; then
-    EXTRA="--base-rom $HERE/FF4_FE/ff2.smc"
-fi
+# The base ROM is the player's own. Same discovery as the tarball launcher, spliced
+# in below from scripts/rom-discovery.sh: beside the .AppImage first, then FF4_FE.
+# @@ROM_DISCOVERY@@
+announce_base_rom "AppImage"
+EXTRA=()
+[ -n "$BASE_ROM" ] && EXTRA+=(--base-rom "$BASE_ROM")
 
 exec "$APPDIR/usr/runtime/bin/freeenterprise" \
     --native   "$APPDIR/usr/native" \
@@ -84,8 +84,12 @@ exec "$APPDIR/usr/runtime/bin/freeenterprise" \
     --presets  "$APPDIR/usr/engine/assets/presets.json" \
     --library  "$HERE/FF4_FE" \
     --work     "$HERE/FF4_FE/.work" \
-    $EXTRA "$@"
+    "${EXTRA[@]}" "$@"
 RUN
+awk -v snippet="scripts/rom-discovery.sh" '
+    /^# @@ROM_DISCOVERY@@$/ { while ((getline line < snippet) > 0) print line; close(snippet); next }
+    { print }
+' "$APPDIR/AppRun" > "$APPDIR/AppRun.rom" && mv "$APPDIR/AppRun.rom" "$APPDIR/AppRun"
 chmod +x "$APPDIR/AppRun"
 
 cat > "$APPDIR/freeenterprise.desktop" <<DESKTOP

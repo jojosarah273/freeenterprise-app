@@ -148,6 +148,20 @@ has "$D" 'hintLines = detail.size'                                   "editor res
 has "core/src/main/kotlin/com/freeenterprise/ff4/Ff4ScreenLayout.kt" 'hintLines: Int = 1' \
     "the layout takes the hint line count"
 
+echo "The base ROM is found the same way in both builds"
+# Two copies of this logic drifted once already: the AppImage looked only for ff2.smc
+# with no MD5 check, so a .sfc or a differently-named dump was ignored.
+[ -f scripts/rom-discovery.sh ] && ok "one definition exists" || bad "scripts/rom-discovery.sh is missing"
+for b in scripts/make_linux_test_build.sh scripts/make_linux_appimage.sh; do
+    has "$b" 'scripts/rom-discovery.sh' "$(basename "$b"): splices the shared discovery"
+    has "$b" '@@ROM_DISCOVERY@@'        "$(basename "$b"): has a splice point"
+done
+hasnot scripts/make_linux_appimage.sh 'MD5_V10=' "the AppImage does not carry its own copy"
+hasnot scripts/make_linux_test_build.sh 'MD5_V10=' "the launcher does not carry its own copy"
+has scripts/rom-discovery.sh 'tail -c +513'           "a 512-byte copier header is tolerated"
+has scripts/rom-discovery.sh '"$HERE"/\*.smc'         "any .smc beside the file is considered"
+has scripts/rom-discovery.sh '"$HERE"/\*.sfc'         "any .sfc beside the file is considered"
+
 echo "Desktop handlers"
 # A lateinit handler whose assignment was deleted by a bulk edit fails only when the
 # row is pressed: "Choose Flags does not load", with no compile error. That is how
