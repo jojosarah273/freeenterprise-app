@@ -17,6 +17,7 @@ import java.awt.Toolkit
 import java.awt.event.KeyAdapter
 import java.awt.event.KeyEvent
 import java.io.File
+import kotlin.math.roundToInt
 import javax.swing.JFrame
 import javax.swing.JPanel
 import kotlin.system.exitProcess
@@ -114,6 +115,8 @@ data class Config(
     val windowed: Boolean,
     /** Quit after this many seconds; a smoke test for the shutdown path. */
     val quitAfter: Int,
+    /** Print frame timings every two seconds (FE_DIAG=1 does the same). */
+    val diag: Boolean,
     val help: Boolean,
 ) {
     companion object {
@@ -135,6 +138,7 @@ data class Config(
             var fakePad = false
             var windowed = false
             var quitAfter = 0
+            var diag = false
             var help = false
 
             var i = 0
@@ -155,6 +159,9 @@ data class Config(
                     "--ui-spec" -> uiSpec = args.getOrNull(++i)
                     "--presets" -> presetsFile = args.getOrNull(++i)
                     "--fake-pad" -> fakePad = true
+                    // A flag as well as FE_DIAG=1: putting the variable after the path
+                    // is an easy mistake and just looks like an unknown argument.
+                    "--diag" -> diag = true
                     "--windowed" -> windowed = true
                     "--quit-after" -> quitAfter = args.getOrNull(++i)?.toIntOrNull() ?: 0
                     "--help", "-h" -> help = true
@@ -217,6 +224,7 @@ data class Config(
                 fakePad = fakePad,
                 windowed = windowed,
                 quitAfter = quitAfter,
+                diag = diag,
                 help = help,
             )
         }
@@ -468,13 +476,11 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         else -> "pad: SDL2 not found (keyboard)"
     }
     val padStartedAt = System.currentTimeMillis()
-    val padTimer = javax.swing.Timer(8) {
-        ui.padMask = if (config.fakePad) {
-            fakePadMask(System.currentTimeMillis() - padStartedAt)
-        } else {
-            gamepad?.poll() ?: 0
-        }
-    }.apply { start() }
+    // Created after `pad` below, which it feeds. This timer used to be the only
+    // thing polling the controller, while pad.tick() ran only on the emulator loop -
+    // and that loop exists only while a game runs, so a detected pad did nothing in
+    // the menus: "it sees my controller but the buttons do not work".
+    lateinit var padTimer: javax.swing.Timer
 
     // The emulator loop needs the pad, and the pad needs the screen functions, which
     // cannot be referenced before they are declared. Forward references break that
@@ -546,6 +552,20 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         fastForward = session?.fastForward == true,
         trackerKey = "Tab",
     )
+
+    padTimer = javax.swing.Timer(8) {
+        ui.padMask = if (config.fakePad) {
+            fakePadMask(System.currentTimeMillis() - padStartedAt)
+        } else {
+            gamepad?.poll() ?: 0
+        }
+        // menuOpen decides whether a press navigates or goes to the game, and it
+        // defaults to false - so in the menus the pad was read but never applied.
+        if (ui.screen != Screen.PLAYING) {
+            pad.menuOpen = true
+            pad.tick()
+        }
+    }.apply { start() }
 
     /** The app's session list: one row per seed, with what it was and how far. */
     fun seedItems(): List<Ff4MenuItem> {
@@ -807,7 +827,9 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     fun play(rom: File) {
         stopGame()
         try {
-            session = GameSession(rom.absoluteFile.path, findNativeDir(config), config.workDir)
+            session = GameSession(
+                rom.absoluteFile.path, findNativeDir(config), config.workDir, diagnose = config.diag,
+            )
         } catch (t: Throwable) {
             ui.message = "could not start ${rom.name}: ${t.message}"
             ui.screen = Screen.LIBRARY
@@ -839,7 +861,10 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     // A menu being up means the game must not see the pad.
                     pad.menuOpen = ui.screen != Screen.PLAYING || ui.overlay != Overlay.NONE
                     pad.tick()
-                    compose()
+                    // Repaint only: the panel draws the picture itself. Overlays are composed when
+                    // they change (a key or pad press), not 60 times a second - recomposing a still
+                    // screen redrew the buffer the EDT was painting, which was the other flicker.
+                    if (ui.overlay == Overlay.NONE) panel.repaint()
                 }
             } catch (t: Throwable) {
                 System.err.println("emulator loop stopped: ${t.message}")
@@ -1642,7 +1667,9 @@ private fun runGenerateHeadless(config: Config, metrics: AwtTextMetrics) {
 /** Runs a ROM headlessly and writes the game, pause and tracker screens. */
 private fun runRomHeadless(config: Config, metrics: AwtTextMetrics) {
     val rom = config.rom ?: error("no ROM")
-    val session = GameSession(resolveRom(config, rom).absoluteFile.path, findNativeDir(config), config.workDir)
+    val session = GameSession(
+        resolveRom(config, rom).absoluteFile.path, findNativeDir(config), config.workDir, diagnose = config.diag,
+    )
     try {
         repeat(maxOf(config.frames, 1)) { session.step() }
 
@@ -1871,14 +1898,30 @@ private fun resolveRom(config: Config, path: String): File {
 }
 
 /** The picture surface: the canvas, scaled to whatever size the window is. */
-internal fun gamePanel(canvas: SoftwareCanvas) = object : JPanel() {
+internal fun gamePanel(
+    canvas: SoftwareCanvas,
+    directFrame: () -> java.awt.image.BufferedImage? = { null },
+) = object : JPanel() {
     override fun paintComponent(g: Graphics) {
         val g2 = g as java.awt.Graphics2D
         g2.setRenderingHint(
             java.awt.RenderingHints.KEY_INTERPOLATION,
             java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR,
         )
-        g2.drawImage(canvas.image, 0, 0, width, height, null)
+        val frame = directFrame()
+        if (frame != null) {
+            // The game picture, scaled straight into the window: one blit per frame,
+            // double-buffered by Swing, so nothing can be caught mid-redraw.
+            val r = gameRect(width, height, frame.width, frame.height)
+            g2.drawImage(
+                frame,
+                r.left.roundToInt(), r.top.roundToInt(),
+                r.width.roundToInt(), r.height.roundToInt(),
+                null,
+            )
+        } else {
+            g2.drawImage(canvas.image, 0, 0, width, height, null)
+        }
     }
 }.apply {
     isFocusable = true

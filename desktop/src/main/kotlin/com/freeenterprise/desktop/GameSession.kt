@@ -24,6 +24,8 @@ class GameSession(
     romPath: String,
     private val nativeDir: File,
     workDir: File,
+    /** True for --diag; FE_DIAG=1 does the same from the environment. */
+    diagnose: Boolean = false,
 ) : AutoCloseable {
 
     val width: Int
@@ -42,6 +44,9 @@ class GameSession(
     companion object {
         /** Frames per displayed frame while fast-forward is held. */
         private const val FAST_FORWARD_FRAMES = 4
+
+        /** ...and how much faster than real time that is meant to run. */
+        private const val FAST_FORWARD_SPEED = 4
 
         /** Where this seed's state lives: beside the ROM, named as the app names it. */
         fun stateFile(romPath: String): File =
@@ -80,8 +85,9 @@ class GameSession(
     }
 
     /**
-     * Run more frames than we display. The audio device still paces us, so holding
-     * this runs the game faster rather than dropping frames.
+     * Run several frames per step. Audio is dropped while forwarding: writing it would
+     * pace the loop to real time and cancel the point of forwarding (and sound at 4x is
+     * noise, which is why RetroArch mutes it too).
      */
     var fastForward: Boolean = false
 
@@ -90,7 +96,7 @@ class GameSession(
      * takes and how much audio is waiting. A pad-less, audio-less machine still prints,
      * which is what makes it usable as a bug report.
      */
-    private val diagnosing = System.getenv("FE_DIAG") != null
+    private val diagnosing = diagnose || System.getenv("FE_DIAG") != null
     private var diagFrames = 0
     private var diagStartNanos = 0L
     private var diagRunNanos = 0L
@@ -106,7 +112,7 @@ class GameSession(
         val afterRun = System.nanoTime()
         refreshFrame()
         val afterRefresh = System.nanoTime()
-        pumpAudio()
+        if (fastForward) EmulatorBridge.nativeClearAudio() else pumpAudio()
         if (diagnosing) {
             val afterAudio = System.nanoTime()
             diagRunNanos += afterRun - started
@@ -119,12 +125,13 @@ class GameSession(
             if (elapsed >= 2_000_000_000L) {
                 val fps = diagFrames * 1e9 / elapsed
                 System.err.println(
-                    "FE_DIAG fps=%.1f run=%.2fms refresh=%.2fms audio=%.2fms pendingAudioMax=%d".format(
+                    "FE_DIAG fps=%.1f run=%.2fms refresh=%.2fms audio=%.2fms pendingAudioMax=%d device=%s".format(
                         fps,
                         diagRunNanos / 1e6 / diagFrames,
                         diagRefreshNanos / 1e6 / diagFrames,
                         diagAudioNanos / 1e6 / diagFrames,
                         diagAudioMax,
+                        if (line == null) "none" else "open",
                     ),
                 )
                 diagFrames = 0; diagStartNanos = 0L
@@ -132,9 +139,14 @@ class GameSession(
                 diagAudioMax = 0
             }
         }
-        if (line == null) {
-            val elapsed = System.nanoTime() - started
-            val remaining = frameNanos - elapsed
+        // A real audio device paces us through the blocking write; otherwise - and
+        // while forwarding, when audio is dropped - pace by the clock, allowing [count]
+        // frames' worth of time.
+        // Playing: one frame per frame-time. Forwarding: several frames in the time of
+        // them, so it actually runs faster instead of just showing fewer pictures.
+        if (line == null || fastForward) {
+            val budget = if (fastForward) frameNanos * count / FAST_FORWARD_SPEED else frameNanos * count
+            val remaining = budget - (System.nanoTime() - started)
             if (remaining > 0) Thread.sleep(remaining / 1_000_000, (remaining % 1_000_000).toInt())
         }
     }

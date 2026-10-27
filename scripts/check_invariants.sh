@@ -162,6 +162,18 @@ has scripts/rom-discovery.sh 'tail -c +513'           "a 512-byte copier header 
 has scripts/rom-discovery.sh '"$HERE"/\*.smc'         "any .smc beside the file is considered"
 has scripts/rom-discovery.sh '"$HERE"/\*.sfc'         "any .sfc beside the file is considered"
 
+echo "The playing screen does not fight itself"
+# Three separate reasons the picture stuttered, crawled or ignored the pad.
+D=desktop/src/main/kotlin/com/freeenterprise/desktop
+has "$D/Main.kt"       'pad.menuOpen = true'      "the pad is wired while in the menus"
+has "$D/Main.kt"       'pad.tick()'               "the pad is ticked, not only polled"
+has "$D/Main.kt"       'directFrame'              "the game picture is blitted straight to the window"
+has "$D/Main.kt"       'panel.repaint()'          "the loop repaints instead of recomposing"
+has "$D/GameSession.kt" 'nativeClearAudio'        "audio is consumed, not accumulated"
+has "$D/GameSession.kt" 'FAST_FORWARD_SPEED'      "fast-forward is paced above real time"
+has "$D/GameSession.kt" 'if (fastForward) EmulatorBridge.nativeClearAudio()' \
+    "fast-forward drops audio instead of being paced by it"
+
 echo "Desktop handlers"
 # A lateinit handler whose assignment was deleted by a bulk edit fails only when the
 # row is pressed: "Choose Flags does not load", with no compile error. That is how
