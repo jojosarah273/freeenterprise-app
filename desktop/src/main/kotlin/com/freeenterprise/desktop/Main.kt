@@ -444,6 +444,14 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     lateinit var startAppUpdate: (Updater.Release) -> Unit
     /** The installation directory: the parent of FF4_FE. */
     val installDir: File = config.libraryDir.parentFile ?: File(".")
+
+    /**
+     * The engine's version, from the engine directory in use rather than the install
+     * layout - they differ in an AppImage, where the engine is inside the image.
+     */
+    fun engineVersionNow(): String? =
+        (config.engineDir ?: File(installDir, "engine/python_ext")).let { Updater.engineVersionAt(it) }
+            ?: Updater.engineInstalledVersion(installDir)
     /** A modal text field; while it is up it owns the keyboard. */
     var textInput: TextInput? = null
     val pauseModel = Ff4MenuModel(pauseItems(false, false))
@@ -678,7 +686,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                                 Ff4StatusLine("Free Enterprise  v" + Updater.appVersion()),
                                 Ff4StatusLine(
                                     ui.message.ifBlank {
-                                        "engine " + (Updater.engineInstalledVersion(installDir) ?: "unknown")
+                                        "engine " + (engineVersionNow() ?: "unknown")
                                     },
                                 ),
                             ),
@@ -1112,7 +1120,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     /** The update screen: what is newer, rollbacks, and a re-check. */
     buildUpdateRows = {
         val current = Updater.appVersion()
-        val engineNow = Updater.engineInstalledVersion(installDir)
+        val engineNow = engineVersionNow()
         val rows = mutableListOf<Ff4MenuItem>()
         val acts = mutableListOf<() -> Unit>()
         val rel = release

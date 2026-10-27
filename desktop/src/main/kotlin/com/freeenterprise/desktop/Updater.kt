@@ -217,6 +217,17 @@ object Updater {
     fun engineInstalledVersion(installDir: File): String? =
         engineVersionIn(File(installDir, "engine/python_ext/FreeEnt/version.py"))
 
+    /**
+     * The engine actually in use, read from wherever it is.
+     *
+     * engineInstalledVersion() assumes the tarball layout (engine/ beside the
+     * launcher). In an AppImage the engine lives inside the image, so that returned
+     * null and the update screen said "engine unknown" while the menu beside it showed
+     * 4.7.0.Gale.
+     */
+    fun engineVersionAt(engineDir: File): String? =
+        engineVersionIn(File(engineDir, "FreeEnt/version.py"))
+
     fun canRollBackEngine(installDir: File): Boolean =
         File(installDir, "engine/python_ext.old").isDirectory
 
