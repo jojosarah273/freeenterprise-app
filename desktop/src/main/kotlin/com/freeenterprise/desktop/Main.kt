@@ -510,7 +510,32 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         onMenuInput = { onPadMenuInput(it) },
     )
 
-    val panel = gamePanel(canvas)
+    val panel = gamePanel(canvas) {
+        // Straight-to-window path: the loop only repaints, so with nothing over the game
+        // the panel must fetch the live picture itself. Without this the loop repainted
+        // a canvas that no longer received frames - the screen froze until a keypress
+        // composed it, which is exactly what "nothing changes until I press something"
+        // was.
+        if (ui.screen == Screen.PLAYING && ui.overlay == Overlay.NONE) session?.image() else null
+    }
+
+    if (config.diag) {
+        var lastPaint = paintCount.get()
+        var lastRepaint = repaintCount.get()
+        javax.swing.Timer(1000) {
+            val pc = paintCount.get()
+            val rc = repaintCount.get()
+            val img = session?.image()
+            var h = 0
+            if (img != null) for (i in 0 until 64) h = h * 31 + img.getRGB((i * 7) % img.width, (i * 13) % img.height)
+            System.err.println(
+                "FE_PAINT paints=+${pc - lastPaint} requests=+${rc - lastRepaint} " +
+                    "showing=${panel.isShowing} size=${panel.width}x${panel.height} imageHash=$h",
+            )
+            lastPaint = pc
+            lastRepaint = rc
+        }.apply { start() }
+    }
 
     /**
      * The rows of each shared menu.
@@ -864,7 +889,10 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                     // Repaint only: the panel draws the picture itself. Overlays are composed when
                     // they change (a key or pad press), not 60 times a second - recomposing a still
                     // screen redrew the buffer the EDT was painting, which was the other flicker.
-                    if (ui.overlay == Overlay.NONE) panel.repaint()
+                    if (ui.overlay == Overlay.NONE) {
+                        repaintCount.incrementAndGet()
+                        panel.repaint()
+                    }
                 }
             } catch (t: Throwable) {
                 System.err.println("emulator loop stopped: ${t.message}")
@@ -1898,11 +1926,15 @@ private fun resolveRom(config: Config, path: String): File {
 }
 
 /** The picture surface: the canvas, scaled to whatever size the window is. */
+internal val paintCount = java.util.concurrent.atomic.AtomicLong()
+internal val repaintCount = java.util.concurrent.atomic.AtomicLong()
+
 internal fun gamePanel(
     canvas: SoftwareCanvas,
     directFrame: () -> java.awt.image.BufferedImage? = { null },
 ) = object : JPanel() {
     override fun paintComponent(g: Graphics) {
+        paintCount.incrementAndGet()
         val g2 = g as java.awt.Graphics2D
         g2.setRenderingHint(
             java.awt.RenderingHints.KEY_INTERPOLATION,
@@ -1910,6 +1942,10 @@ internal fun gamePanel(
         )
         val frame = directFrame()
         if (frame != null) {
+            // Clear first: paintComponent draws only the game rect, so whatever the
+            // previous screen left in the letterbox/side bars would stay visible.
+            g2.color = java.awt.Color.BLACK
+            g2.fillRect(0, 0, width, height)
             // The game picture, scaled straight into the window: one blit per frame,
             // double-buffered by Swing, so nothing can be caught mid-redraw.
             val r = gameRect(width, height, frame.width, frame.height)

@@ -108,7 +108,13 @@ class GameSession(
     fun step() {
         val started = System.nanoTime()
         val count = if (fastForward) FAST_FORWARD_FRAMES else 1
+        pushButtons()   // a press latched since the last frame gets seen by this one
         repeat(count) { EmulatorBridge.nativeRun() }
+        if (latchedMask != 0) {
+            // ...one frame is enough; release it unless it is still held.
+            latchedMask = 0
+            pushButtons()
+        }
         val afterRun = System.nanoTime()
         refreshFrame()
         val afterRefresh = System.nanoTime()
@@ -151,7 +157,34 @@ class GameSession(
         }
     }
 
-    fun setButton(id: Int, pressed: Boolean) = EmulatorBridge.nativeSetButton(id, pressed)
+    /**
+     * Buttons held right now, and buttons pressed since the last frame.
+     *
+     * A tap that begins and ends between two frames would otherwise never be seen: the
+     * core polls input once per frame, so "press Start" a few milliseconds long could
+     * fall entirely inside one frame gap and do nothing - which is exactly what a fast
+     * key press or a short pad tap looks like. Latching guarantees one frame sees it.
+     */
+    private var heldMask = 0
+    private var latchedMask = 0
+
+    fun setButton(id: Int, pressed: Boolean) {
+        if (id !in 0..15) return
+        val bit = 1 shl id
+        if (pressed) {
+            heldMask = heldMask or bit
+            latchedMask = latchedMask or bit
+        } else {
+            heldMask = heldMask and bit.inv()
+        }
+        pushButtons()
+    }
+
+    private fun pushButtons() {
+        val now = heldMask or latchedMask
+        for (id in 0..15) EmulatorBridge.nativeSetButton(id, (now shr id) and 1 == 1)
+    }
+
 
     /** Save the emulator state to [file]; returns false and says why on failure. */
     fun saveState(file: File): Boolean {

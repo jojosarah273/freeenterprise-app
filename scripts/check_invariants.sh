@@ -163,6 +163,12 @@ has scripts/rom-discovery.sh '"$HERE"/\*.smc'         "any .smc beside the file 
 has scripts/rom-discovery.sh '"$HERE"/\*.sfc'         "any .sfc beside the file is considered"
 
 echo "The playing screen does not fight itself"
+# The bug that froze the picture: the loop only repaints, so the panel must be given
+# a way to fetch the live game image. It defaulted to "no direct frame", so every
+# repaint redrew a canvas nobody was filling - the screen sat still until a keypress.
+has desktop/src/main/kotlin/com/freeenterprise/desktop/Main.kt 'gamePanel(canvas) {' \
+    "the panel is wired to the live game picture"
+
 # Three separate reasons the picture stuttered, crawled or ignored the pad.
 D=desktop/src/main/kotlin/com/freeenterprise/desktop
 has "$D/Main.kt"       'pad.menuOpen = true'      "the pad is wired while in the menus"
