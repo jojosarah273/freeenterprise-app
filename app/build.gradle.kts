@@ -27,8 +27,12 @@ android {
         // versionCode must only ever increase (Android uses it for upgrades).
         // versionName is the PUBLIC number: the first public release is 0.1.0,
         // even though internal development reached 1.9.0 (see RELEASING.md).
-        versionCode = 55
-        versionName = "0.1.25"
+        //
+        // A test build can override both without editing this file, so a hand-built
+        // APK is identifiable and can install over the published one:
+        //   ./gradlew :app:assembleRelease -PfeVersionCode=56 -PfeVersionName=0.1.25-dev.1929
+        versionCode = (project.findProperty("feVersionCode") as String?)?.toInt() ?: 55
+        versionName = (project.findProperty("feVersionName") as String?) ?: "0.1.25"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
