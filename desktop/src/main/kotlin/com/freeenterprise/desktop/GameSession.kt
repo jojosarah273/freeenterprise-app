@@ -270,7 +270,10 @@ class GameSession(
     private fun openAudio(sampleRate: Int): SourceDataLine? = try {
         val format = AudioFormat(sampleRate.toFloat(), 16, 2, true, false)
         val opened = AudioSystem.getSourceDataLine(format)
-        opened.open(format, sampleRate / 4 * 4)
+        // ~64 ms of audio. This was a quarter of a second (sampleRate / 4 * 4 = 32000
+        // bytes), which shows up as 12 ms blocking writes in FE_DIAG and as sound
+        // lagging the picture by a quarter of a second.
+        opened.open(format, sampleRate / 16 * 4)
         opened.start()
         opened
     } catch (e: Exception) {
