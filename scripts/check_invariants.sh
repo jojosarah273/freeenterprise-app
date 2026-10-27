@@ -56,6 +56,11 @@ echo "Back never leaves the app by accident"
 has    "$J/ff4ui/FF4MenuActivity.kt" 'menuLayer = key'        "the menu layer is tracked"
 has    "$J/FF4MainActivity.kt"       'menuLayer != "main"'    "back goes up a layer"
 has    "$J/FF4MainActivity.kt"       'confirmQuit'            "and leaving is confirmed"
+has    "$J/FF4MainActivity.kt"       'Leave Free Enterprise'   "the confirmation says what is kept"
+has    "$J/ff4ui/FF4MenuActivity.kt" 'KEYCODE_BUTTON_B'       "pad B counts as Back"
+# The bug on devices: 0.1.25 was built before the layer tracking, so the update
+# check's results screen closed the app on Back. The old branch is the regression.
+hasnot "$J/FF4MainActivity.kt"       'if (inSettings) {'       "no settings-only Back branch"
 
 echo "Key-item tracking"
 has    "$J/FF4GenerateActivity.kt" 'keyItems = Spoiler.keyItemLocations' "generation records key items"
