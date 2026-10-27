@@ -383,6 +383,12 @@ Java_com_freeenterprise_app_emulator_EmulatorBridge_nativeCopyAudio(
     jint n = frames * 2;
     if (n > len) n = len;
     env->SetShortArrayRegion(target, 0, n, (const jshort*) g_audio.data());
+    // Consume what was copied. The audio callback appends every frame and nothing else
+    // removed it, so on a host that never called nativeClearAudio (the desktop client)
+    // this vector grew for the whole session: each video frame then copied the *oldest*
+    // frames - thousands of them - so the audio write blocked for a quarter of a second
+    // per frame and the emulator crawled at a few frames a second until memory ran out.
+    g_audio.erase(g_audio.begin(), g_audio.begin() + n);
 }
 
 JNIEXPORT void JNICALL

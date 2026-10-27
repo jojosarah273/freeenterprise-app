@@ -23,6 +23,16 @@ single project licence; the components are licensed separately as below.
 - Licence: Snes9x's own licence (permissive, **not** MIT) — see
   `app/src/main/cpp/` and the upstream `LICENSE`. Retain the upstream notices.
 
+### Controller input — SDL2
+
+- Source: https://github.com/libsdl-org/SDL (2.26.5 on the build machine)
+- Licence: **zlib** (Copyright (C) 1997-2023 Sam Lantinga and others)
+- Used only by the Linux build, and only through `dlopen`, so it is optional: without it
+  the app runs with the keyboard. It is copied into the AppImage
+  (`usr/lib/libSDL2-2.0.so.0`) so an XInput pad works on a machine that has no
+  distribution SDL2 installed.
+- It is not bundled with the Android build, which uses Android's own input APIs.
+
 ### AES — pyaes
 
 - Licence: **MIT**. Bundled at `app/src/main/assets/python_ext/pyaes`

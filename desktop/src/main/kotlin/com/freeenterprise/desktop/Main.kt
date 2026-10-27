@@ -589,7 +589,7 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
                             Ff4StatusLine(
                                 ui.message.ifBlank {
                                     "engine " + engineVersion.ifBlank { "?" } +
-                                        "  ·  ${library.seeds().size} seed(s)"
+                                        "  ·  ${library.seeds().size} seed(s)  ·  " + ui.padStatus
                                 },
                             ),
                         ),
@@ -993,95 +993,102 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
     }
 
     onPadMenuInput = { input ->
-        if (textInput != null) {
-            // The field owns the keyboard; the pad must not move the menu under it.
-        } else if (ui.screen == Screen.LIBRARY) {
-            if (ui.screen == Screen.SEEDS) {
-                when (input) {
-                    PadRouter.MenuInput.UP -> { seedsSelected = (seedsSelected - 1).coerceAtLeast(0); compose() }
-                    PadRouter.MenuInput.DOWN -> { seedsSelected = (seedsSelected + 1).coerceAtMost(seedItems().size - 1); compose() }
-                    PadRouter.MenuInput.CONFIRM -> seedActivate()
-                    PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.LIBRARY; compose() }
+        // One flat dispatch per screen. This used to nest every branch inside
+        // "if (ui.screen == Screen.LIBRARY)", so every inner test was unreachable and the
+        // pad stopped working the moment you left the main menu - which reads as "the
+        // controller does nothing".
+        when (ui.screen) {
+            Screen.LIBRARY -> when (input) {
+                PadRouter.MenuInput.UP -> if (libraryModel.moveSelection(-1)) compose()
+                PadRouter.MenuInput.DOWN -> if (libraryModel.moveSelection(1)) compose()
+                PadRouter.MenuInput.CONFIRM -> libraryActivate()
+                PadRouter.MenuInput.CANCEL -> askQuit()
+            }
+            Screen.SEEDS -> when (input) {
+                PadRouter.MenuInput.UP -> { seedsSelected = (seedsSelected - 1).coerceAtLeast(0); compose() }
+                PadRouter.MenuInput.DOWN -> {
+                    seedsSelected = (seedsSelected + 1).coerceAtMost(seedItems().size - 1); compose()
                 }
-            } else if (ui.screen == Screen.ACTIONS) {
-                when (input) {
-                    PadRouter.MenuInput.UP -> { actionsSelected = (actionsSelected - 1).coerceAtLeast(0); compose() }
-                    PadRouter.MenuInput.DOWN -> { actionsSelected = (actionsSelected + 1).coerceAtMost(actionItems().size - 1); compose() }
-                    PadRouter.MenuInput.CONFIRM -> actionActivate()
-                    PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.SEEDS; compose() }
+                PadRouter.MenuInput.CONFIRM -> seedActivate()
+                PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.LIBRARY; compose() }
+            }
+            Screen.ACTIONS -> when (input) {
+                PadRouter.MenuInput.UP -> { actionsSelected = (actionsSelected - 1).coerceAtLeast(0); compose() }
+                PadRouter.MenuInput.DOWN -> {
+                    actionsSelected = (actionsSelected + 1).coerceAtMost(actionItems().size - 1); compose()
                 }
-            } else if (ui.screen == Screen.EDITOR) {
-                when (input) {
-                    PadRouter.MenuInput.UP -> { flagUi.moveSelection(-1); compose() }
-                    PadRouter.MenuInput.DOWN -> { flagUi.moveSelection(1); compose() }
-                    PadRouter.MenuInput.CONFIRM -> flagActivate()
-                    PadRouter.MenuInput.CANCEL -> {
-                        if (flagUi.back() == FlagUi.Action.CLOSE_EDITOR) ui.screen = Screen.FLAGS
-                        compose()
-                    }
+                PadRouter.MenuInput.CONFIRM -> actionActivate()
+                PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.SEEDS; compose() }
+            }
+            Screen.MANAGE_SAVE -> when (input) {
+                PadRouter.MenuInput.UP -> { saveSelected = (saveSelected - 1).coerceAtLeast(0); compose() }
+                PadRouter.MenuInput.DOWN -> {
+                    saveSelected = (saveSelected + 1).coerceAtMost(manageSaveItems().size - 1); compose()
                 }
-            } else if (ui.screen == Screen.PRESETS) {
-                when (input) {
-                    PadRouter.MenuInput.UP -> { flagUi.moveSelection(-1); compose() }
-                    PadRouter.MenuInput.DOWN -> { flagUi.moveSelection(1); compose() }
-                    PadRouter.MenuInput.CONFIRM -> presetActivate()
-                    PadRouter.MenuInput.CANCEL -> {
-                        if (flagUi.back() == FlagUi.Action.CLOSE_PRESETS) {
-                            flagUi.closeBrowser()
-                            ui.screen = Screen.FLAGS
-                        }
-                        compose()
-                    }
+                PadRouter.MenuInput.CONFIRM -> saveActivate()
+                PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.ACTIONS; compose() }
+            }
+            Screen.FLAGS -> when (input) {
+                PadRouter.MenuInput.UP -> { flagSelected = (flagSelected - 1).coerceAtLeast(0); compose() }
+                PadRouter.MenuInput.DOWN -> {
+                    flagSelected = (flagSelected + 1).coerceAtMost(generateMenuItems().size - 1); compose()
                 }
-            } else if (ui.screen == Screen.MANAGE_SAVE) {
-                when (input) {
-                    PadRouter.MenuInput.UP -> { saveSelected = (saveSelected - 1).coerceAtLeast(0); compose() }
-                    PadRouter.MenuInput.DOWN -> { saveSelected = (saveSelected + 1).coerceAtMost(manageSaveItems().size - 1); compose() }
-                    PadRouter.MenuInput.CONFIRM -> saveActivate()
-                    PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.ACTIONS; compose() }
-                }
-            } else if (ui.screen == Screen.DONE) {
-                when (input) {
-                    PadRouter.MenuInput.UP -> { saveSelected = (saveSelected - 1).coerceAtLeast(0); compose() }
-                    PadRouter.MenuInput.DOWN -> { saveSelected = (saveSelected + 1).coerceAtMost(2); compose() }
-                    PadRouter.MenuInput.CONFIRM -> doneActivate()
-                    PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.LIBRARY; compose() }
-                }
-            } else if (ui.screen == Screen.FLAGS) {
-                when (input) {
-                    PadRouter.MenuInput.UP -> { flagSelected = (flagSelected - 1).coerceAtLeast(0); compose() }
-                    PadRouter.MenuInput.DOWN -> { flagSelected = (flagSelected + 1).coerceAtMost(generateMenuItems().size - 1); compose() }
-                    PadRouter.MenuInput.CONFIRM -> generateActivate()
-                    PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.LIBRARY; compose() }
-                }
-            } else if (ui.confirmingQuit) {
-                when (input) {
-                    PadRouter.MenuInput.UP, PadRouter.MenuInput.DOWN -> {
-                        ui.confirmChoice = 1 - ui.confirmChoice
-                        compose()
-                    }
-                    PadRouter.MenuInput.CONFIRM -> answerQuit()
-                    PadRouter.MenuInput.CANCEL -> { ui.confirmingQuit = false; compose() }
-                }
-            } else {
-                when (input) {
-                    PadRouter.MenuInput.UP -> if (libraryModel.moveSelection(-1)) compose()
-                    PadRouter.MenuInput.DOWN -> if (libraryModel.moveSelection(1)) compose()
-                    PadRouter.MenuInput.CONFIRM -> libraryActivate()
-                    PadRouter.MenuInput.CANCEL -> askQuit()
+                PadRouter.MenuInput.CONFIRM -> generateActivate()
+                PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.LIBRARY; compose() }
+            }
+            Screen.EDITOR -> when (input) {
+                PadRouter.MenuInput.UP -> { flagUi.moveSelection(-1); compose() }
+                PadRouter.MenuInput.DOWN -> { flagUi.moveSelection(1); compose() }
+                PadRouter.MenuInput.CONFIRM -> flagActivate()
+                PadRouter.MenuInput.CANCEL -> {
+                    if (flagUi.back() == FlagUi.Action.CLOSE_EDITOR) ui.screen = Screen.FLAGS
+                    compose()
                 }
             }
-        } else {
-            when (input) {
+            Screen.PRESETS -> when (input) {
+                PadRouter.MenuInput.UP -> { flagUi.moveSelection(-1); compose() }
+                PadRouter.MenuInput.DOWN -> { flagUi.moveSelection(1); compose() }
+                PadRouter.MenuInput.CONFIRM -> presetActivate()
+                PadRouter.MenuInput.CANCEL -> {
+                    if (flagUi.back() == FlagUi.Action.CLOSE_PRESETS) {
+                        flagUi.closeBrowser()
+                        ui.screen = Screen.FLAGS
+                    }
+                    compose()
+                }
+            }
+            Screen.DONE -> when (input) {
+                PadRouter.MenuInput.UP -> { saveSelected = (saveSelected - 1).coerceAtLeast(0); compose() }
+                PadRouter.MenuInput.DOWN -> {
+                    saveSelected = (saveSelected + 1).coerceAtMost(doneRows().size - 1); compose()
+                }
+                PadRouter.MenuInput.CONFIRM -> doneActivate()
+                PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.LIBRARY; compose() }
+            }
+            Screen.UPDATES -> when (input) {
+                PadRouter.MenuInput.UP -> { updateSelected = (updateSelected - 1).coerceAtLeast(0); compose() }
+                PadRouter.MenuInput.DOWN -> {
+                    updateSelected = (updateSelected + 1).coerceAtMost(updateRows.size - 1); compose()
+                }
+                PadRouter.MenuInput.CONFIRM -> updateActions.getOrNull(updateSelected)?.invoke()
+                PadRouter.MenuInput.CANCEL -> { ui.screen = Screen.LIBRARY; compose() }
+            }
+            // The pad only drives the pause menu while it is open - START opens it
+            // (see onPadShortcut). Without this guard, A during play would act on a
+            // menu nobody could see.
+            Screen.PLAYING -> if (ui.overlay == Overlay.PAUSE) when (input) {
                 PadRouter.MenuInput.UP -> if (pauseModel.moveSelection(-1)) compose()
                 PadRouter.MenuInput.DOWN -> if (pauseModel.moveSelection(1)) compose()
-                PadRouter.MenuInput.CONFIRM -> when (pauseModel.activationTarget()) {
-                    0 -> ui.overlay = Overlay.NONE
-                    1 -> ui.overlay = Overlay.TRACKER
-                    3 -> openLibrary()
-                }
-                PadRouter.MenuInput.CANCEL -> ui.overlay = Overlay.NONE
+                // Through pauseActivate, like the keyboard: this used to have its own
+                // inline answers, so Save State and Load State did nothing from a pad.
+                PadRouter.MenuInput.CONFIRM ->
+                    pauseModel.activationTarget()?.let { pauseActivate(it) }
+                PadRouter.MenuInput.CANCEL -> { ui.overlay = Overlay.NONE; compose() }
+            } else if (ui.overlay == Overlay.TRACKER && input == PadRouter.MenuInput.CANCEL) {
+                ui.overlay = Overlay.NONE
+                compose()
             }
+            else -> Unit
         }
     }
 

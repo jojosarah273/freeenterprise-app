@@ -64,7 +64,12 @@ bool loadSdl() {
         g_sdl.handle = dlopen(name, RTLD_LAZY | RTLD_LOCAL);
         if (g_sdl.handle) break;
     }
-    if (!g_sdl.handle) return false;
+    if (!g_sdl.handle) {
+        // A missing libSDL2 is indistinguishable from a broken controller from the
+        // player's side, so say what actually happened.
+        std::fprintf(stderr, "[FF4Input] no controller support: libSDL2-2.0.so.0 not found\n");
+        return false;
+    }
 
     #define LOAD(field, symbol) \
         g_sdl.field = (decltype(g_sdl.field)) dlsym(g_sdl.handle, symbol); \

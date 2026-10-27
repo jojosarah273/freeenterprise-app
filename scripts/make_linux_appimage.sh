@@ -31,6 +31,17 @@ rm -rf build/linux/appimage
 mkdir -p "$APPDIR"
 tar -xzf "$TARBALL" -C build/linux/appimage
 SRC=$(ls -d build/linux/appimage/freeenterprise-linux-x86_64-*)
+# SDL2 travels inside the image: it is what talks to XInput pads, and Ubuntu does not
+# install it by default - which made a perfectly good controller look broken.
+mkdir -p "$APPDIR/usr/lib"
+for sdl in /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0 /usr/lib64/libSDL2-2.0.so.0 /usr/lib/libSDL2-2.0.so.0; do
+    if [ -f "$sdl" ]; then
+        cp "$sdl" "$APPDIR/usr/lib/"
+        echo "== bundled $(basename "$sdl") =="
+        break
+    fi
+done
+
 mv "$SRC/runtime" "$SRC/engine" "$SRC/native" "$APPDIR/" 2>/dev/null || {
     mkdir -p "$APPDIR/usr"
     mv "$SRC/runtime" "$SRC/engine" "$SRC/native" "$APPDIR/usr/"
@@ -54,6 +65,11 @@ if [ -n "${APPIMAGE:-}" ]; then
     HERE="$(dirname "$(readlink -f "$APPIMAGE")")"
 else
     HERE="$APPDIR"          # run directly from an extracted AppDir
+fi
+
+# The bundled SDL2, so a controller works without installing anything.
+if [ -d "$APPDIR/usr/lib" ]; then
+    export LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
 
 mkdir -p "$HERE/FF4_FE"

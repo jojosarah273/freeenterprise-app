@@ -85,13 +85,53 @@ class GameSession(
      */
     var fastForward: Boolean = false
 
+    /**
+     * Set FE_DIAG=1 to print a line every two seconds: how long each part of a frame
+     * takes and how much audio is waiting. A pad-less, audio-less machine still prints,
+     * which is what makes it usable as a bug report.
+     */
+    private val diagnosing = System.getenv("FE_DIAG") != null
+    private var diagFrames = 0
+    private var diagStartNanos = 0L
+    private var diagRunNanos = 0L
+    private var diagRefreshNanos = 0L
+    private var diagAudioNanos = 0L
+    private var diagAudioMax = 0
+
     /** Steps one frame (or [frames] while fast-forwarding), then publishes the picture. */
     fun step() {
         val started = System.nanoTime()
         val count = if (fastForward) FAST_FORWARD_FRAMES else 1
         repeat(count) { EmulatorBridge.nativeRun() }
+        val afterRun = System.nanoTime()
         refreshFrame()
+        val afterRefresh = System.nanoTime()
         pumpAudio()
+        if (diagnosing) {
+            val afterAudio = System.nanoTime()
+            diagRunNanos += afterRun - started
+            diagRefreshNanos += afterRefresh - afterRun
+            diagAudioNanos += afterAudio - afterRefresh
+            diagAudioMax = maxOf(diagAudioMax, pendingAudioFrames())
+            diagFrames += count
+            if (diagStartNanos == 0L) diagStartNanos = started
+            val elapsed = afterAudio - diagStartNanos
+            if (elapsed >= 2_000_000_000L) {
+                val fps = diagFrames * 1e9 / elapsed
+                System.err.println(
+                    "FE_DIAG fps=%.1f run=%.2fms refresh=%.2fms audio=%.2fms pendingAudioMax=%d".format(
+                        fps,
+                        diagRunNanos / 1e6 / diagFrames,
+                        diagRefreshNanos / 1e6 / diagFrames,
+                        diagAudioNanos / 1e6 / diagFrames,
+                        diagAudioMax,
+                    ),
+                )
+                diagFrames = 0; diagStartNanos = 0L
+                diagRunNanos = 0L; diagRefreshNanos = 0L; diagAudioNanos = 0L
+                diagAudioMax = 0
+            }
+        }
         if (line == null) {
             val elapsed = System.nanoTime() - started
             val remaining = frameNanos - elapsed
@@ -158,12 +198,21 @@ class GameSession(
         frame.setRGB(0, 0, width, height, pixels, 0, width)
     }
 
+    /** Frames of audio waiting in the core. Should stay near one frame's worth (~534). */
+    fun pendingAudioFrames(): Int = EmulatorBridge.nativeAudioFrames()
+
     private fun pumpAudio() {
-        val sink = line ?: return
-        val frames = EmulatorBridge.nativeAudioFrames()
+        val frames = pendingAudioFrames()
         if (frames <= 0) return
+        val sink = line
+        if (sink == null) {
+            // No device: discard, so the core's buffer cannot grow for the session.
+            EmulatorBridge.nativeClearAudio()
+            return
+        }
         val n = minOf(frames, audioShorts.size / 2)
         EmulatorBridge.nativeCopyAudio(audioShorts, n)
+        EmulatorBridge.nativeClearAudio()
         var b = 0
         for (i in 0 until n * 2) {
             val s = audioShorts[i].toInt()
