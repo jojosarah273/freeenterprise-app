@@ -1343,6 +1343,21 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         compose()
     }
 
+    // The rows on the Generate screen. This was deleted by a bulk edit in d1c4cc6
+    // while the declaration stayed behind, so pressing A on any Generate row threw
+    // UninitializedPropertyAccessException from the event thread and the screen
+    // simply did not respond - "Choose Flags does not load".
+    generateActivate = {
+        when (flagSelected) {
+            0 -> { flagUi.openPresets(); ui.screen = Screen.PRESETS }
+            1 -> { flagUi.showCategories(); ui.screen = Screen.EDITOR }
+            2 -> seedName = "SEED%04d".format(System.currentTimeMillis() % 10000)
+            3 -> startGeneration(seedName.ifBlank { "SEED%04d".format(System.currentTimeMillis() % 10000) })
+            else -> { ui.screen = Screen.LIBRARY; libraryModel.reset(libraryItems()) }
+        }
+        compose()
+    }
+
     presetActivate = {
         if (flagUi.activate(flagUi.selection) == FlagUi.Action.CLOSE_PRESETS) {
             flagUi.closeBrowser()

@@ -114,9 +114,24 @@ hasnot "$J/FF4PlayerActivity.kt"   'held.contains(normalise(name))'     "no inve
 has    "$J/RomLibrary.kt"          '"seen_key_items"'                   "metadata stores what was obtained"
 hasnot "$J/Spoiler.kt"             '\\\\\\.{3,}'                          "parser accepts short dot runs"
 
+echo "Desktop handlers"
+# A lateinit handler whose assignment was deleted by a bulk edit fails only when the
+# row is pressed: "Choose Flags does not load", with no compile error. That is how
+# generateActivate disappeared in d1c4cc6, so every handler is checked here.
+M=desktop/src/main/kotlin/com/freeenterprise/desktop/Main.kt
+for v in $(grep -oP 'lateinit var \K\w+' "$M"); do
+    if grep -qE "^[[:space:]]*$v = " "$M"; then
+        ok "$v is assigned"
+    else
+        bad "$v is declared but never assigned (pressing its row throws)"
+    fi
+done
+
 echo "Versioning"
 name=$(sed -n 's/.*versionName = .*"\([0-9][^"]*\)".*/\1/p' app/build.gradle.kts | head -1)
-code=$(grep -oP 'versionCode = \K[0-9]+' app/build.gradle.kts)
+# versionCode is an expression with a numeric fallback, so grep for a leading digit
+# returns nothing; take the last number on the line instead.
+code=$(sed -n 's/.*versionCode = .*\([0-9][0-9]*\).*/\1/p' app/build.gradle.kts | tail -1)
 printf '  info versionName %s (versionCode %s)\n' "$name" "$code"
 if [ "${1:-}" != "" ]; then
   [ "$name" = "$1" ] && ok "matches tag $1" || bad "build.gradle.kts says $name, tag says $1"
