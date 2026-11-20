@@ -162,6 +162,21 @@ has scripts/rom-discovery.sh 'tail -c +513'           "a 512-byte copier header 
 has scripts/rom-discovery.sh '"$HERE"/\*.smc'         "any .smc beside the file is considered"
 has scripts/rom-discovery.sh '"$HERE"/\*.sfc'         "any .sfc beside the file is considered"
 
+echo "The on-screen pad is one tested surface"
+# A view per button put input correctness in Android's hands (motion splitting) and
+# could not be tested. The pointer logic must stay in :core and the pad must be one view.
+has core/src/main/kotlin/com/freeenterprise/ff4/Ff4TouchPad.kt 'class Ff4TouchTracker' \
+    "the multi-touch state machine exists in :core"
+[ -f core/src/test/kotlin/com/freeenterprise/ff4/Ff4TouchPadTest.kt ] && \
+    ok "the state machine is unit tested" || bad "Ff4TouchPadTest.kt is missing"
+has "$J/FF4PlayerActivity.kt" 'FF4TouchPadView('  "the pad is the single-surface view"
+hasnot "$J/FF4PlayerActivity.kt" 'holdListener'   "no per-button touch listeners"
+hasnot "$J/FF4PlayerActivity.kt" 'ffButton'        "no separate FF button view"
+has "$J/FF4PlayerActivity.kt" 'setOnLongClickListener' "long-press PAD opens pad settings"
+has "$J/EditorPrefs.kt" 'KEY_PAD_SIZE'             "pad size is remembered"
+has "$J/EditorPrefs.kt" 'KEY_PAD_ALPHA'            "pad opacity is remembered"
+has "$J/EditorPrefs.kt" 'KEY_PAD_HAPTIC'           "haptics are remembered"
+
 echo "The playing screen does not fight itself"
 # The bug that froze the picture: the loop only repaints, so the panel must be given
 # a way to fetch the live game image. It defaulted to "no direct frame", so every

@@ -57,6 +57,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
     private lateinit var padLayer: FrameLayout
     private lateinit var overlayLayer: FrameLayout
     private var padControls: View? = null
+    private var padView: com.freeenterprise.app.ff4ui.FF4TouchPadView? = null
     private var padToggle: View? = null
 
     private var session: EmulatorSession? = null
@@ -203,6 +204,9 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             background = d
             alpha = 0.35f
             setOnClickListener { toggleControls() }
+            // Long-press: pad settings (size, opacity, haptics) - the same gesture
+            // players already know from Android's home screen.
+            setOnLongClickListener { showTouchPadSettings(); true }
         }
         padLayer.addView(toggle, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -227,6 +231,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
     private fun applyControlsVisibility() {
         padControls?.let { padLayer.removeView(it) }
         padControls = null
+        padView = null
         if (EditorPrefs.onscreenControls(this)) {
             padControls = buildPad().also { padLayer.addView(it, matchParent()) }
         }
@@ -253,112 +258,33 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         else -> false
     }
 
-    private fun buildPad(): View {
-        val holder = FrameLayout(this).apply { isClickable = false }
-        val unit = dp(52)
-
-        // D-pad, bottom-left
-        val dpad = FrameLayout(this)
-        fun padBtn(label: String, id: Int, left: Int, top: Int): TextView {
-            val b = button(label)
-            b.setOnTouchListener(holdListener(id))
-            dpad.addView(b, FrameLayout.LayoutParams(unit, unit).apply {
-                leftMargin = left; topMargin = top
-            })
-            return b
-        }
-        padBtn("▲", EmulatorBridge.UP, unit, 0)
-        padBtn("◀", EmulatorBridge.LEFT, 0, unit)
-        padBtn("▶", EmulatorBridge.RIGHT, unit * 2, unit)
-        padBtn("▼", EmulatorBridge.DOWN, unit, unit * 2)
-        holder.addView(dpad, FrameLayout.LayoutParams(unit * 3, unit * 3).apply {
-            gravity = Gravity.BOTTOM or Gravity.START
-            marginStart = dp(16); bottomMargin = dp(16)
-        })
-
-        // Face buttons, bottom-right
-        val face = FrameLayout(this)
-        fun faceBtn(label: String, id: Int, left: Int, top: Int) {
-            val b = button(label)
-            b.setOnTouchListener(holdListener(id))
-            face.addView(b, FrameLayout.LayoutParams(unit, unit).apply {
-                leftMargin = left; topMargin = top
-            })
-        }
-        faceBtn("X", EmulatorBridge.X, unit, 0)          // top
-        faceBtn("Y", EmulatorBridge.Y, 0, unit)          // left
-        faceBtn("A", EmulatorBridge.A, unit * 2, unit)   // right  (confirm)
-        faceBtn("B", EmulatorBridge.B, unit, unit * 2)   // bottom (cancel)
-        holder.addView(face, FrameLayout.LayoutParams(unit * 3, unit * 3).apply {
-            gravity = Gravity.BOTTOM or Gravity.END
-            marginEnd = dp(16); bottomMargin = dp(16)
-        })
-
-        // Top-left: our own functions (FF4 ignores L/R, and Start opens our menu)
-        val appRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        ffButton = button("FF").apply { setOnClickListener { toggleFastForward() } }
-        val save = button("SAVE").apply { setOnClickListener { quickSave() } }
-        val trk = button("TRK").apply { setOnClickListener { toggleTracker() } }
-        appRow.addView(trk, LinearLayout.LayoutParams(dp(64), dp(42)))
-        appRow.addView(ffButton, LinearLayout.LayoutParams(dp(64), dp(42)).apply { marginStart = dp(8) })
-        appRow.addView(save, LinearLayout.LayoutParams(dp(72), dp(42)).apply { marginStart = dp(8) })
-        holder.addView(appRow, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
+    /**
+     * The pad is one surface taking every pointer (FF4TouchPadView), not a view per
+     * button: thumbs can roll around the d-pad, hold B while steering, and slide
+     * between face buttons. The input logic itself is Ff4TouchTracker in :core,
+     * which is unit tested without a device.
+     */
+    private fun buildPad(): View =
+        com.freeenterprise.app.ff4ui.FF4TouchPadView(
+            this,
+            onButton = { id, pressed ->
+                if (pressed) session?.setUp(id) else session?.setDown(id)
+            },
+            onTap = { id ->
+                when (id) {
+                    com.freeenterprise.app.ff4ui.FF4TouchPadView.TAP_TRK -> toggleTracker()
+                    com.freeenterprise.app.ff4ui.FF4TouchPadView.TAP_FF -> toggleFastForward()
+                    com.freeenterprise.app.ff4ui.FF4TouchPadView.TAP_SAVE -> quickSave()
+                    com.freeenterprise.app.ff4ui.FF4TouchPadView.TAP_START -> togglePause()
+                }
+            },
         ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            marginStart = dp(16); topMargin = dp(10)
-        })
-
-        // Top-right, *below the PAD toggle* so the two never overlap: the console's
-        // buttons — SELECT goes to the game, START opens our menu (mirroring the
-        // physical Start button).
-        val sysRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val lb = button("L").apply { setOnTouchListener(holdListener(EmulatorBridge.L)) }
-        val rb = button("R").apply { setOnTouchListener(holdListener(EmulatorBridge.R)) }
-        val sel = button("SELECT").apply { setOnTouchListener(holdListener(EmulatorBridge.SELECT)) }
-        val start = button("START").apply { setOnClickListener { togglePause() } }
-        sysRow.addView(lb, LinearLayout.LayoutParams(dp(48), dp(42)))
-        sysRow.addView(rb, LinearLayout.LayoutParams(dp(48), dp(42)).apply { marginStart = dp(8) })
-        sysRow.addView(sel, LinearLayout.LayoutParams(dp(88), dp(42)).apply { marginStart = dp(8) })
-        sysRow.addView(start, LinearLayout.LayoutParams(dp(88), dp(42)).apply { marginStart = dp(8) })
-        holder.addView(sysRow, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.END
-            marginEnd = dp(16); topMargin = dp(48)
-        })
-
-        updateFastForwardButton()
-        return holder
-    }
-
-    private var ffButton: TextView? = null
-
-    private fun button(label: String): TextView = TextView(this).apply {
-        text = label
-        typeface = FF4Theme.font(this@FF4PlayerActivity)
-        setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, dp(18).toFloat())
-        setTextColor(FF4Theme.WHITE)
-        gravity = Gravity.CENTER
-        val d = android.graphics.drawable.GradientDrawable().apply {
-            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-            setColor(0x66000083)
-            setStroke(dp(2), FF4Theme.WHITE)
+            setSize(EditorPrefs.onscreenSize(this@FF4PlayerActivity))
+            setAlphaStyle(EditorPrefs.onscreenAlpha(this@FF4PlayerActivity))
+            haptics = EditorPrefs.onscreenHaptic(this@FF4PlayerActivity)
+            setFastForward(fastForward)
+            padView = this
         }
-        background = d
-        alpha = 0.55f
-    }
-
-    private fun holdListener(id: Int) = View.OnTouchListener { v, event ->
-        when (event.actionMasked) {
-            android.view.MotionEvent.ACTION_DOWN -> { v.alpha = 0.95f; session?.setUp(id); true }
-            android.view.MotionEvent.ACTION_UP,
-            android.view.MotionEvent.ACTION_CANCEL -> { v.alpha = 0.55f; session?.setDown(id); true }
-            else -> false
-        }
-    }
 
     // -------------------------------------------------------------- overlays
 
@@ -397,6 +323,63 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
 
     /** Touch affordances exist only while the on-screen pad is enabled. */
     private fun touchControlsEnabled(): Boolean = EditorPrefs.onscreenControls(this)
+
+    /**
+     * Pad settings, reached by long-pressing PAD. Platform-local, like the update
+     * screens: the desktop has no touch layer, so these rows are not in Ff4Rows.
+     */
+    private fun showTouchPadSettings() {
+        val menu = FF4Menu(this)
+        fun apply() {
+            val v = padView ?: return
+            v.setSize(EditorPrefs.onscreenSize(this))
+            v.setAlphaStyle(EditorPrefs.onscreenAlpha(this))
+            v.haptics = EditorPrefs.onscreenHaptic(this)
+        }
+        fun rebuild() {
+            val sizeLabel = when (EditorPrefs.onscreenSize(this)) { "small" -> "S"; "large" -> "L"; else -> "M" }
+            val alphaLabel = when (EditorPrefs.onscreenAlpha(this)) { "dim" -> "dim"; "bright" -> "bright"; else -> "medium" }
+            val hapticLabel = if (EditorPrefs.onscreenHaptic(this)) "on" else "off"
+            menu.submit(
+                listOf(
+                    FF4Menu.Item("Pad size", sizeLabel),
+                    FF4Menu.Item("Pad opacity", alphaLabel),
+                    FF4Menu.Item("Haptics", hapticLabel),
+                    FF4Menu.Item("Back"),
+                ),
+            ) { i ->
+                when (i) {
+                    0 -> EditorPrefs.setOnscreenSize(
+                        this,
+                        when (EditorPrefs.onscreenSize(this)) { "small" -> "normal"; "large" -> "small"; else -> "large" },
+                    )
+                    1 -> EditorPrefs.setOnscreenAlpha(
+                        this,
+                        when (EditorPrefs.onscreenAlpha(this)) { "dim" -> "medium"; "bright" -> "dim"; else -> "bright" },
+                    )
+                    2 -> EditorPrefs.setOnscreenHaptic(this, !EditorPrefs.onscreenHaptic(this))
+                    3 -> { clearOverlay(); return@submit }
+                }
+                apply()
+                rebuild()
+            }
+        }
+        rebuild()
+        val info = TextView(this).apply {
+            text = "Long-press PAD for these settings."
+            FF4Theme.applyText(this@FF4PlayerActivity, this, FF4Theme.textSmallPx(this@FF4PlayerActivity))
+            setTextColor(FF4Theme.WHITE)
+            setPadding(0, 0, 0, dp(6))
+        }
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(info)
+            addView(menu)
+        }
+        val window = FF4Window(this).apply { addView(column) }
+        setOverlay(window, menu)
+        window.setOnClickListener { }        // don't let taps fall through
+    }
 
     private fun togglePause() {
         if (overlayLayer.childCount > 0) closePause() else openPause()
@@ -750,10 +733,7 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
     }
 
     private fun updateFastForwardButton() {
-        ffButton?.let {
-            it.alpha = if (fastForward) 0.95f else 0.55f
-            it.setTextColor(if (fastForward) FF4Theme.YELLOW else FF4Theme.WHITE)
-        }
+        padView?.setFastForward(fastForward)
     }
 
     private fun restartSession() {

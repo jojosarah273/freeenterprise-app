@@ -12,6 +12,9 @@ object EditorPrefs {
     private const val KEY_FONT = "font_scale"       // Float
     private const val KEY_UI_MODE = "ui_mode"       // "ff4" | "classic"
     private const val KEY_ONSCREEN = "onscreen_controls"
+    private const val KEY_PAD_SIZE = "onscreen_size"      // small | normal | large
+    private const val KEY_PAD_ALPHA = "onscreen_alpha"   // dim | medium | bright
+    private const val KEY_PAD_HAPTIC = "onscreen_haptic"
 
     const val UI_FF4 = "ff4"
     const val UI_CLASSIC = "classic"
@@ -64,6 +67,27 @@ object EditorPrefs {
     /** On-screen gamepad in the player — off by default. */
     fun onscreenControls(context: Context): Boolean =
         prefs(context).getBoolean(KEY_ONSCREEN, false)
+
+    fun onscreenSize(context: Context): String =
+        prefs(context).getString(KEY_PAD_SIZE, "normal") ?: "normal"
+
+    fun setOnscreenSize(context: Context, name: String) {
+        prefs(context).edit().putString(KEY_PAD_SIZE, name).apply()
+    }
+
+    fun onscreenAlpha(context: Context): String =
+        prefs(context).getString(KEY_PAD_ALPHA, "medium") ?: "medium"
+
+    fun setOnscreenAlpha(context: Context, name: String) {
+        prefs(context).edit().putString(KEY_PAD_ALPHA, name).apply()
+    }
+
+    fun onscreenHaptic(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_PAD_HAPTIC, true)
+
+    fun setOnscreenHaptic(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(KEY_PAD_HAPTIC, on).apply()
+    }
 
     fun setOnscreenControls(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(KEY_ONSCREEN, on).apply()
