@@ -31,8 +31,8 @@ android {
         // A test build can override both without editing this file, so a hand-built
         // APK is identifiable and can install over the published one:
         //   ./gradlew :app:assembleRelease -PfeVersionCode=56 -PfeVersionName=0.1.25-dev.1929
-        versionCode = (project.findProperty("feVersionCode") as String?)?.toInt() ?: 55
-        versionName = (project.findProperty("feVersionName") as String?) ?: "0.1.25"
+        versionCode = (project.findProperty("feVersionCode") as String?)?.toInt() ?: 56
+        versionName = (project.findProperty("feVersionName") as String?) ?: "0.1.26"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
