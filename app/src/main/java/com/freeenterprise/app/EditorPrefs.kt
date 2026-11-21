@@ -15,6 +15,8 @@ object EditorPrefs {
     private const val KEY_PAD_SIZE = "onscreen_size"      // small | normal | large
     private const val KEY_PAD_ALPHA = "onscreen_alpha"   // dim | medium | bright
     private const val KEY_PAD_HAPTIC = "onscreen_haptic"
+    private const val KEY_PAD_FADE = "onscreen_fade"    // dim when untouched
+    private const val KEY_PAD_SWAP = "onscreen_swap"    // left-handed layout
 
     const val UI_FF4 = "ff4"
     const val UI_CLASSIC = "classic"
@@ -87,6 +89,20 @@ object EditorPrefs {
 
     fun setOnscreenHaptic(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(KEY_PAD_HAPTIC, on).apply()
+    }
+
+    fun onscreenFade(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_PAD_FADE, true)
+
+    fun setOnscreenFade(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(KEY_PAD_FADE, on).apply()
+    }
+
+    fun onscreenSwap(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_PAD_SWAP, false)
+
+    fun setOnscreenSwap(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(KEY_PAD_SWAP, on).apply()
     }
 
     fun setOnscreenControls(context: Context, on: Boolean) {

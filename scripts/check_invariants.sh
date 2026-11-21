@@ -176,6 +176,13 @@ has "$J/FF4PlayerActivity.kt" 'setOnLongClickListener' "long-press PAD opens pad
 has "$J/EditorPrefs.kt" 'KEY_PAD_SIZE'             "pad size is remembered"
 has "$J/EditorPrefs.kt" 'KEY_PAD_ALPHA'            "pad opacity is remembered"
 has "$J/EditorPrefs.kt" 'KEY_PAD_HAPTIC'           "haptics are remembered"
+has "$J/EditorPrefs.kt" 'KEY_PAD_FADE'              "fade-when-idle is remembered"
+has "$J/EditorPrefs.kt" 'KEY_PAD_SWAP'              "left-handed layout is remembered"
+has "$J/ff4ui/FF4TouchPadView.kt" 'idleFade'         "the pad dims while untouched"
+has "$J/ff4ui/FF4TouchPadView.kt" 'swapped'          "the pad mirrors for left-handed play"
+has "$J/FF4PlayerActivity.kt" 'systemWindowInsetBottom' "the pad lifts clear of the gesture edge"
+has "$J/FF4PlayerActivity.kt" '"Fade when idle"'          "the fade is a setting, not a trap"
+has "$J/FF4PlayerActivity.kt" '"Left-handed"'            "the swap is a setting"
 
 echo "The playing screen does not fight itself"
 # The bug that froze the picture: the loop only repaints, so the panel must be given

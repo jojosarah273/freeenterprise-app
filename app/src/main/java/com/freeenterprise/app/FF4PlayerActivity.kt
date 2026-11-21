@@ -105,6 +105,13 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
         root.addView(overlayLayer, matchParent())
         setContentView(root)
 
+        // Gesture-nav devices own the bottom edge; the pad keeps clear of it.
+        root.setOnApplyWindowInsetsListener { _, insets ->
+            val bottom = insets.systemWindowInsetBottom
+            padView?.bottomInset = bottom
+            padToggle?.setPadding(0, 0, 0, 0)
+            insets
+        }
         buildPadToggle()
         applyControlsVisibility()
     }
@@ -282,6 +289,8 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             setSize(EditorPrefs.onscreenSize(this@FF4PlayerActivity))
             setAlphaStyle(EditorPrefs.onscreenAlpha(this@FF4PlayerActivity))
             haptics = EditorPrefs.onscreenHaptic(this@FF4PlayerActivity)
+            swapped = EditorPrefs.onscreenSwap(this@FF4PlayerActivity)
+            idleFade = EditorPrefs.onscreenFade(this@FF4PlayerActivity)
             setFastForward(fastForward)
             padView = this
         }
@@ -335,16 +344,22 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
             v.setSize(EditorPrefs.onscreenSize(this))
             v.setAlphaStyle(EditorPrefs.onscreenAlpha(this))
             v.haptics = EditorPrefs.onscreenHaptic(this)
+            v.swapped = EditorPrefs.onscreenSwap(this)
+            v.idleFade = EditorPrefs.onscreenFade(this)
         }
         fun rebuild() {
             val sizeLabel = when (EditorPrefs.onscreenSize(this)) { "small" -> "S"; "large" -> "L"; else -> "M" }
             val alphaLabel = when (EditorPrefs.onscreenAlpha(this)) { "dim" -> "dim"; "bright" -> "bright"; else -> "medium" }
             val hapticLabel = if (EditorPrefs.onscreenHaptic(this)) "on" else "off"
+            val fadeLabel = if (EditorPrefs.onscreenFade(this)) "on" else "off"
+            val swapLabel = if (EditorPrefs.onscreenSwap(this)) "swapped" else "normal"
             menu.submit(
                 listOf(
                     FF4Menu.Item("Pad size", sizeLabel),
                     FF4Menu.Item("Pad opacity", alphaLabel),
                     FF4Menu.Item("Haptics", hapticLabel),
+                    FF4Menu.Item("Fade when idle", fadeLabel),
+                    FF4Menu.Item("Left-handed", swapLabel),
                     FF4Menu.Item("Back"),
                 ),
             ) { i ->
@@ -358,7 +373,9 @@ class FF4PlayerActivity : FF4Activity(), SurfaceHolder.Callback {
                         when (EditorPrefs.onscreenAlpha(this)) { "dim" -> "medium"; "bright" -> "dim"; else -> "bright" },
                     )
                     2 -> EditorPrefs.setOnscreenHaptic(this, !EditorPrefs.onscreenHaptic(this))
-                    3 -> { clearOverlay(); return@submit }
+                    3 -> EditorPrefs.setOnscreenFade(this, !EditorPrefs.onscreenFade(this))
+                    4 -> EditorPrefs.setOnscreenSwap(this, !EditorPrefs.onscreenSwap(this))
+                    5 -> { clearOverlay(); return@submit }
                 }
                 apply()
                 rebuild()

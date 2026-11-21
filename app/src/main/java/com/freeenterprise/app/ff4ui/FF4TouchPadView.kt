@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
 import com.freeenterprise.ff4.Ff4TouchTracker
@@ -59,6 +60,23 @@ class FF4TouchPadView(
         private set
 
     var haptics: Boolean = true
+
+    /** Left-handed layout: d-pad and face buttons trade corners. */
+    var swapped: Boolean = false
+        set(value) { field = value; rebuildZones() }
+
+    /** Dim while untouched, full while a finger is down (RetroArch auto-opacity). */
+    var idleFade: Boolean = true
+
+    /** The system's bottom inset; the pad keeps clear of the gesture-nav edge. */
+    var bottomInset: Int = 0
+        set(value) { field = value; rebuildZones() }
+
+    private val idleHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var lastTouchUptime = 0L
+    private val idleRunnable = Runnable { applyIdleFade(true) }
+    private val idleDelayMs = 3000L
+    private val idleAlpha = 0.35f
 
     private val dp = resources.displayMetrics.density
     private val font: Typeface = FF4Theme.font(context)
@@ -128,15 +146,17 @@ class FF4TouchPadView(
         if (width == 0 || height == 0) return
         val u = unit()
         val margin = 12f * dp
+        // Clear of the gesture-nav edge, where a bottom swipe means "home".
+        val bottom = height - margin - bottomInset.toFloat()
         val reach = 1.6f * u
-        val centreOffset = margin + 1.5f * u
+        val centreOffset = 1.5f * u
 
-        val dCx = centreOffset
-        val dCy = height - centreOffset
+        // Left-handed: the d-pad lives under the right thumb, the face under the left.
+        val dCx = if (swapped) width - margin - centreOffset else margin + centreOffset
+        val fCx = if (swapped) margin + centreOffset else width - margin - centreOffset
+        val dCy = bottom - centreOffset
+        val fCy = bottom - centreOffset
         cross = Ff4TouchZone.Cross(dCx, dCy, reach, 0.42f * u, UP, DOWN, LEFT, RIGHT)
-
-        val fCx = width - centreOffset
-        val fCy = height - centreOffset
         faceButtons = listOf(
             Ff4TouchZone.Face.Button(fCx, fCy - u, 0.95f * u, X),
             Ff4TouchZone.Face.Button(fCx - u, fCy, 0.95f * u, Y),
@@ -189,7 +209,31 @@ class FF4TouchPadView(
 
     // ------------------------------------------------------------- touch input
 
+    /** Bright on touch, dimmed again after a quiet stretch - unless the player turned it off. */
+    private fun applyIdleFade(idle: Boolean) {
+        animate().cancel()
+        if (idle && idleFade) {
+            animate().alpha(idleAlpha).setDuration(400).start()
+        } else {
+            animate().alpha(1f).setDuration(120).start()
+        }
+    }
+
+    private fun noteTouch() {
+        lastTouchUptime = SystemClock.uptimeMillis()
+        idleHandler.removeCallbacks(idleRunnable)
+        applyIdleFade(false)
+    }
+
+    private fun scheduleFade() {
+        idleHandler.removeCallbacks(idleRunnable)
+        if (idleFade) {
+            idleHandler.postAtTime(idleRunnable, lastTouchUptime + idleDelayMs)
+        }
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        noteTouch()
         val action = event.actionMasked
         when (action) {
             MotionEvent.ACTION_DOWN,
@@ -209,12 +253,19 @@ class FF4TouchPadView(
             MotionEvent.ACTION_CANCEL -> tracker.cancel()
             else -> return false
         }
+        scheduleFade()
         return true
     }
 
     override fun onDetachedFromWindow() {
         tracker.cancel()
+        idleHandler.removeCallbacks(idleRunnable)
         super.onDetachedFromWindow()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        applyIdleFade(true)
     }
 
     // ---------------------------------------------------------------- drawing

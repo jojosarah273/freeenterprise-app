@@ -174,17 +174,19 @@ easy part.
 
 ---
 
-## 7. Custom engine mode — playable Golbez
+## 7. Multiple engines — 4.7.0.Gale, 4.6.0.open, 4.6.0-GOLBEZ
 
-Feasibility of shipping the custom fork in `DEV/FE_GOLBEZ` (replaces FuSoYa with
-a handmade playable Golbez) as a **separate mode** is assessed in
-**`GOLBEZ_MODE_FEASIBILITY.md`**.
-
-Short version: architecturally straightforward, but the fork is **not finished**
-— its own dev log ends with the core rendering problem unresolved — and it is
-based on **4.6.0.open** rather than our 4.7.0.Gale, so it would diverge in
-features, flags and seed parity. Recommended route is to finish the fork, then
-port the work onto 4.7.0.Gale so one engine serves both experiences.
+**A future option, parked deliberately.** The Golbez fork is now finished,
+public (github.com/jojosarah273/FreeEnterprise4-Golbez, clean of ROMs) and
+confirmed working. Full feasibility — all three engines installed side by side
+on one machine, each generating seeds through our own bridge and booting in our
+own Snes9x core — is measured in **`MULTI_ENGINE_OPTIONS.md`**: the bridge needs
+zero changes, every engine ships its own flag-editor spec compiler, and the
+tracker convention is identical across all three. The chosen design (pick the
+engine while designing a seed, fully isolated options per engine, the seed
+labelled with its engine in Play Free Enterprise) is written up there. Nothing
+is deployed; the app continues to ship Gale alone until this is deliberately
+picked up.
 
 ---
 
