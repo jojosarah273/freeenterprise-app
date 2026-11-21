@@ -80,12 +80,15 @@ class FF4FlagEditorActivity : FF4Activity() {
 
         menu.onSelectionChanged = { i -> updateHintForSelection(i) }
 
+        // BEFORE ensureExtracted: when everything is already unpacked the callback
+        // runs synchronously, and any message it sets (a spec failure, an unpack
+        // error) must not be overwritten by this placeholder afterwards.
+        hintText.text = "Starting engine…"
         engine = SeedEngine(this) {}
         engine.ensureExtracted(
             onDone = { engineReady = true; startEditor() },
             onError = { hintText.text = "Engine unpack failed: $it" }
         )
-        hintText.text = "Starting engine…"
     }
 
     // ------------------------------------------------------------------ setup

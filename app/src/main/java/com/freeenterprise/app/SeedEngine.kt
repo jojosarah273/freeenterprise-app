@@ -56,43 +56,48 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
      * a new APK would never reach the device — the app would keep running the
      * engine extracted on first install (this bit us with the empty-chest bug).
      */
+    /**
+     * Unpacks every engine this build bundles.
+     *
+     * Each engine dir carries its own versionCode stamp, because "gale is fresh"
+     * says nothing about any other engine: the golbez build shipped after a dev
+     * build with the same versionCode, and the old single check then skipped the
+     * second engine entirely - selecting it led to a missing spec file that the
+     * editor surfaced as a clobbered message and a dead screen.
+     *
+     * Engines whose asset dir is not bundled in this build (production ships
+     * Gale alone) are skipped without failing: production never sees the extra
+     * work, and a dev APK that loses an asset still starts on Gale.
+     */
     fun ensureExtracted(onDone: () -> Unit, onError: (String) -> Unit) {
-        val marker = File(extDir, ".engine_version")
         val wanted = BuildConfig.VERSION_CODE.toString()
-        val upToDate = extDir.resolve("FreeEnt").exists() &&
-            extDir.resolve("f4c").exists() &&
-            marker.exists() &&
-            marker.readText().trim() == wanted
 
-        if (upToDate) {
+        fun stampOk(engine: Engines.Engine): Boolean {
+            val dir = Engines.dir(context, engine.id)
+            val marker = File(dir, ".engine_version")
+            return dir.resolve("FreeEnt").exists() &&
+                dir.resolve("f4c").exists() &&
+                marker.exists() &&
+                marker.readText().trim() == wanted
+        }
+
+        val bundled = Engines.all.filter { context.assets.list(it.assetDir) != null }
+        val stale = bundled.filter { !stampOk(it) }
+
+        if (stale.isEmpty()) {
             onDone()
             return
         }
         Thread {
             try {
-                // Wipe (removes stale sources *and* any __pycache__) then unpack.
-                extDir.deleteRecursively()
-                extractAssetDir("python_ext", extDir)
-                try {
-                    marker.writeText(wanted)
-                } catch (_: Exception) {
-                }
-                // The second engine, same stamping so APK updates refresh it too.
-                // A dev-build experiment: production ships Gale alone, and a missing
-                // asset dir must never break the production path.
-                for (engine in Engines.all) {
-                    if (engine.id == Engines.gale.id) continue
+                for (engine in stale) {
+                    // Wipe (removes stale sources *and* any __pycache__) then unpack.
+                    val dir = Engines.dir(context, engine.id)
+                    dir.deleteRecursively()
+                    extractAssetDir(engine.assetDir, dir)
                     try {
-                        val dir = Engines.dir(context, engine.id)
-                        val stamp = File(dir, ".engine_version")
-                        val fresh = dir.resolve("FreeEnt").exists() &&
-                            stamp.exists() && stamp.readText().trim() == wanted
-                        if (fresh) continue
-                        dir.deleteRecursively()
-                        extractAssetDir(engine.assetDir, dir)
-                        stamp.writeText(wanted)
-                    } catch (e: Exception) {
-                        android.util.Log.w("SeedEngine", "engine ${engine.id} not bundled: ${e.message}")
+                        File(dir, ".engine_version").writeText(wanted)
+                    } catch (_: Exception) {
                     }
                 }
                 onMain(onDone)

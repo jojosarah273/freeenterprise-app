@@ -79,6 +79,9 @@ class FlagEditorActivity : AppCompatActivity() {
             Toast.makeText(this, "Cleared — defaults apply.", Toast.LENGTH_SHORT).show()
         }
 
+        // Placeholder first: a synchronous onDone/onError must be the last thing
+        // to touch this line, or its real message gets overwritten.
+        romStatus.text = "v${BuildConfig.VERSION_NAME} · Starting engine… " + baseRomStatus()
         engine = SeedEngine(this) { resultJson -> onGenerationResult(resultJson) }
         engine.ensureExtracted(
             onDone = {
@@ -91,7 +94,6 @@ class FlagEditorActivity : AppCompatActivity() {
                 romStatus.text = "v${BuildConfig.VERSION_NAME} · Engine unpack failed: $msg"
             }
         )
-        romStatus.text = "v${BuildConfig.VERSION_NAME} · Starting engine… " + baseRomStatus()
         applyColors()
     }
 

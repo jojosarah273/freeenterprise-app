@@ -229,6 +229,16 @@ has "$J/FF4PlayActivity.kt" 'Engines.byId(m.engine).display' "sessions list the 
 has "$J/FF4PlayActivity.kt" 'setEngineOverride'      "regenerating honours the seed's engine"
 has "$J/SeedEngine.kt" 'pointBridgeAt'                "the interpreter is pointed at the selected engine"
 has "$J/SeedEngine.kt" 'reload_engine'                "switching engines drops cached modules"
+has "$J/SeedEngine.kt" 'val stale = bundled.filter'    "every bundled engine has its own stamp check"
+has "$J/SeedEngine.kt" 'context.assets.list(it.assetDir) != null' \
+    "engines not bundled in this build are skipped, not forced"
+# The bug that read as a hang: with everything already extracted the callback runs
+# synchronously, and a placeholder set afterwards buried the real message ("Spec load
+# failed") under "Starting engine..." forever.
+has "$J/FF4FlagEditorActivity.kt" 'hintText.text = "Starting engine…"
+        engine' "the placeholder is set before the extraction callback"
+has "$J/FlagEditorActivity.kt" 'romStatus.text = "v${BuildConfig.VERSION_NAME} · Starting engine… " + baseRomStatus()
+        engine' "classic editor: placeholder before callback too"
 has desktop/src/main/kotlin/com/freeenterprise/desktop/Main.kt 'includeEngine = false' \
     "desktop omits the row until it has engines of its own"
 
