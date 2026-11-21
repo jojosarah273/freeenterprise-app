@@ -21,6 +21,10 @@ _FE_EMBEDDED_REPORT_KEY = 'EMBEDDED_REPORT_KEY---------GALE'
 
 _ENV_SET = False
 
+# Engine directories ever registered through set_ext_path. reload_engine() purges
+# caches under all of them, so switching engines leaves neither one's stale bytecode.
+_ENGINE_DIRS = []
+
 
 def _ensure_env():
     global _ENV_SET
@@ -64,7 +68,9 @@ def reload_engine():
                 sys.modules.pop(name, None)
                 dropped += 1
         purged = 0
-        for base in [p for p in sys.path if 'python_ext' in p]:
+        # Every engine dir ever registered through set_ext_path, so switching
+        # engines purges both the old one's bytecode and the new one's.
+        for base in [p for p in _ENGINE_DIRS if os.path.isdir(p)]:
             for root, dirs, _files in os.walk(base):
                 for d in list(dirs):
                     if d == '__pycache__':
@@ -77,10 +83,16 @@ def reload_engine():
 
 
 def set_ext_path(path):
-    """Ensure the extracted repo directory is importable. Kept as a tiny Python
-    function so Kotlin never has to chain callAttr through sys.path (a PyList),
-    which trips Chaquopy's Java-side list-method dispatch."""
+    """Ensure an engine directory is importable. Kept as a tiny Python function so
+    Kotlin never has to chain callAttr through sys.path (a PyList), which trips
+    Chaquopy's Java-side list-method dispatch.
+
+    Every dir registered here is what reload_engine() purges, so switching between
+    bundled engines cleans up after both of them.
+    """
     import sys
+    if path not in _ENGINE_DIRS:
+        _ENGINE_DIRS.append(path)
     if path not in sys.path:
         sys.path.insert(0, path)
 

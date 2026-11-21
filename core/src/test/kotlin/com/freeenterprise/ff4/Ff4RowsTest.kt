@@ -45,10 +45,20 @@ class Ff4RowsTest {
         )
         assertEquals(
             listOf(
+                Ff4Action.CHOOSE_ENGINE,
                 Ff4Action.CHOOSE_PRESET, Ff4Action.CHOOSE_FLAGS, Ff4Action.EDIT_SEED_NAME,
                 Ff4Action.RUN_GENERATION, Ff4Action.BACK,
             ),
-            actions(Ff4Rows.generate("", false, "", true)),
+            actions(Ff4Rows.generate("", false, "", true, engineName = "4.7.0.Gale")),
+        )
+        // A platform without the picker yet omits the row; nothing may shift
+        // position into its place, or dispatch would still work and lie.
+        assertEquals(
+            listOf(
+                Ff4Action.CHOOSE_PRESET, Ff4Action.CHOOSE_FLAGS, Ff4Action.EDIT_SEED_NAME,
+                Ff4Action.RUN_GENERATION, Ff4Action.BACK,
+            ),
+            actions(Ff4Rows.generate("", false, "", true, includeEngine = false)),
         )
         assertEquals(
             listOf(Ff4Action.OPEN_SEED_LIBRARY, Ff4Action.GENERATE_AGAIN, Ff4Action.BACK),
@@ -146,17 +156,22 @@ class Ff4RowsTest {
     fun `generate screen`() {
         assertEquals(
             listOf(
+                "Engine" to "4.7.0.Gale",
                 "Choose Preset" to "My Preset",
                 "Choose Flags" to "",
                 "Seed" to "RANDOM1",
                 "Generate Seed" to "",
                 "Back" to "",
             ),
-            rows(Ff4Rows.generate("My Preset", true, "RANDOM1", valid = true)),
+            rows(Ff4Rows.generate("My Preset", true, "RANDOM1", valid = true, engineName = "4.7.0.Gale")),
         )
-        assertEquals("none set", Ff4Rows.generate("", false, "", true)[1].value)
-        assertEquals("random", Ff4Rows.generate("", false, "", true)[2].value)
-        assertEquals("fix errors", Ff4Rows.generate("", false, "", valid = false)[3].value)
+        assertEquals("none set", Ff4Rows.generate("", false, "", true)[2].value)
+        assertEquals("random", Ff4Rows.generate("", false, "", true)[3].value)
+        assertEquals("fix errors", Ff4Rows.generate("", false, "", valid = false)[4].value)
+        // The Engine row always carries a name - it is a choice, not a status.
+        org.junit.Assert.assertTrue(
+            Ff4Rows.generate("", false, "", true, engineName = "4.6.0-Golbez")[0].value.isNotBlank(),
+        )
     }
 
     @Test

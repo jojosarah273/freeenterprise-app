@@ -17,6 +17,7 @@ object EditorPrefs {
     private const val KEY_PAD_HAPTIC = "onscreen_haptic"
     private const val KEY_PAD_FADE = "onscreen_fade"    // dim when untouched
     private const val KEY_PAD_SWAP = "onscreen_swap"    // left-handed layout
+    private const val KEY_ENGINE = "engine_id"          // gale | golbez
 
     const val UI_FF4 = "ff4"
     const val UI_CLASSIC = "classic"
@@ -96,6 +97,14 @@ object EditorPrefs {
 
     fun setOnscreenFade(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(KEY_PAD_FADE, on).apply()
+    }
+
+    /** Which randomizer engine Generate uses. Defaults to the production engine. */
+    fun engine(context: Context): String =
+        prefs(context).getString(KEY_ENGINE, "gale") ?: "gale"
+
+    fun setEngine(context: Context, id: String) {
+        prefs(context).edit().putString(KEY_ENGINE, id).apply()
     }
 
     fun onscreenSwap(context: Context): Boolean =

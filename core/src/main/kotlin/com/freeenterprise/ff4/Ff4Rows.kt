@@ -29,7 +29,7 @@ enum class Ff4Action {
     // Manage Save
     IMPORT_SAVE, EXPORT_SAVE, DELETE_SAVE,
     // Generate
-    CHOOSE_PRESET, CHOOSE_FLAGS, EDIT_SEED_NAME, RUN_GENERATION,
+    CHOOSE_ENGINE, CHOOSE_PRESET, CHOOSE_FLAGS, EDIT_SEED_NAME, RUN_GENERATION,
     // After generating
     OPEN_SEED_LIBRARY, GENERATE_AGAIN,
     // In-game menu
@@ -92,13 +92,24 @@ object Ff4Rows {
         Ff4Row("Back", action = Ff4Action.BACK),
     )
 
-    /** The Generate screen. */
+    /**
+     * The Generate screen.
+     *
+     * The Engine row sits first, because everything below it depends on which engine
+     * is active: the flag editor's rows, the presets and the validation all come from
+     * that engine's own bundle. [includeEngine] lets a platform without an engine
+     * picker yet (the desktop) omit the row rather than show one that does nothing —
+     * the same pattern as the main menu's update/settings rows.
+     */
     fun generate(
         presetName: String,
         flagsSet: Boolean,
         seedName: String,
         valid: Boolean,
+        engineName: String = "",
+        includeEngine: Boolean = true,
     ): List<Ff4Row> = listOf(
+        *(if (includeEngine) listOf(Ff4Row("Engine", engineName, action = Ff4Action.CHOOSE_ENGINE)) else emptyList<Ff4Row>()).toTypedArray(),
         Ff4Row("Choose Preset", presetName, action = Ff4Action.CHOOSE_PRESET),
         Ff4Row("Choose Flags", if (flagsSet) "" else "none set", action = Ff4Action.CHOOSE_FLAGS),
         Ff4Row("Seed", seedName.ifBlank { "random" }, action = Ff4Action.EDIT_SEED_NAME),

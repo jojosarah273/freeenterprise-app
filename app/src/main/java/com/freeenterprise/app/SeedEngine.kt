@@ -25,6 +25,30 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
     val cacheDir: File = File(context.filesDir, "f4c_cache")
 
     /**
+     * The engine Generate will use. Every bundled engine is extracted; the
+     * selected one is what the interpreter is pointed at.
+     */
+    fun selectedExtDir(): File = Engines.dir(context, EditorPrefs.engine(context))
+
+    /** The interpreter's current engine dir, so a switch reloads exactly once. */
+    private var pointedAt: String? = null
+
+    /**
+     * Points the interpreter at the selected engine. Switching engines in one
+     * process is two steps: repoint sys.path, then drop the cached FreeEnt/f4c
+     * modules (Chaquopy caches imports per process) - fe_bridge's reload_engine
+     * does the dropping and also purges both engines' __pycache__.
+     */
+    private fun pointBridgeAt(bridge: com.chaquo.python.PyObject) {
+        val path = selectedExtDir().absolutePath
+        bridge.callAttr("set_ext_path", path)
+        if (pointedAt != null && pointedAt != path) {
+            bridge.callAttr("reload_engine")
+        }
+        pointedAt = path
+    }
+
+    /**
      * Unpacks the bundled randomizer engine into app storage.
      *
      * IMPORTANT: the extracted copy is stamped with the app's versionCode and
@@ -52,6 +76,24 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
                 try {
                     marker.writeText(wanted)
                 } catch (_: Exception) {
+                }
+                // The second engine, same stamping so APK updates refresh it too.
+                // A dev-build experiment: production ships Gale alone, and a missing
+                // asset dir must never break the production path.
+                for (engine in Engines.all) {
+                    if (engine.id == Engines.gale.id) continue
+                    try {
+                        val dir = Engines.dir(context, engine.id)
+                        val stamp = File(dir, ".engine_version")
+                        val fresh = dir.resolve("FreeEnt").exists() &&
+                            stamp.exists() && stamp.readText().trim() == wanted
+                        if (fresh) continue
+                        dir.deleteRecursively()
+                        extractAssetDir(engine.assetDir, dir)
+                        stamp.writeText(wanted)
+                    } catch (e: Exception) {
+                        android.util.Log.w("SeedEngine", "engine ${engine.id} not bundled: ${e.message}")
+                    }
                 }
                 onMain(onDone)
             } catch (e: Exception) {
@@ -89,7 +131,7 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
                 val result = synchronized(engineLock) {
                     val py = python()
                     val bridge = py.getModule("fe_bridge")
-                    bridge.callAttr("set_ext_path", extDir.absolutePath)
+                    pointBridgeAt(bridge)
                     bridge.callAttr("flags_from_list", joined).toString()
                 }
                 onMain { onValidation(result) }
@@ -108,7 +150,7 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
         synchronized(engineLock) {
             val py = python()
             val bridge = py.getModule("fe_bridge")
-            bridge.callAttr("set_ext_path", extDir.absolutePath)
+            pointBridgeAt(bridge)
             org.json.JSONObject(bridge.callAttr("reload_engine").toString())
                 .optString("status") == "ok"
         }
@@ -121,7 +163,7 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
         synchronized(engineLock) {
             val py = python()
             val bridge = py.getModule("fe_bridge")
-            bridge.callAttr("set_ext_path", extDir.absolutePath)
+            pointBridgeAt(bridge)
             val json = org.json.JSONObject(
                 bridge.callAttr("validate_flags", "Onone Kmain Pshop").toString()
             )
@@ -138,7 +180,7 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
                 val result = synchronized(engineLock) {
                     val py = python()
                     val bridge = py.getModule("fe_bridge")
-                    bridge.callAttr("set_ext_path", extDir.absolutePath)
+                    pointBridgeAt(bridge)
                     bridge.callAttr("check_flags", flags).toString()
                 }
                 onMain { onResult(result) }
@@ -156,7 +198,7 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
                 val result = synchronized(engineLock) {
                     val py = python()
                     val bridge = py.getModule("fe_bridge")
-                    bridge.callAttr("set_ext_path", extDir.absolutePath)
+                    pointBridgeAt(bridge)
                     bridge.callAttr("sanitize_flags", flags).toString()
                 }
                 onMain { onResult(result) }
@@ -189,7 +231,7 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
                 val result = synchronized(engineLock) {
                     val py = python()
                     val bridge = py.getModule("fe_bridge")
-                    bridge.callAttr("set_ext_path", extDir.absolutePath)
+                    pointBridgeAt(bridge)
                     bridge.callAttr("validate_flags", flags).toString()
                 }
                 onMain { onValidation(result) }
@@ -214,7 +256,7 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
                 val result = synchronized(engineLock) {
                     val py = python()
                     val bridge = py.getModule("fe_bridge")
-                    bridge.callAttr("set_ext_path", extDir.absolutePath)
+                    pointBridgeAt(bridge)
                     bridge.callAttr(
                         "generate",
                         flags,

@@ -71,6 +71,20 @@ class FF4GenerateActivity : FF4MenuActivity() {
 
     override fun onResume() {
         super.onResume()
+        // A "New seed with these flags" handoff carries the seed's engine; switch to
+        // it before anything is validated, so the flags meet their own vocabulary.
+        FlagSession.engineOverride()?.let { id ->
+            if (Engines.byId(id).id != id) {
+                // Not bundled in this build: say so rather than silently using Gale.
+                setStatus("That seed's engine is not bundled in this build.", FF4Theme.PINK)
+            } else if (id != EditorPrefs.engine(this)) {
+                EditorPrefs.setEngine(this, id)
+                setStatus(
+                    "Engine: ${Engines.byId(id).display} (this seed's ruleset)", FF4Theme.YELLOW,
+                )
+            }
+            FlagSession.setEngineOverride(null)
+        }
         refresh()
     }
 
@@ -92,9 +106,11 @@ class FF4GenerateActivity : FF4MenuActivity() {
             flagsSet = flags.isNotBlank(),
             seedName = seed,
             valid = lastValid != false,
+            engineName = Engines.selected(this).display,
         )
         submitMenu("generate", rows.toMenuItems()) { i ->
             when (rows.getOrNull(i)?.action) {
+                Ff4Action.CHOOSE_ENGINE -> showEnginePicker()
                 Ff4Action.CHOOSE_PRESET ->
                     startActivity(Intent(this, FF4PresetActivity::class.java))
                 Ff4Action.CHOOSE_FLAGS -> startActivity(
@@ -240,6 +256,33 @@ class FF4GenerateActivity : FF4MenuActivity() {
             .show()
     }
 
+    /**
+     * Engine choice, as a menu layer like the flagset picker. Switching clears the
+     * flag session: flags from one engine are mostly invalid on another, and
+     * silently dropping them at generation would look like the app losing work.
+     */
+    private fun showEnginePicker() {
+        val selected = Engines.selected(this)
+        setStatus("Engine — options, presets and validation follow this choice.", FF4Theme.WHITE)
+        setHint("A  Select      B  Back")
+        submitMenu("engines", Engines.all.map { engine ->
+            FF4Menu.Item(engine.display, if (engine.id == selected.id) "selected" else "")
+        }) { i ->
+            val picked = Engines.all.getOrNull(i) ?: return@submitMenu
+            if (picked.id != selected.id) {
+                EditorPrefs.setEngine(this, picked.id)
+                FlagSession.clear()
+                lastValid = null
+                setStatus(
+                    "Engine: ${picked.display}\n" +
+                        "Your flag selection was cleared — each engine has its own flags.",
+                    FF4Theme.YELLOW,
+                )
+            }
+            showMenu()
+        }
+    }
+
     private fun editSeed() {
         val input = EditText(this).apply {
             setText(currentSeed())
@@ -352,6 +395,7 @@ class FF4GenerateActivity : FF4MenuActivity() {
                         // already receive. Only the location is ever shown; no
                         // separate spoiler file is required for the tracker.
                         keyItems = Spoiler.keyItemLocations(o.optString("private_spoiler")),
+                        engine = Engines.selected(this).id,
                     )
                 )
             } catch (e: Exception) {
@@ -396,6 +440,7 @@ class FF4GenerateActivity : FF4MenuActivity() {
 
     override fun onBackRequested(): Boolean {
         if (generating) return true   // generation is modal
+        if (menuLayer == "engines") { showMenu(); return true }
         finish()
         return true
     }

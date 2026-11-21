@@ -202,6 +202,36 @@ has "$D/GameSession.kt" 'FAST_FORWARD_SPEED'      "fast-forward is paced above r
 has "$D/GameSession.kt" 'if (fastForward) EmulatorBridge.nativeClearAudio()' \
     "fast-forward drops audio instead of being paced by it"
 
+echo "Multiple engines (dev builds: gale + golbez)"
+# Each engine must be a self-contained directory whose editor spec came from that
+# engine's own compiler, and the app must never confuse which engine is in play.
+E=app/src/main/assets/engine_golbez
+[ -f "$E/manifest.json" ] && ok "the golbez engine is bundled with a manifest" || bad "engine_golbez missing or has no manifest.json"
+[ -f "$E/assets/ui_spec.json" ] && ok "its flag editor spec is bundled" || bad "engine_golbez has no ui_spec.json"
+[ -f "$E/assets/presets.json" ] && ok "its presets are bundled" || bad "engine_golbez has no presets.json"
+[ -d "$E/golbez_reference" ] && ok "its engine data dir is bundled" || bad "engine_golbez is missing golbez_reference"
+[ ! -d "$E/FreeEnt/server" ] && ok "the web server tree stays out of the APK" \
+    || bad "engine_golbez bundles the web server tree (wasted APK size)"
+if find "$E" -name "*.smc" -o -name "*.sfc" | grep -qv golbez_reference; then
+    bad "a ROM is inside the golbez engine assets"
+else
+    ok "no ROMs in the golbez engine assets"
+fi
+has app/src/main/python/fe_bridge.py '_ENGINE_DIRS'  "the bridge tracks every engine dir for purging"
+hasnot app/src/main/python/fe_bridge.py "'python_ext' in p" "the purge loop is engine-neutral"
+has core/src/main/kotlin/com/freeenterprise/ff4/Ff4Rows.kt 'CHOOSE_ENGINE' "the Engine row is a shared, pinned row"
+has "$J/FF4GenerateActivity.kt" 'showEnginePicker'    "Generate offers the engine choice"
+has "$J/FF4GenerateActivity.kt" 'engine = Engines.selected(this).id' "a generated seed records its engine"
+has "$J/FF4FlagEditorActivity.kt" 'Engines.specJson'  "the editor loads the selected engine's spec"
+has "$J/Presets.kt" 'Engines.presetsJson'             "presets come from the selected engine"
+has "$J/RomLibrary.kt" 'engine = if (o.has("engine"))' "old seed metadata defaults to gale"
+has "$J/FF4PlayActivity.kt" 'Engines.byId(m.engine).display' "sessions list the engine that made them"
+has "$J/FF4PlayActivity.kt" 'setEngineOverride'      "regenerating honours the seed's engine"
+has "$J/SeedEngine.kt" 'pointBridgeAt'                "the interpreter is pointed at the selected engine"
+has "$J/SeedEngine.kt" 'reload_engine'                "switching engines drops cached modules"
+has desktop/src/main/kotlin/com/freeenterprise/desktop/Main.kt 'includeEngine = false' \
+    "desktop omits the row until it has engines of its own"
+
 echo "Desktop handlers"
 # A lateinit handler whose assignment was deleted by a bulk edit fails only when the
 # row is pressed: "Choose Flags does not load", with no compile error. That is how

@@ -92,7 +92,9 @@ class FF4FlagEditorActivity : FF4Activity() {
 
     private fun startEditor() {
         try {
-            val raw = AppContent.read(this, "spec/ui_spec.json")
+            // The selected engine's own spec: switching engines swaps the editor's
+            // rows, so a 4.6 session offers 4.6's flags and nothing else.
+            val raw = Engines.specJson(this, Engines.selected(this).id)
             sections = UiSpec.parse(raw)
         } catch (e: Exception) {
             hintText.text = "Spec load failed: ${e.message}"

@@ -88,7 +88,8 @@ class FF4PlayActivity : FF4MenuActivity() {
             } else {
                 subtitle.append(GameIcons.verification(this, m.verification, FF4Theme.textSmallPx(this)))
             }
-            subtitle.append("  ·  $saveText  ·  last played $playedText")
+            // The engine that built this seed, so a mixed library reads at a glance.
+            subtitle.append("  ·  ${Engines.byId(m.engine).display}  ·  $saveText  ·  last played $playedText")
             FF4Menu.Item(
                 label = m.name.ifBlank { rom.nameWithoutExtension },
                 value = "${rom.length() / 1024}K",
@@ -241,6 +242,9 @@ class FF4PlayActivity : FF4MenuActivity() {
         FlagSession.setFlags(m.flags)
         FlagSession.setPresetName("from ${m.name}")
         FlagSession.setSeed("")
+        // Regenerate on the engine that built this seed; its flags are that
+        // engine's vocabulary.
+        FlagSession.setEngineOverride(m.engine)
         startActivity(Intent(this, FF4GenerateActivity::class.java))
     }
 

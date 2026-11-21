@@ -1,0 +1,9 @@
+{
+  "id": "golbez",
+  "display": "4.6.0-Golbez",
+  "version": "4.6.0",
+  "fork": "open",
+  "upstream": "https://github.com/jojosarah273/FreeEnterprise4-Golbez",
+  "upstream_commit": "cdb88ec40f0b7e8f1edc6c12f55a795260095e57",
+  "replaces": "FuSoYa with a playable Golbez (locked surface, see GOLBEZ_LOCKED_SPEC.md)"
+}

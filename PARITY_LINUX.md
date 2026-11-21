@@ -157,3 +157,16 @@ the main menu has update and settings rows.
 Everything else above is marked `same`, and the differences that remain are platform
 differences (no touch screen, the desktop is its own emulator, file access instead of
 SAF), not drift between two implementations of the same interface.
+
+## Dev-build engine experiment (0.1.26-dev)
+
+Multiple engines exist on Android only, for now:
+
+| Row / item | Android | Desktop |
+|---|---|---|
+| "Engine" on Generate | present (dev builds) | **omitted** — `includeEngine = false`, the same pattern as the main menu's settings row; showing a row that cannot choose anything would be the "Exit checks for updates" bug again |
+| seed row's engine label (sessions list) | present | **absent** — no engine picker yet, so seeds' engine field is unlabelled there |
+
+The desktop runs any engine today through its CLI (`--engine/--ui-spec/--presets/--checks`,
+proven host-side with the golbez tree); what it lacks is the picker UI. When the
+experiment graduates, the row turns on for both platforms and the label follows.

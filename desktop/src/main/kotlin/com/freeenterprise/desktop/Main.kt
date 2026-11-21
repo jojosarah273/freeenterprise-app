@@ -549,6 +549,10 @@ private fun runApp(config: Config, metrics: AwtTextMetrics) {
         flagsSet = flagUi.editor.flagsText().isNotBlank(),
         seedName = seedName,
         valid = flagUi.valid,
+        // The Engine row is omitted here until the desktop bundles a second engine:
+        // showing a row that cannot choose anything would be the "Exit checks for
+        // updates" bug again. Same pattern as the main menu's settings row.
+        includeEngine = false,
     )
 
     fun generateMenuItems(): List<Ff4MenuItem> = generateRows().toMenuItems()

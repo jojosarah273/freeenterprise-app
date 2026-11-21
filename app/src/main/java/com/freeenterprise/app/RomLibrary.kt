@@ -33,6 +33,9 @@ data class SeedMeta(
      * and live memory only says which chests are *open*, not which hold key items.
      * Only the location is ever displayed.
      */
+    /** Which bundled engine built this seed (Engines.id), for labelling and for
+     *  "New seed with these flags", which must regenerate on the same engine. */
+    val engine: String = "gale",
     val keyItems: List<Pair<String, String>> = emptyList(),
     /**
      * Key items this seed has been *seen* to hold, so the tracker keeps them
@@ -55,6 +58,7 @@ data class SeedMeta(
         put("seconds", seconds)
         put("created", created)
         put("last_played", lastPlayed)
+        put("engine", engine)
         if (saveName != null) put("save_name", saveName)
         if (seenKeyItems.isNotEmpty()) {
             put("seen_key_items", JSONArray().apply { seenKeyItems.forEach { put(it) } })
@@ -83,6 +87,8 @@ data class SeedMeta(
                 seconds = o.optDouble("seconds", 0.0),
                 created = o.optLong("created"),
                 lastPlayed = o.optLong("last_played"),
+                // Old metadata has no engine field; those seeds were all Gale.
+                engine = if (o.has("engine")) o.optString("engine") else "gale",
                 saveName = if (o.has("save_name")) o.optString("save_name") else null,
                 keyItems = buildList {
                     val arr = o.optJSONArray("key_items") ?: return@buildList

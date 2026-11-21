@@ -14,7 +14,8 @@ object Presets {
         cached?.let { return it }
         val result = mutableListOf<Category>()
         try {
-            val raw = AppContent.read(context, "presets/presets.json")
+            // The selected engine's own presets (both engines use this format).
+            val raw = Engines.presetsJson(context, Engines.selected(context).id)
             val arr = JSONArray(raw)
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)
