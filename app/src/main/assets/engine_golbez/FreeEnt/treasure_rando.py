@@ -2,6 +2,7 @@ from . import core_rando
 from .crosspolinate import crosspolinate
 from . import databases
 from .address import *
+from .errors import BuildError
 from . import rewards
 from . import util
 from . import spoilers
@@ -111,6 +112,16 @@ def apply(env):
         maxtier = int(maxtier)
         items_dbview.refine(lambda it: it.tier <= maxtier)
 
+    # Tmintier:N (ported from the 4.7.0.Gale engine): restrict the BOTTOM
+    # of the item quality range -- only items of tier N or higher remain
+    # in the pool. Composes with Tmaxtier.
+    mintier = env.options.flags.get_suffix('Tmintier:')
+    if mintier:
+        mintier = int(mintier)
+        if maxtier and mintier > maxtier:
+            raise BuildError(f"Tmintier:{mintier} is above Tmaxtier:{maxtier}; no item can satisfy both restrictions")
+        items_dbview.refine(lambda it: it.tier >= mintier)
+
     if env.meta.get('wacky_challenge') == 'kleptomania':
         items_dbview.refine(lambda it: (it.category not in ['weapon', 'armor']))
 
@@ -211,10 +222,39 @@ def apply(env):
             if env.options.flags.has('treasure_wild_weighted'):
                 weights = util.get_boosted_weights(weights)
 
+            raw_weights = dict(weights)
+
             # null out distributions for empty item tiers
+            allowed_tiers = []
             for i in range(1,9):
                 if not items_by_tier.get(i, None):
                     weights[i] = 0
+                else:
+                    allowed_tiers.append(i)
+
+            # A tier floor/ceiling (Tmintier/Tmaxtier) can leave an area
+            # curve with no usable tiers. Fall back to the tier nearest the
+            # curve's expected quality that still has items, expanding
+            # outward within the restriction bounds. (Ported from the
+            # 4.7.0.Gale engine.)
+            if not any(weights.values()):
+                exptier = max(1, sum(i * raw_weights[i] for i in range(1,9)) // max(1, sum(raw_weights.values())))
+                if mintier:
+                    exptier = max(mintier, exptier)
+                minbound = (mintier if mintier else 1)
+                if maxtier:
+                    exptier = min(maxtier, exptier)
+                maxbound = (maxtier if maxtier else 8)
+                u_bound = exptier
+                l_bound = exptier
+                while not any(weights.values()):
+                    for i in range(max(l_bound, minbound), min(u_bound, maxbound) + 1):
+                        if i in allowed_tiers:
+                            weights[i] = 1
+                    if any(weights.values()):
+                        break
+                    u_bound += 1
+                    l_bound -= 1
 
             distributions[row.area] = util.Distribution(weights)
 
@@ -343,7 +383,6 @@ def apply(env):
 
 if __name__ == '__main__':
     import FreeEnt
-    import random
     import argparse
 
     parser = argparse.ArgumentParser();
