@@ -1,98 +1,123 @@
-# Multi-engine — options for shipping 4.7.0.Gale, 4.6.0.open and 4.6.0-GOLBEZ together
+# Multi-engine feasibility — measured, on this machine
 
-**Status: design, no code changed.** What follows is grounded in what the app
-already does — `fe_bridge.py` is version-neutral plumbing that takes an `--ext DIR`,
-`sanitize_flags` imports the *installed* engine's `FlagSet`, and `EngineUpdater`
-already swaps `python_ext` in place with rollback. The pieces that are genuinely
-per-engine are fewer than they look.
+**Status: feasibility explored, nothing deployed.** The design below is the one
+chosen in discussion: the engine is picked **when a seed is designed**, every
+engine is **completely isolated** (its own options, presets, validation, data), the
+generated seed lands in "Play Free Enterprise" **labelled with its engine**.
 
-## What is actually engine-specific
+The numbers in this document are not estimates. Each engine was installed into its
+own directory on this machine, driven through our own `fe_bridge.py`, and its ROM
+booted in our own Snes9x core.
 
-| Piece | Per-engine? | Why |
+## Verdict
+
+**Feasible, and cheaper than expected.** The bridge and the emulator are already
+engine-neutral; the truly per-engine pieces all *ship inside each engine's own
+tree*, including the compiler that produces our flag-editor spec. Nothing about
+"completely different engines" forces shared anything — isolation is the natural
+shape.
+
+## What was actually run
+
+| Check | 4.7.0.Gale (bundled) | 4.6.0.open (HungryTenor) | 4.6.0-GOLBEZ (public fork) |
+|---|---|---|---|
+| `fe_bridge.py --ext DIR version` | 4.7.0.Gale | 4.6.0.open | 4.6.0.open |
+| `check --flags Kmain` | ok | ok | ok |
+| `generate` (Kmain, host) | ~4 s | **5.3 s** | **4.0 s** |
+| ROM boots in our Snes9x | yes | yes | yes (LoROM-mapped, 300 frames, tracker reads WRAM) |
+| Golbez content present | n/a | n/a | yes — spoiler shows `Lunar Palace character ..... Golbez` |
+| public repo clean of ROMs | yes | yes | **yes** — `ff2.smc` exists only in the local working tree |
+| tracker flag address | `$7e1500` | `$7e1500` | `$7e1500` |
+| verification words (this seed) | bow star sword harp | harp potion star mini | claw tent shield key |
+
+Three of those rows were the big risks and all three dissolved:
+
+* **The bridge needed zero changes.** `--ext DIR` already isolates the import path;
+  GOLBEZ additionally required its `golbez_reference/` data directory to sit in the
+  engine dir, which is exactly what "self-contained engine directory" means.
+* **The tracker reads the same WRAM in all three** (`Tracker__KeyItemFoundFlags
+  $7e1500` in each `scripts/tracker.f4c`), so page 1 works per engine unmodified.
+* **All 16 checksum tile icons cover every verification word seen** — claw, tent,
+  shield, key, harp, potion, star, mini are all in `assets/checksum/`. The icon set
+  is engine-neutral; only the words differ per seed.
+
+And one compatibility test was added to the suite rather than assumed:
+`Ff4SpoilerGolbezTest` runs a **verbatim KEY ITEM LOCATIONS section from a real
+GOLBEZ seed** through our parser — all 18 entries read, including the two-dot case.
+If a fork ever changes its spoiler format, that test fails.
+
+## The isolation, precisely
+
+A "completely different engine" is mostly visible in the flag surface:
+
+| | 4.6.0 | 4.7.0 |
 |---|---|---|
-| `FreeEnt/` + `f4c/` + `pyaes/` | **yes** | the engine itself |
-| `spec/ui_spec.json` | **yes** | the flag editor's rows come from it; 4.6 and 4.7 flag lists differ |
-| `presets/presets.json` | **yes** | preset flags are version-tuned |
-| `spec/checks.json` | **yes** | tracker area/check lists |
-| verification words | **yes** | the checksum vocabulary is per version |
-| `sanitize_flags` | **no** | already imports the installed engine's `FlagSet`; a 4.6 engine accepts 4.6 flags, and 4.7-only flags are dropped by the existing name-rejection loop. The hand-written 4.6→4.7 rename table is only needed when *4.7* is active |
-| seed generation / playing | **no** | generation calls the bridge with the engine's dir; playing is the bundled Snes9x core on an already-built ROM |
-| save states / .srm | **no** | the ROM is what matters, not the engine that built it |
+| flag controls in the editor spec | **1,089** | **1,697** |
+| shared | 1,077 | |
+| 4.7-only (doors rando, call variants, …) | — | 620 |
+| 4.6-only (`-vanilla:fusoya`, `Cj:spells`, …) | 12 | — |
 
-One real risk to verify per engine: **the tracker's WRAM offsets**. `Tracker__KeyItemFoundFlags`
-at `$7E1500` is an FE patch convention; it must be confirmed for the Golbez build (its
-`tracker.f4c` may differ) before that engine's tracker page 1 is trusted.
+The 4.6-only list is exactly the FuSoYa surface that GOLBEZ removes. So the flag
+editor **must** load a per-engine spec — and here is the part that makes isolation
+cheap: **each engine ships its own `compile_uispec.py`, `srcdata/flagspec.js`,
+`uispec_flagdescriptions.txt`, `presets.json` and `checks` data in
+`FreeEnt/server/`.** Our 4.7 `ui_spec.json` was compiled by that same tooling. We
+never author a spec per engine; we run each engine's own compiler against its own
+data. GOLBEZ's is already trimmed for its locked flag surface.
 
-## Options
-
-### A — one active engine, per-seed memory (recommended)
-
-An engine is a self-contained directory, installed side by side, with **one active**:
+## The engine bundle format
 
 ```
-filesDir/engines/<id>/            (Android)     FF4_FE/../engine/<id>/   (desktop)
-  python_ext/  FreeEnt  f4c  pyaes
-  assets/      ui_spec.json  presets.json  checks.json
-  manifest.json   { "id": "gale", "version": "4.7.0", "fork": "Gale", "words": ... }
+engines/<id>/                       one directory, everything inside it
+  FreeEnt/  f4c/  pyaes/
+  golbez_reference/                 (engine data — only GOLBEZ has this)
+  assets/
+    ui_spec.json                     compiled by THIS engine's compile_uispec.py
+    presets.json                     from this engine's server/
+    checks.json                      from this engine's server/ data
+  manifest.json
+    { "id": "golbez", "display": "4.6.0-Golbez",
+      "version": "4.6.0", "fork": "open", "upstream": "github.com/jojosarah273/FreeEnterprise4-Golbez" }
 ```
 
-- APK ships **4.7.0.Gale** as the default active engine (today's behaviour, zero
-  regression for existing installs).
-- 4.6.0.open and 4.6.0-GOLBEZ are **downloadable on demand** from Releases as
-  `freeenterprise-engine-<id>-<version>.zip` (~4.6 MB each) through the existing
-  update screen. Nothing is forced on anyone.
-- The active engine is a **Settings row** (Android: `Settings → Engine`;
-  desktop: the update screen gains an "Install engine" list). Platform-local
-  rows, like the update screens — no shared-menu change, no parity impact.
-- Seed metadata already records the FE version; it gains the engine **id**:
-  `"engine": "gale"`. "New seed with these flags" **switches the active engine
-  to the seed's** automatically, so regenerating an old seed is not a trap.
-- The flag editor loads `ui_spec.json` **from the active engine**, so a 4.6
-  session shows 4.6's rows and flags with no translation work at all.
-- Rollback works exactly as today: swapping an engine dir keeps `<id>.old`.
+Nothing crosses between directories: the editor reads `<selected>/assets/ui_spec.json`,
+generation passes `<selected>` as `--ext`, validation (`check`) sanitises against
+*that* engine's `FlagSet` (already true — `sanitize_flags` imports the installed
+engine), and the verification words come back in the generate result.
 
-This is also how the FE website works — a version dropdown, then generate — so it
-will read as familiar to the community.
+## The flow, as chosen
 
-### B — an Engine row on the Generate screen
+1. **Generate Seed** gains an **Engine** row (shared, so both platforms show it —
+   desktop hosts engines the same way). Its value is the engine's display name.
+2. Choosing it lists installed engines plus "get more" (a download list, on-demand —
+   nothing is pushed at anyone).
+3. The moment an engine is selected, the flag editor's sections, presets, checks and
+   validation all come from that engine's bundle. A 4.6 session shows 4.6's rows —
+   no translation, no renamed-flag table needed in that direction.
+4. Generate uses that engine; the seed's metadata records the engine id (the FE
+   version string is already stored today).
+5. **"Play Free Enterprise" lists each seed with its engine** — in the seed row's
+   subtitle, beside seed/save/last-played, on both platforms, guarded by an
+   invariant like every other shared row.
+6. "New seed with these flags" silently re-selects the seed's engine first, so
+   regenerating an old seed is never a trap.
 
-Same plumbing, but selection sits on Generate rather than Settings. Rejected:
-`Ff4Rows.generate` is a shared menu, so the row appears on both platforms and
-becomes part of the parity contract; it also clutters the screen most players
-never need. If requested later it is a one-row addition on top of A.
+## What remains, if and when this is built
 
-### C — separate APKs per engine (a "Golbez APK")
+* `EngineStore` — install/list/select per engine dir (one class, both platforms;
+  manifest parsing pure Kotlin in `:core`, testable).
+* An `Engine` row in `Ff4Rows.generate` + both platforms' editors reading the
+  selected engine's spec.
+* Seed rows gain the engine label (shared wording, invariant-guarded).
+* Packaging: per-engine zips built by the same script that builds today's engine
+  bundle, plus a compile step running each engine's own `compile_uispec.py`.
+* One manual pass per engine: generate, verify its words, boot the ROM, confirm
+  its `checks.json` tracker page.
 
-Zero UI work, but three apps to update, three update channels, and app-private
-`FF4_FE` storage means a seed made in one is invisible to the others. Rejected:
-it breaks the one-codebase promise and splits the library.
+## What deliberately does not happen
 
-## Golbez prerequisites (from GOLBEZ_MODE_FEASIBILITY.md, still true)
-
-1. **Version control the fork** — it has none today.
-2. **Remove `FreeEnt/ff2.smc` from the tree** — a copyrighted ROM inside the
-   engine we would bundle and publish.
-3. **Trim the flag surface** — removing FuSoYa invalidates a large set of flags;
-   the fork should ship a `ui_spec.json` subset so the editor offers only what it
-   honours.
-4. **Verify tracker WRAM offsets** for that build before trusting page 1.
-
-## What A costs
-
-- `EngineStore` (list/install/activate/rollback, one class reused by both
-  platforms; manifest parsing testable in :core).
-- `EngineUpdater` generalised from "the engine" to "an engine id" — it is already
-  90% there (per-id zip names, per-id dirs, per-id rollback).
-- Settings row + engine picker window (Android), "Install engine…" (desktop).
-- `SeedMeta` gains `engine`, generation stamps it, "New seed with these flags"
-  honours it.
-- Bundle script emits per-engine zips with manifests.
-
-Estimate: a focused 2–3 days including the release packaging, plus one manual
-pass per engine (generate, verification words, tracker offsets).
-
-## What A deliberately does not do
-
-- No per-seed engine *switching UI* — the seed's engine is honoured silently.
-- No auto-download of other engines — the player chooses.
-- No change to the bundled default — Gale stays what ships in the APK.
+* No engine is deployed or bundled by this document — Gale remains the only engine
+  the app ships.
+* No cross-engine flag translation. Old seeds keep their flags; opening one in the
+  editor switches the engine rather than rewriting flags.
+* No auto-download. Other engines are opt-in from the engine list.
