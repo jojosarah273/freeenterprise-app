@@ -486,6 +486,14 @@ def _generate_impl(flags, seed, metaconfig_json, rom_path, out_dir, cache_dir):
     elapsed = time.time() - t0
     _write_progress(99, 'Saving ROM')
 
+    # FE_DUMP_SCRIPT=/path/out.script writes the engine's patch listing - every
+    # change the build applied, with addresses. Diagnostic gold when a ROM does
+    # something a byte-verifier cannot explain.
+    _dump = os.environ.get('FE_DUMP_SCRIPT')
+    if _dump and getattr(build_output, 'script', None):
+        with open(_dump, 'w') as _f:
+            _f.write(build_output.script)
+
     os.makedirs(out_dir, exist_ok=True)
     file_name = 'FF4FE.{}.{}.smc'.format(build_output.seed, build_output.binary_flags)
     out_path = os.path.join(out_dir, file_name)

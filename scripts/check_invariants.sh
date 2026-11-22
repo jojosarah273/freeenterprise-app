@@ -241,6 +241,18 @@ has "$J/FlagEditorActivity.kt" 'romStatus.text = "v${BuildConfig.VERSION_NAME} Â
         engine' "classic editor: placeholder before callback too"
 has desktop/src/main/kotlin/com/freeenterprise/desktop/Main.kt 'includeEngine = false' \
     "desktop omits the row until it has engines of its own"
+hasnot desktop/src/main/kotlin/com/freeenterprise/desktop/Main.kt 'FE_SCRIPT' \
+    "no leftover diagnostic pad hooks in the desktop build"
+# The Golbez engine is the only one that redefines game graphics, and its own
+# manifest is the definition of a correct ROM. The app checks it on-device, so a
+# bad ROM can never hide behind "it worked on the build machine".
+[ -f "$J/GolbezLock.kt" ] && ok "the on-device lock verifier exists" || bad "GolbezLock.kt is missing"
+has "$J/GolbezLock.kt" 'LOCKED_MANIFEST.json' "it reads the fork's own manifest"
+has "$J/GolbezLock.kt" 'locked_vanilla'      "it checks the vanilla-locked regions too"
+has "$J/GolbezLock.kt" '0x0AB307'            "it checks the palette selector byte"
+has "$J/FF4GenerateActivity.kt" 'GolbezLock.verify' "every golbez seed is verified on generation"
+has "$J/FF4GenerateActivity.kt" 'Golbez lock: verified' "a pass is shown to the player"
+has "$J/FF4GenerateActivity.kt" 'Golbez lock FAILED'  "a failure is shown, in pink"
 
 echo "Desktop handlers"
 # A lateinit handler whose assignment was deleted by a bulk edit fails only when the

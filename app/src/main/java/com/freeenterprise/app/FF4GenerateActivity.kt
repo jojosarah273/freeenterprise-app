@@ -378,6 +378,22 @@ class FF4GenerateActivity : FF4MenuActivity() {
                 return
             }
 
+            // The Golbez engine defines correctness itself, in the manifest it ships
+            // with (LOCKED_MANIFEST.json - the same spec verify_golbez_lock.py uses).
+            // Run it here so every seed proves itself on the phone that will play it,
+            // rather than trusting a host-side check.
+            var lockNote = ""
+            if (Engines.selected(this).id == Engines.golbez.id) {
+                when (val lock = GolbezLock.verify(this, source)) {
+                    null -> lockNote = "\nGolbez lock: reference data not bundled"
+                    else -> lockNote = if (lock.passed) {
+                        "\nGolbez lock: verified (${lock.regions} regions)"
+                    } else {
+                        "\nGolbez lock FAILED: ${lock.detail}"
+                    }
+                }
+            }
+
             val libraryFile = try {
                 RomLibrary.save(
                     this,
@@ -418,9 +434,9 @@ class FF4GenerateActivity : FF4MenuActivity() {
 
             FlagSession.setSeed(seed)
             setStatus(
-                "Generated seed $seed\nCheck: ${verification.joinToString("/")}\n" +
+                "Generated seed $seed\nCheck: ${verification.joinToString("/")}" + lockNote + "\n" +
                     "Saved to ${RomLibrary.folder(this).name}/${libraryFile.name}",
-                FF4Theme.GREEN
+                if (lockNote.contains("FAILED") || lockNote.contains("not bundled")) FF4Theme.PINK else FF4Theme.GREEN
             )
             setHint("A  Select      B  Back")
         val rows = Ff4Rows.completed()
