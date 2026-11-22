@@ -453,6 +453,21 @@ def _generate_impl(flags, seed, metaconfig_json, rom_path, out_dir, cache_dir):
     if metaconfig_json:
         metaconfig = json.loads(metaconfig_json)
 
+    # Native env: run this engine exactly as its own deployment does. The FE site
+    # stamps its salt into every seed it makes, and the bridge adopted that salt for
+    # parity with the site - correct for the Gale engine, wrong for a fork with no
+    # site of its own. A salted fork ROM is a valid build but a DIFFERENT random
+    # stream than the fork's own tooling produces for the same seed; with native_env
+    # the app reproduces the fork's own builds byte-for-byte (verified against the
+    # fork author's canonical test ROM). Cleared explicitly, because _ensure_env
+    # fills missing variables and a previous engine's salt may already be set in
+    # this process.
+    if metaconfig.get('native_env'):
+        for key in ('FE_SALT', 'FE_SPOILER_SALT', 'FE_TEST_SALT', 'FE_EMBEDDED_REPORT_KEY'):
+            os.environ[key] = ''
+        global _ENV_SET
+        _ENV_SET = False
+
     if seed is None:
         seed = ''
     # sanitize seed string exactly like the site

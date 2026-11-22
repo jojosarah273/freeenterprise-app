@@ -378,7 +378,11 @@ class FF4GenerateActivity : FF4MenuActivity() {
             // says so, and its own webui builds that way): the vanilla pregame
             // naming screen draws the starting character from a stale embedded
             // vanilla sheet the fork's lock does not cover. Gale is untouched.
-            if (Engines.selected(this).id == Engines.golbez.id) "{\"quickstart\":true}" else "{}",
+            // Native env: the Golbez fork has no site deployment of its own, so the
+            // app runs it exactly as its own CLI/webui does - unsalted, quickstart -
+            // and its ROMs are then byte-identical to the fork's own builds for the
+            // same seed and flags. Gale keeps the FE site salt it has always had.
+            if (Engines.selected(this).id == Engines.golbez.id) "{\"quickstart\":true,\"native_env\":true}" else "{}",
             progressPath = progressFile?.absolutePath,
         ) { json ->
             runOnUiThread { onGenerateResult(json) }

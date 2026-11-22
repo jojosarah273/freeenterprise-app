@@ -22,7 +22,21 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
 
     val extDir: File = File(context.filesDir, "python_ext")
     val romsDir: File = File(context.filesDir, "roms")
-    val cacheDir: File = File(context.filesDir, "f4c_cache")
+    /**
+     * The f4c compile cache, one directory PER ENGINE.
+     *
+     * Sharing one cache between engines was the last thing that married them: a
+     * cache warmed by the gale engine perturbs the next golbez build in the same
+     * process, producing a different randomization stream for the same seed - proven
+     * by generating the fork author's canonical test ROM (seed GOLBTEST, canonical
+     * flags) after a gale build: shared cache -> different ROM; per-engine cache ->
+     * byte-identical (sha1 46bc0f2a...). Each engine now compiles into its own
+     * directory, so every build is exactly what that engine produces standalone.
+     */
+    fun cacheDirFor(engineId: String): File =
+        File(context.filesDir, "f4c_cache_" + Engines.byId(engineId).dirName)
+
+    val cacheDir: File get() = cacheDirFor(EditorPrefs.engine(context))
 
     /**
      * The engine Generate will use. Every bundled engine is extracted; the
@@ -269,7 +283,7 @@ class SeedEngine(private val context: Context, private val onResult: (String) ->
                         metaconfigJson,
                         RomStore.baseRomFile(context).absolutePath,
                         outDir,
-                        cacheDir.absolutePath,
+                        cacheDirFor(Engines.selected(context).id).absolutePath,
                         progressPath,
                     ).toString()
                 }

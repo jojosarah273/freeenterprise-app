@@ -229,6 +229,14 @@ has "$J/FF4PlayActivity.kt" 'Engines.byId(m.engine).display' "sessions list the 
 has "$J/FF4PlayActivity.kt" 'setEngineOverride'      "regenerating honours the seed's engine"
 has "$J/SeedEngine.kt" 'pointBridgeAt'                "the interpreter is pointed at the selected engine"
 has "$J/SeedEngine.kt" 'reload_engine'                "switching engines drops cached modules"
+# Full engine isolation, proven by reproducing the fork author's own canonical ROM
+# byte-for-byte in the exact phone sequence (gale first, switch, generate):
+# native environment, quickstart, and a compile cache per engine.
+has app/src/main/python/fe_bridge.py "metaconfig.get('native_env')" \
+    "the bridge can run an engine in its own deployment environment"
+has "$J/FF4GenerateActivity.kt" 'native_env'              "golbez builds run the fork's own environment"
+has "$J/SeedEngine.kt" 'f4c_cache_"'                      "compile caches are per engine"
+has "$J/SeedEngine.kt" 'cacheDirFor'                      "the cache is chosen by engine"
 has "$J/SeedEngine.kt" 'val stale = bundled.filter'    "every bundled engine has its own stamp check"
 has "$J/SeedEngine.kt" 'context.assets.list(it.assetDir) != null' \
     "engines not bundled in this build are skipped, not forced"
