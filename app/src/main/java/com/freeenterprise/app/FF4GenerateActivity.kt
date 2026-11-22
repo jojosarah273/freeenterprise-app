@@ -300,7 +300,39 @@ class FF4GenerateActivity : FF4MenuActivity() {
             .show()
     }
 
+    /**
+     * True when the flagset makes Golbez the only joinable character - the
+     * configuration 4.6.0-Golbez's own lock spec has never validated (its canonical
+     * build is only:cecil,golbez). The fork author's testing shows the battle sprite
+     * renders wrong there; the warning says so instead of letting it surprise anyone.
+     */
+    private fun soloGolbezPool(flags: String): Boolean {
+        val m = Regex("only:([a-z,]+)").find(flags.lowercase()) ?: return false
+        val pool = m.groupValues[1].split(',').map { it.trim() }.filter { it.isNotBlank() }.toSet()
+        return pool == setOf("golbez")
+    }
+
     private fun generate() {
+        if (generating) return
+        if (Engines.selected(this).id == Engines.golbez.id && soloGolbezPool(currentFlags())) {
+            com.freeenterprise.app.ff4ui.FF4Dialog.confirm(
+                this,
+                "Outside the validated surface",
+                "Golbez as the only joinable character is outside 4.6.0-Golbez's " +
+                    "validated flagset (its canonical build is only:cecil,golbez).\n" +
+                    "The battle sprite is known to render wrong in this configuration.\n" +
+                    "Generate anyway?",
+                yes = "Generate",
+                no = "Cancel",
+                onYes = { doGenerate() },
+                onNo = { },
+            )
+            return
+        }
+        doGenerate()
+    }
+
+    private fun doGenerate() {
         if (generating) return
         if (!engineReady) {
             setStatus("Engine still starting…", FF4Theme.YELLOW)

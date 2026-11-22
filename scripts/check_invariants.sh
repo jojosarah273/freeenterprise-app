@@ -253,6 +253,11 @@ has "$J/GolbezLock.kt" '0x0AB307'            "it checks the palette selector byt
 has "$J/FF4GenerateActivity.kt" 'GolbezLock.verify' "every golbez seed is verified on generation"
 has "$J/FF4GenerateActivity.kt" 'Golbez lock: verified' "a pass is shown to the player"
 has "$J/FF4GenerateActivity.kt" 'Golbez lock FAILED'  "a failure is shown, in pink"
+# The solo-Golbez pool is outside the fork's validated surface (canonical build is
+# only:cecil,golbez) and its battle sprite is known broken; the app must warn.
+has "$J/FF4GenerateActivity.kt" 'soloGolbezPool'          "the unvalidated pool is detected"
+has "$J/FF4GenerateActivity.kt" "Outside the validated surface" "the warning names the boundary"
+has "$J/FF4GenerateActivity.kt" 'setOf("golbez")'         "only the exactly-solo pool triggers it"
 # The fork's canonical build is quickstart ("Quickstart: yes" in its lock spec);
 # the vanilla boot runs the pregame naming screen, which draws the starting
 # character from a stale embedded sheet the lock does not cover.
