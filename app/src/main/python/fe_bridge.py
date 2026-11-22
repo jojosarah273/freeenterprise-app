@@ -468,6 +468,13 @@ def _generate_impl(flags, seed, metaconfig_json, rom_path, out_dir, cache_dir):
     options.flags.load(flags)
     options.seed = seed
 
+    if metaconfig.get('quickstart'):
+        # The Golbez fork's validated configuration (GOLBEZ_LOCKED_SPEC: "Quickstart:
+        # yes", and its local webui's make command) boots past the pregame naming
+        # screen. Without it, that screen renders the starting character's battle
+        # sprite from an embedded stale copy of the sheet - vanilla FuSoYa tiles the
+        # lock does not cover - and the wrong sprite persists into battle.
+        options.quickstart = True
     if metaconfig.get('hide_flags'):
         options.hide_flags = True
     if metaconfig.get('test_settings'):

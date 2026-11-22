@@ -253,6 +253,12 @@ has "$J/GolbezLock.kt" '0x0AB307'            "it checks the palette selector byt
 has "$J/FF4GenerateActivity.kt" 'GolbezLock.verify' "every golbez seed is verified on generation"
 has "$J/FF4GenerateActivity.kt" 'Golbez lock: verified' "a pass is shown to the player"
 has "$J/FF4GenerateActivity.kt" 'Golbez lock FAILED'  "a failure is shown, in pink"
+# The fork's canonical build is quickstart ("Quickstart: yes" in its lock spec);
+# the vanilla boot runs the pregame naming screen, which draws the starting
+# character from a stale embedded sheet the lock does not cover.
+has app/src/main/python/fe_bridge.py "metaconfig.get('quickstart')" \
+    "the bridge accepts the quickstart build option"
+has "$J/FF4GenerateActivity.kt" 'quickstart' "golbez builds are quickstart, like the fork's own"
 
 echo "Desktop handlers"
 # A lateinit handler whose assignment was deleted by a bulk edit fails only when the

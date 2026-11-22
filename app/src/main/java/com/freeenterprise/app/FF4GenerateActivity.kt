@@ -342,7 +342,11 @@ class FF4GenerateActivity : FF4MenuActivity() {
         engine.generate(
             currentFlags(),
             currentSeed(),
-            "{}",
+            // The Golbez engine's validated boot mode is quickstart (its lock spec
+            // says so, and its own webui builds that way): the vanilla pregame
+            // naming screen draws the starting character from a stale embedded
+            // vanilla sheet the fork's lock does not cover. Gale is untouched.
+            if (Engines.selected(this).id == Engines.golbez.id) "{\"quickstart\":true}" else "{}",
             progressPath = progressFile?.absolutePath,
         ) { json ->
             runOnUiThread { onGenerateResult(json) }
