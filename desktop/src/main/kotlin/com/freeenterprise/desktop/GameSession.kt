@@ -193,8 +193,60 @@ class GameSession(
     }
 
     /** Load an emulator state; the core refuses a state from another core version. */
-    fun loadState(file: File): Boolean =
-        file.isFile && EmulatorBridge.nativeLoadState(file.absolutePath)
+    /**
+     * Loads a savestate, including one saved by RetroArch.
+     *
+     * RetroArch writes states in its own "#RZIP" container - a small header and then
+     * zlib-compressed core data - while a libretro core's retro_unserialize wants the
+     * raw bytes. Feeding it the container is rejected without a word, which is
+     * exactly what happened with a state copied from RetroArch: "it just does
+     * nothing". Detect the container, inflate it, and hand the core the payload.
+     */
+    fun loadState(file: File): Boolean {
+        if (!file.isFile) return false
+        val bytes = file.readBytes()
+        val raw = if (bytes.size > 24 && bytes.copyOfRange(0, 5).contentEquals("#RZIP".toByteArray())) {
+            try {
+                // Header is 24 bytes; the zlib stream starts right after it.
+                inflate(bytes, 24)
+            } catch (t: Throwable) {
+                System.err.println("could not inflate the RetroArch state: ${t.message}")
+                return false
+            }
+        } else {
+            bytes
+        }
+        val temp = File(file.parentFile, file.name + ".raw")
+        return try {
+            temp.writeBytes(raw)
+            EmulatorBridge.nativeLoadState(temp.absolutePath)
+        } finally {
+            temp.delete()
+        }
+    }
+
+    /** zlib-decompress [bytes] from [from], by scanning for the zlib header. */
+    private fun inflate(bytes: ByteArray, from: Int): ByteArray {
+        // Find the zlib stream: 0x78 followed by 0x01/0x9C/0xDA (common levels).
+        var start = from
+        while (start + 1 < bytes.size) {
+            val a = bytes[start].toInt() and 0xFF
+            val b = bytes[start + 1].toInt() and 0xFF
+            if (a == 0x78 && (b == 0x01 || b == 0x9C || b == 0xDA)) break
+            start++
+        }
+        val inflater = java.util.zip.Inflater()
+        inflater.setInput(bytes, start, bytes.size - start)
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(64 * 1024)
+        while (!inflater.finished()) {
+            val n = inflater.inflate(buffer)
+            if (n == 0) break
+            out.write(buffer, 0, n)
+        }
+        inflater.end()
+        return out.toByteArray()
+    }
 
 
 

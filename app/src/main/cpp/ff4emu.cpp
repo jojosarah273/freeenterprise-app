@@ -83,6 +83,29 @@ static int      g_video_height = 0;
 static bool     g_frame_ready  = false;
 static bool     g_use_rgb565   = false;
 
+// Core option defaults, captured from the core's v1 SET_VARIABLES declarations so
+// this frontend can answer GET_VARIABLE the way a full frontend does. Unanswered,
+// the core keeps its compiled fallbacks, and snes9x's include dropping sprite
+// overflow beyond 34 tiles per line - which cuts the fork's layered battle
+// sprites and leaves the vanilla actor showing through as FuSoYa.
+#include <map>
+#include <string>
+static std::map<std::string, std::string> g_option_defaults;
+
+static void capture_variables_v1(const struct retro_variable* vars) {
+    for (const struct retro_variable* v = vars; v && v->key; v++) {
+        if (!v->value) continue;
+        const char* semi = strchr(v->value, ';');
+        if (!semi) continue;
+        const char* p = semi + 1;
+        while (*p == ' ') p++;
+        const char* end = strchr(p, '|');
+        size_t len = end ? (size_t)(end - p) : strlen(p);
+        while (len > 0 && p[len-1] == ' ') len--;
+        g_option_defaults[v->key] = std::string(p, len);
+    }
+}
+
 static std::vector<int16_t> g_audio;        // interleaved stereo
 static uint16_t g_buttons = 0;              // RETRO_DEVICE_ID_JOYPAD_* bitfield
 
@@ -176,15 +199,37 @@ static bool cb_environment(unsigned cmd, void* data) {
             return true;
         }
         case RETRO_ENVIRONMENT_SET_VARIABLES:
+            capture_variables_v1((const struct retro_variable*) data);
+            return true;
         case RETRO_ENVIRONMENT_SET_CORE_OPTIONS:
         case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_INTL:
+            // Decline: this build's libretro.h predates the v2 option structs, and
+            // declining is the documented signal for the core to fall back to the
+            // v1 SET_VARIABLES declarations, captured above.
+            return false;
         case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY:
         case RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS:
         case RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL:
             return true;
         case RETRO_ENVIRONMENT_GET_VARIABLE: {
+            // Answer from the core's own declared defaults, captured above - the
+            // same behaviour a full frontend has. Unanswered, snes9x keeps sprite
+            // overflow beyond 34 tiles per line dropped, which cuts the fork's
+            // layered battle sprites and leaves the vanilla actor showing through
+            // as FuSoYa. The FE community's standard setting is flicker reduction
+            // ON (128 tiles per line), so that is this frontend's configured value.
             struct retro_variable* var = (struct retro_variable*) data;
-            var->value = nullptr;      // use core defaults
+            if (!var || !var->key) return false;
+            if (strcmp(var->key, "snes9x_reduce_sprite_flicker") == 0) {
+                var->value = "enabled";
+                return true;
+            }
+            auto it = g_option_defaults.find(var->key);
+            if (it != g_option_defaults.end()) {
+                var->value = it->second.c_str();
+                return true;
+            }
+            var->value = nullptr;
             return false;
         }
         case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE: {

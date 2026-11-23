@@ -115,6 +115,8 @@ data class Config(
     val windowed: Boolean,
     /** Quit after this many seconds; a smoke test for the shutdown path. */
     val quitAfter: Int,
+    /** A savestate to load before the first frame (raw or RetroArch #RZIP). */
+    val stateFile: String?,
     /** Print frame timings every two seconds (FE_DIAG=1 does the same). */
     val diag: Boolean,
     val help: Boolean,
@@ -135,6 +137,7 @@ data class Config(
             var checks: String? = null
             var uiSpec: String? = null
             var presetsFile: String? = null
+            var stateFile: String? = null
             var fakePad = false
             var windowed = false
             var quitAfter = 0
@@ -158,6 +161,7 @@ data class Config(
                     "--checks" -> checks = args.getOrNull(++i)
                     "--ui-spec" -> uiSpec = args.getOrNull(++i)
                     "--presets" -> presetsFile = args.getOrNull(++i)
+                    "--state" -> stateFile = args.getOrNull(++i)
                     "--fake-pad" -> fakePad = true
                     // A flag as well as FE_DIAG=1: putting the variable after the path
                     // is an easy mistake and just looks like an unknown argument.
@@ -224,6 +228,7 @@ data class Config(
                 fakePad = fakePad,
                 windowed = windowed,
                 quitAfter = quitAfter,
+                stateFile = stateFile,
                 diag = diag,
                 help = help,
             )
@@ -1703,7 +1708,13 @@ private fun runRomHeadless(config: Config, metrics: AwtTextMetrics) {
         resolveRom(config, rom).absoluteFile.path, findNativeDir(config), config.workDir, diagnose = config.diag,
     )
     try {
-        repeat(maxOf(config.frames, 1)) { session.step() }
+        // Load a savestate first when asked: headless reproduction of a captured
+    // moment (a mid-battle state, say) with no input at all.
+    config.stateFile?.let { path ->
+        val ok = session.loadState(java.io.File(path))
+        System.err.println("state ${if (ok) "loaded" else "REJECTED"}: $path")
+    }
+    repeat(maxOf(config.frames, 1)) { session.step() }
 
         // A realistic screen, with the game scaled into it: that is what the window
         // shows, and rendering at the game's own 256x224 makes windows overflow.
