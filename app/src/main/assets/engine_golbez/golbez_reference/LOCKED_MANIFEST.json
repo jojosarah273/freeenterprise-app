@@ -95,11 +95,5 @@
             "size": 3,
             "sha256": "596fd949e98d6be92907e748ff5a26bcecc8b88907e0a5a719152b65bedebf3d"
         }
-    },
-    "axtor_table": {
-        "address": 1111808,
-        "length": 24,
-        "actor": 19,
-        "note": "every axtor resolves to the Golbez actor, so duplicates share sprites and palettes"
     }
 }

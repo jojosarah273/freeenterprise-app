@@ -23,15 +23,6 @@ MANIFEST_PATH = os.path.join(REFERENCE_DIR, 'LOCKED_MANIFEST.json')
 MAP_PALETTE_SELECTOR_ADDRESS = 0x0AB307
 MAP_PALETTE_SELECTOR_VALUE = 0x03
 
-# Axtor -> actor table. character_expansion.f4c patches it at bus $21F700, one byte
-# per axtor (0x18 entries). Every axtor must resolve to the Golbez character slot:
-# a duplicate party member otherwise resolves to its own actor and takes THAT actor's
-# graphics - a different battle sheet, a different palette, and the "mini" NPC field
-# sprite - even though the locked character data already gives every actor Golbez's
-# stats and properties.
-AXTOR_TABLE_ADDRESS = 0x10F700
-AXTOR_TABLE_LENGTH = 0x18
-GOLBEZ_ACTOR = 0x13
 
 
 def load_manifest():
@@ -74,13 +65,6 @@ def apply(rom_mutable):
 
     # 2. Map palette selector for the field sprite.
     rom_mutable[MAP_PALETTE_SELECTOR_ADDRESS] = MAP_PALETTE_SELECTOR_VALUE
-
-    # 2b. Every axtor resolves to the Golbez actor, so duplicates are Golbez too.
-    for i in range(AXTOR_TABLE_LENGTH):
-        rom_mutable[AXTOR_TABLE_ADDRESS + i] = GOLBEZ_ACTOR
-    if any(rom_mutable[AXTOR_TABLE_ADDRESS + i] != GOLBEZ_ACTOR
-           for i in range(AXTOR_TABLE_LENGTH)):
-        raise RuntimeError("Golbez lock failed: axtor table not fully remapped")
 
     # 3. Vanilla regions Golbez depends on must remain untouched.
     for name, meta in manifest['locked_vanilla'].items():
