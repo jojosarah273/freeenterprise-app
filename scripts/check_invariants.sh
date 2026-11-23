@@ -271,7 +271,11 @@ has "$J/FF4GenerateActivity.kt" 'setOf("golbez")'         "only the exactly-solo
 # character from a stale embedded sheet the lock does not cover.
 has app/src/main/python/fe_bridge.py "metaconfig.get('quickstart')" \
     "the bridge accepts the quickstart build option"
-has "$J/FF4GenerateActivity.kt" 'quickstart' "golbez builds are quickstart, like the fork's own"
+# Quickstart skips the pregame screen, and the fork initialises its character
+# expansion there; forcing it leaves the party on vanilla actor data (FuSoYa's
+# battle sprite, wrong palettes, mini field sprite). The fork's tool does not pass it.
+hasnot "$J/FF4GenerateActivity.kt" '"quickstart":true' "golbez builds do NOT skip the pregame screen"
+has "$J/FF4GenerateActivity.kt" 'native_env'            "golbez builds still use the fork's own environment"
 
 echo "Desktop handlers"
 # A lateinit handler whose assignment was deleted by a bulk edit fails only when the
