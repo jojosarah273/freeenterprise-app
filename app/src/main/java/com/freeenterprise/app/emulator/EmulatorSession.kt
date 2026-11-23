@@ -133,7 +133,23 @@ class EmulatorSession(
 
     fun loadState(path: String, onDone: (Boolean) -> Unit) {
         commands.add {
-            val ok = EmulatorBridge.nativeLoadState(path)
+            // RetroArch's own savestates are a #RZIP container around its RASTATE
+            // record; the core wants the inner MEM payload. Raw states pass through.
+            val file = java.io.File(path)
+            val raw = com.freeenterprise.app.RetroArchState.forCore(file)
+            val ok = if (raw == null) {
+                false
+            } else if (raw.size.toLong() == file.length()) {
+                EmulatorBridge.nativeLoadState(path)
+            } else {
+                val temp = java.io.File(file.parentFile, file.name + ".raw")
+                try {
+                    temp.writeBytes(raw)
+                    EmulatorBridge.nativeLoadState(temp.absolutePath)
+                } finally {
+                    temp.delete()
+                }
+            }
             mainHandler.post { onDone(ok) }
         }
     }

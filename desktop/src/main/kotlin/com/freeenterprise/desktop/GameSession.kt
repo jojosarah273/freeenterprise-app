@@ -194,27 +194,31 @@ class GameSession(
 
     /** Load an emulator state; the core refuses a state from another core version. */
     /**
-     * Loads a savestate, including one saved by RetroArch.
+     * Loads a savestate, including one written by RetroArch.
      *
-     * RetroArch writes states in its own "#RZIP" container - a small header and then
-     * zlib-compressed core data - while a libretro core's retro_unserialize wants the
-     * raw bytes. Feeding it the container is rejected without a word, which is
-     * exactly what happened with a state copied from RetroArch: "it just does
-     * nothing". Detect the container, inflate it, and hand the core the payload.
+     * RetroArch does not store a core's state raw. A state is a "#RZIP" container:
+     * a 24-byte header followed by SEVERAL zlib streams (7 in the states here), and
+     * the inflated data is RA's own "RASTATE" record with tag/size blocks - "MEM "
+     * holds the actual core payload (snes9x's, starting "#!s9xsnp"), plus "SRAM" and
+     * "END ". Feeding any of that to retro_unserialize is rejected in silence, which
+     * is why "Load State" appeared to do nothing at all for a state copied from
+     * RetroArch.
      */
     fun loadState(file: File): Boolean {
         if (!file.isFile) return false
         val bytes = file.readBytes()
-        val raw = if (bytes.size > 24 && bytes.copyOfRange(0, 5).contentEquals("#RZIP".toByteArray())) {
-            try {
-                // Header is 24 bytes; the zlib stream starts right after it.
-                inflate(bytes, 24)
-            } catch (t: Throwable) {
-                System.err.println("could not inflate the RetroArch state: ${t.message}")
-                return false
+        val raw = try {
+            if (bytes.size > 24 && bytes.copyOfRange(0, 5).contentEquals("#RZIP".toByteArray())) {
+                extractCoreState(inflateAll(bytes)) ?: run {
+                    System.err.println("not a recognised RetroArch state: ${file.name}")
+                    return false
+                }
+            } else {
+                bytes
             }
-        } else {
-            bytes
+        } catch (t: Throwable) {
+            System.err.println("could not read the state: ${t.message}")
+            return false
         }
         val temp = File(file.parentFile, file.name + ".raw")
         return try {
@@ -225,30 +229,63 @@ class GameSession(
         }
     }
 
-    /** zlib-decompress [bytes] from [from], by scanning for the zlib header. */
-    private fun inflate(bytes: ByteArray, from: Int): ByteArray {
-        // Find the zlib stream: 0x78 followed by 0x01/0x9C/0xDA (common levels).
-        var start = from
-        while (start + 1 < bytes.size) {
-            val a = bytes[start].toInt() and 0xFF
-            val b = bytes[start + 1].toInt() and 0xFF
-            if (a == 0x78 && (b == 0x01 || b == 0x9C || b == 0xDA)) break
-            start++
-        }
-        val inflater = java.util.zip.Inflater()
-        inflater.setInput(bytes, start, bytes.size - start)
+    /** Everything in a #RZIP file: header, then one zlib stream per chunk. */
+    private fun inflateAll(bytes: ByteArray): ByteArray {
         val out = java.io.ByteArrayOutputStream()
-        val buffer = ByteArray(64 * 1024)
-        while (!inflater.finished()) {
-            val n = inflater.inflate(buffer)
-            if (n == 0) break
-            out.write(buffer, 0, n)
+        var pos = indexOfZlib(bytes)
+        while (pos != -1) {
+            val inflater = java.util.zip.Inflater()
+            inflater.setInput(bytes, pos, bytes.size - pos)
+            val buffer = ByteArray(64 * 1024)
+            var read = 0
+            try {
+                while (!inflater.finished()) {
+                    val n = inflater.inflate(buffer)
+                    if (n == 0) break
+                    out.write(buffer, 0, n)
+                }
+                read = inflater.bytesRead.toInt()      // before end()
+            } catch (t: Throwable) {
+                break
+            } finally {
+                inflater.end()
+            }
+            if (read <= 0) break
+            pos = indexOfZlib(bytes, pos + read)
         }
-        inflater.end()
         return out.toByteArray()
     }
 
+    private fun indexOfZlib(bytes: ByteArray, from: Int = 0): Int {
+        var i = from
+        while (i + 1 < bytes.size) {
+            val a = bytes[i].toInt() and 0xFF
+            val b = bytes[i + 1].toInt() and 0xFF
+            if (a == 0x78 && (b == 0x01 || b == 0x9C || b == 0xDA)) return i
+            i++
+        }
+        return -1
+    }
 
+    /** Pulls the "MEM " block out of RA's RASTATE record; null if this is not one. */
+    private fun extractCoreState(state: ByteArray): ByteArray? {
+        val magic = "RASTATE".toByteArray()
+        if (state.size < 16 || !state.copyOfRange(0, magic.size).contentEquals(magic)) return null
+        var p = magic.size + 1            // magic + version byte
+        while (p + 8 <= state.size) {
+            val tag = String(state, p, 4, Charsets.US_ASCII)
+            val size = (state[p + 4].toInt() and 0xFF) or
+                ((state[p + 5].toInt() and 0xFF) shl 8) or
+                ((state[p + 6].toInt() and 0xFF) shl 16) or
+                ((state[p + 7].toInt() and 0xFF) shl 24)
+            val body = p + 8
+            if (size < 0 || body + size > state.size) return null
+            if (tag == "MEM ") return state.copyOfRange(body, body + size)
+            if (tag.startsWith("END")) break
+            p = body + size
+        }
+        return null
+    }
 
     /** The picture at native resolution, RGB. */
     fun image(): BufferedImage = frame
