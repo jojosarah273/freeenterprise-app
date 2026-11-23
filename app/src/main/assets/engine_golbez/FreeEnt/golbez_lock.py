@@ -46,6 +46,7 @@ def _verify_blob_file(name, meta):
     return data
 
 
+
 def apply(rom_mutable):
     """Write all locked Golbez data into ``rom_mutable`` and verify.
 
