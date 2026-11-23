@@ -70,6 +70,27 @@ object GolbezLock {
             }
         }
 
+        // The axtor -> character table must map every axtor to Golbez's actor.
+        // A duplicate party member that resolves to its own actor takes that actor's
+        // graphics - a different battle sheet, a different palette, and the mini NPC
+        // field sprite - which is exactly what "one Golbez is authentic, the other is
+        // FuSoYa" looked like.
+        val axtorTable = manifest.optJSONObject("axtor_table")
+        if (axtorTable != null) {
+            val at = axtorTable.getInt("address")
+            val n = axtorTable.getInt("length")
+            val want = axtorTable.getInt("actor")
+            checked++
+            for (i in 0 until n) {
+                if (bytes[at + i].toInt() != want) {
+                    return Result(
+                        false, checked,
+                        "axtor ${i} maps to actor 0x%02X, not Golbez".format(bytes[at + i].toInt()),
+                    )
+                }
+            }
+        }
+
         return Result(true, checked, null)
     }
 }

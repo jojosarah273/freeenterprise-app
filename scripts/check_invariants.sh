@@ -210,6 +210,11 @@ E=app/src/main/assets/engine_golbez
 [ -f "$E/assets/ui_spec.json" ] && ok "its flag editor spec is bundled" || bad "engine_golbez has no ui_spec.json"
 [ -f "$E/assets/presets.json" ] && ok "its presets are bundled" || bad "engine_golbez has no presets.json"
 [ -d "$E/golbez_reference" ] && ok "its engine data dir is bundled" || bad "engine_golbez is missing golbez_reference"
+# Every axtor must resolve to the Golbez actor, or a duplicate party member takes its
+# own actor's graphics (different sheet, different palette, mini field sprite).
+has "$E/FreeEnt/golbez_lock.py" 'AXTOR_TABLE_ADDRESS'   "duplicates are remapped to Golbez in the lock"
+has "$E/golbez_reference/LOCKED_MANIFEST.json" '"axtor_table"' "the manifest declares the axtor table"
+has "$J/GolbezLock.kt" 'axtor'                          "the on-device verifier checks the axtor table"
 [ ! -d "$E/FreeEnt/server" ] && ok "the web server tree stays out of the APK" \
     || bad "engine_golbez bundles the web server tree (wasted APK size)"
 if find "$E" -name "*.smc" -o -name "*.sfc" | grep -qv golbez_reference; then
