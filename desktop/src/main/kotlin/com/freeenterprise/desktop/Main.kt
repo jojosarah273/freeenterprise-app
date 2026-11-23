@@ -117,6 +117,16 @@ data class Config(
     val quitAfter: Int,
     /** A savestate to load before the first frame (raw or RetroArch #RZIP). */
     val stateFile: String?,
+    /** Write the core's native frame (256x224) to this file after the last frame. */
+    val dumpFrame: String?,
+    /**
+     * Scripted input for headless runs: "400:B,600:A" presses that button on that
+     * frame. Lets a screen that needs a keypress be reproduced with no window, which
+     * is how a claim about what the emulator draws can be checked repeatably.
+     */
+    val script: Map<Int, Int>,
+    /** Directory to write a native frame every 60 frames, for inspection. */
+    val dumpEvery: String?,
     /** Print frame timings every two seconds (FE_DIAG=1 does the same). */
     val diag: Boolean,
     val help: Boolean,
@@ -138,6 +148,9 @@ data class Config(
             var uiSpec: String? = null
             var presetsFile: String? = null
             var stateFile: String? = null
+            var dumpFrame: String? = null
+            var dumpEvery: String? = null
+            var scriptSpec: String? = null
             var fakePad = false
             var windowed = false
             var quitAfter = 0
@@ -162,6 +175,9 @@ data class Config(
                     "--ui-spec" -> uiSpec = args.getOrNull(++i)
                     "--presets" -> presetsFile = args.getOrNull(++i)
                     "--state" -> stateFile = args.getOrNull(++i)
+                    "--dump-frame" -> dumpFrame = args.getOrNull(++i)
+                    "--dump-every" -> dumpEvery = args.getOrNull(++i)
+                    "--script" -> scriptSpec = args.getOrNull(++i)
                     "--fake-pad" -> fakePad = true
                     // A flag as well as FE_DIAG=1: putting the variable after the path
                     // is an easy mistake and just looks like an unknown argument.
@@ -229,6 +245,9 @@ data class Config(
                 windowed = windowed,
                 quitAfter = quitAfter,
                 stateFile = stateFile,
+                dumpFrame = dumpFrame,
+                dumpEvery = dumpEvery,
+                script = parseScript(scriptSpec),
                 diag = diag,
                 help = help,
             )
@@ -1702,6 +1721,21 @@ private fun runGenerateHeadless(config: Config, metrics: AwtTextMetrics) {
 }
 
 /** Runs a ROM headlessly and writes the game, pause and tracker screens. */
+private fun parseScript(spec: String?): Map<Int, Int> {
+    if (spec.isNullOrBlank()) return emptyMap()
+    val names = mapOf(
+        "a" to 8, "b" to 0, "x" to 9, "y" to 1,
+        "start" to 3, "select" to 2,
+        "up" to 4, "down" to 5, "left" to 6, "right" to 7,
+    )
+    return spec.split(',').mapNotNull { part ->
+        val bits = part.trim().split(':')
+        val frame = bits.getOrNull(0)?.toIntOrNull() ?: return@mapNotNull null
+        val id = names[bits.getOrNull(1)?.lowercase()] ?: return@mapNotNull null
+        frame to id
+    }.toMap()
+}
+
 private fun runRomHeadless(config: Config, metrics: AwtTextMetrics) {
     val rom = config.rom ?: error("no ROM")
     val session = GameSession(
@@ -1714,7 +1748,25 @@ private fun runRomHeadless(config: Config, metrics: AwtTextMetrics) {
         val ok = session.loadState(java.io.File(path))
         System.err.println("state ${if (ok) "loaded" else "REJECTED"}: $path")
     }
-    repeat(maxOf(config.frames, 1)) { session.step() }
+    repeat(maxOf(config.frames, 1)) { frame ->
+        // Scripted presses: one frame down, one frame up (a tap, as a player makes).
+        config.script[frame]?.let { id ->
+            session.setButton(id, true)
+            session.setButton(id, false)
+        }
+        session.step()
+        if (config.dumpEvery != null && frame % 60 == 0) {
+            val dir = java.io.File(config.dumpEvery)
+            dir.mkdirs()
+            javax.imageio.ImageIO.write(session.image(), "png", java.io.File(dir, "f%05d.png".format(frame)))
+        }
+    }
+    // The core's own pixels, unscaled: the only honest way to inspect what the
+    // emulator draws (screenshots of the window are resampled).
+    config.dumpFrame?.let { path ->
+        javax.imageio.ImageIO.write(session.image(), "png", java.io.File(path))
+        System.err.println("native frame: $path (${session.width}x${session.height})")
+    }
 
         // A realistic screen, with the game scaled into it: that is what the window
         // shows, and rendering at the game's own 256x224 makes windows overflow.
