@@ -81,3 +81,28 @@ It is only trusted now that it passes a two-way self-test: rendering Golbez's sh
 detects Golbez (109 hits, 0 FuSoYa) and rendering FuSoYa's sheet detects FuSoYa
 (129, 0 Golbez). Any future claim about "no FuSoYa tiles" should require that test
 first.
+
+## 8. Audit of the shipped APK (0.1.26-dev.golbez.15, versionCode 69)
+
+Tested the **artefact's own bundled engine**, extracted from the APK, not the repo copy.
+
+* Engine code clean: no `AXTOR_TABLE`, no `CHAR_RECORD_ADDRESS`, no replicate helper,
+  no standing-character replacement — all four reverted experiments are absent.
+* Files match the fork tree: `standing_characters.bin`, `charitem_G.bin`,
+  `battle_sheet_G.bin`, `battle_pal_G.bin`, `version.py`. The two that differ
+  (`golbez_lock.py` by one blank line, `LOCKED_MANIFEST.json` by JSON indentation)
+  are semantically identical — the manifests parse to equal dicts.
+* Three configurations generated from the APK's engine (duo, solo, mixed):
+  **9/9 graphics regions equal to the canonical ROM**, the fork's verifier **PASS** on
+  all three, 24 distinct character records (mixed seeds unaffected), exactly one sheet
+  carrying Golbez art (same as canonical).
+* The canonical's own seed (GOLBEZ1) rebuilt with the APK engine: **7/7 sprite regions
+  identical** and the **axtor table identical** to the canonical
+  `[0,19,1,1,1,19,1,1,1,19,1,0,0,1,19,1,1,19,19,1,1,0,0,0]`.
+* Runtime: title frames are pixel-identical between the canonical and our build; both
+  reach the pregame screen (ours later, because the current flag vocabulary adds a line
+  that shifts the pacing). No FuSoYa-sheet tiles appear in any captured native frame,
+  measured with the matcher that passes its two-way self-test.
+
+Verdict: worth testing. The ROMs are equivalent to the canonical build in every region
+that determines character appearance.
